@@ -40,7 +40,7 @@ inThisBuild(
   )
 )
 
-name := "zio-kinesis"
+name := "rezilience"
 scalafmtOnCompile := true
 
 libraryDependencies ++= Seq(
