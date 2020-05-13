@@ -48,6 +48,7 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio"          % zioVersion,
+      "dev.zio" %% "zio-streams"  % zioVersion,
       "dev.zio" %% "zio-test"     % zioVersion % "test",
       "dev.zio" %% "zio-test-sbt" % zioVersion % "test"
     )
