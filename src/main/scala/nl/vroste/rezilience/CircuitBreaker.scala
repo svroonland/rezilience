@@ -1,26 +1,26 @@
 package nl.vroste.rezilience
-import izumi.reflect.Tags.Tag
-import zio.{ Ref, Task, UIO, ZIO, ZLayer, ZManaged, ZQueue }
 import zio.clock.Clock
 import zio.duration.Duration
 import zio.stream.ZStream
+import zio._
 
 object CircuitBreaker {
-  // TODO layered errors?
-  // TODO listeners
+  sealed trait CircuitBreakerCallError[+E]
+  case object CircuitBreakerOpen       extends CircuitBreakerCallError[Nothing]
+  case class WrappedError[E](error: E) extends CircuitBreakerCallError[E]
+
   // TODO how strict on max failures when you fire 200 calls simultaneously?
   // TODO First open-closed, then half-open
   // TODO reset with exponential backoff
-  trait Service[+E] {
-    def call[R, E1 >: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A]
+  trait Service {
+    def call[R, E, A](f: ZIO[R, E, A]): ZIO[R, CircuitBreakerCallError[E], A]
   }
 
-  def make[E: Tag](
+  def make(
     maxFailures: Int,
     resetTimeout: Duration,
-    circuitBreakerClosedError: E,
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
-  ): ZManaged[Clock, Nothing, Service[E]] =
+  ): ZManaged[Clock, Nothing, Service] =
     for {
       state         <- Ref.make[State](Closed).toManaged_
       nrFailedCalls <- Ref.make[Int](0).toManaged_
@@ -35,25 +35,27 @@ object CircuitBreaker {
             }
             .runDrain
             .forkManaged
-    } yield new Service[E] {
-      override def call[R, E1 >: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] =
+    } yield new Service {
+      override def call[R, E, A](f: ZIO[R, E, A]): ZIO[R, CircuitBreakerCallError[E], A] =
         for {
           currentState <- state.get
 //          _            = println(s"Current state ${currentState}")
           // TODO reset to HalfOpen state
           result <- if (currentState == Open) {
-                     ZIO.fail(circuitBreakerClosedError)
+                     ZIO.fail(CircuitBreakerOpen)
                    } else {
                      // TODO the state may have changed already after completion of `f`
                      //noinspection SimplifyTapInspection
-                     f.tapError { _ =>
-                       for {
-                         currentNrFailedCalls <- nrFailedCalls.updateAndGet(_ + 1)
-                         _                    = println(s"Nr failed calls is ${currentNrFailedCalls}")
-                         _ <- (state.set(Open) *> resetRequests.offer(()) <* onStateChange(Open))
-                               .when(currentNrFailedCalls >= maxFailures)
-                       } yield ()
-                     }.tap(_ => nrFailedCalls.set(0))
+                     f.mapError(WrappedError(_))
+                       .tapError { _ =>
+                         for {
+                           currentNrFailedCalls <- nrFailedCalls.updateAndGet(_ + 1)
+                           _                    = println(s"Nr failed calls is ${currentNrFailedCalls}")
+                           _ <- (state.set(Open) *> resetRequests.offer(()) <* onStateChange(Open))
+                                 .when(currentNrFailedCalls >= maxFailures)
+                         } yield ()
+                       }
+                       .tap(_ => nrFailedCalls.set(0))
                    }
         } yield result
     }

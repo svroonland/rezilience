@@ -16,28 +16,27 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
 
   def spec = suite("CircuitBreaker")(
     testM("lets successful calls through") {
-      CircuitBreaker.make[Error](10, 1.second, CircuitBreakerClosedError).use { cb =>
+      CircuitBreaker.make(10, 1.second).use { cb =>
         for {
           _ <- cb.call(ZIO.unit).repeat(Schedule.recurs(20))
         } yield assertCompletes
       }
     },
     testM("fails fast after max nr failures calls") {
-      CircuitBreaker.make[Error](10, 1.second, CircuitBreakerClosedError).use { cb =>
+      CircuitBreaker.make(10, 1.second).use { cb =>
         for {
           _      <- ZIO.foreach(1 to 10)(_ => cb.call(ZIO.fail(MyCallError)).either)
           result <- cb.call(ZIO.fail(MyCallError)).either
-        } yield assert(result)(isLeft(equalTo(CircuitBreakerClosedError)))
+        } yield assert(result)(isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen)))
       }
     },
     testM("reset to closed state after reset timeout") {
       (for {
         stateChanges <- Queue.unbounded[State].toManaged_
         console      <- ZIO.environment[Console].toManaged_
-        cb <- CircuitBreaker.make[Error](
+        cb <- CircuitBreaker.make(
                10,
                1.second,
-               CircuitBreakerClosedError,
                s => putStrLn(s"State changes to: ${s.toString}").provide(console) *> stateChanges.offer(s).ignore
              )
       } yield (stateChanges, cb)).use {
