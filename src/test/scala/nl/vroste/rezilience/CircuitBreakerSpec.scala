@@ -1,13 +1,11 @@
 package nl.vroste.rezilience
 
 import nl.vroste.rezilience.CircuitBreaker.State
-import zio.console.Console
 import zio.duration._
 import zio.{ Queue, Schedule, ZIO }
 import zio.test.Assertion._
 import zio.test._
 import zio.test.environment.TestClock
-import zio.console.putStrLn
 
 object CircuitBreakerSpec extends DefaultRunnableSpec {
   sealed trait Error
@@ -33,11 +31,10 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     testM("reset to closed state after reset timeout") {
       (for {
         stateChanges <- Queue.unbounded[State].toManaged_
-        console      <- ZIO.environment[Console].toManaged_
         cb <- CircuitBreaker.make(
                10,
                Schedule.exponential(1.second),
-               s => putStrLn(s"State changes to: ${s.toString}").provide(console) *> stateChanges.offer(s).ignore
+               stateChanges.offer(_).ignore
              )
       } yield (stateChanges, cb)).use {
         case (stateChanges, cb) =>
@@ -53,12 +50,10 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     testM("retry exponentially") {
       (for {
         stateChanges <- Queue.unbounded[State].toManaged_
-        console      <- ZIO.environment[Console].toManaged_
         cb <- CircuitBreaker.make(
                3,
                Schedule.exponential(base = 1.second, factor = 2.0),
-               s => // putStrLn(s"State changes to: ${s.toString}").provide(console) *>
-                 stateChanges.offer(s).ignore
+               stateChanges.offer(_).ignore
              )
       } yield (stateChanges, cb)).use {
         case (stateChanges, cb) =>
@@ -86,12 +81,10 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     testM("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
       (for {
         stateChanges <- Queue.unbounded[State].toManaged_
-        console      <- ZIO.environment[Console].toManaged_
         cb <- CircuitBreaker.make(
                3,
                Schedule.exponential(base = 1.second, factor = 2.0),
-               s => // putStrLn(s"State changes to: ${s.toString}").provide(console) *>
-                 stateChanges.offer(s).ignore
+               stateChanges.offer(_).ignore
              )
       } yield (stateChanges, cb)).use {
         case (stateChanges, cb) =>
