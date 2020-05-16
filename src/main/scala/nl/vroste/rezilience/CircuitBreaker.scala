@@ -1,5 +1,5 @@
 package nl.vroste.rezilience
-import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, CircuitBreakerOpen, WrappedError }
+import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, WrappedError }
 import zio.clock.Clock
 import zio.stream.ZStream
 import zio._
@@ -125,8 +125,8 @@ object CircuitBreaker {
           currentState <- state.get
           result <- currentState match {
                      case Closed =>
-                       def onSuccess(x: A) = nrFailedCalls.set(0)
-                       def onFailure(e: WrappedError[E]) =
+                       val onSuccess = nrFailedCalls.set(0)
+                       val onFailure =
                          (nrFailedCalls.updateAndGet(_ + 1) zip state.get) >>= {
                            case (failedCalls, currentState) =>
                              // The state may have already changed to Open or even HalfOpen.
@@ -135,17 +135,17 @@ object CircuitBreaker {
                          }
 
                        f.mapError(WrappedError(_))
-                         .tapBoth(onFailure, onSuccess)
+                         .tapBoth(_ => onFailure, _ => onSuccess)
                      case Open =>
                        ZIO.fail(CircuitBreakerOpen)
                      case HalfOpen =>
                        for {
                          isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
                          result <- if (isFirstCall) {
-                                    def onFailure(e: WrappedError[E]) = changeToOpen
-                                    def onSuccess(x: A)               = changeToClosed
+                                    val onFailure = changeToOpen
+                                    val onSuccess = changeToClosed
 
-                                    f.mapError(WrappedError(_)).tapBoth(onFailure, onSuccess)
+                                    f.mapError(WrappedError(_)).tapBoth(_ => onFailure, _ => onSuccess)
                                   } else {
                                     ZIO.fail(CircuitBreakerOpen)
                                   }
