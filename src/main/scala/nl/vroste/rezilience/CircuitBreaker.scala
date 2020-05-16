@@ -1,10 +1,10 @@
 package nl.vroste.rezilience
-import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, CircuitBreakerOpen }
+import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, CircuitBreakerOpen, WrappedError }
 import zio.clock.Clock
 import zio.stream.ZStream
 import zio._
+import zio.duration._
 
-// TODO custom definition of failure, i.e. not all E is failure to circuit breaker
 /**
  * Circuit Breaker protects external resources against overload under failure
  *
@@ -22,7 +22,7 @@ import zio._
  * - HalfOpen: the first call is let through. Meanwhile all other calls fail with a
  *   [[CircuitBreakerOpen]] error. If the first call succeeds, the state changes to
  *   Closed again (normal operation). If it fails, the state changes back to Open.
- *   The reset timeout is then increased exponentially.
+ *   The reset timeout is governed by a reset policy, which is typically an exponential backoff.
  *
  * Notes:
  * - The maximum number of failures before tripping the circuit breaker is not absolute under
@@ -33,7 +33,41 @@ import zio._
  *   TODO what to do if you want this kind of behavior, or should we make it an option?
  */
 trait CircuitBreaker {
-  def call[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A]
+
+  /**
+   * Execute a given effect with the circuit breaker
+   *
+   * @param f Effect to execute
+   * @return A ZIO that either succeeds with the success of the given f or fails with either a [[CircuitBreakerOpen]]
+   *         or a [[WrappedError]] of the error of the given f
+   */
+  def withCircuitBreaker[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A]
+
+  /**
+   * Execute the given effect with the circuit breaker
+   *
+   * Only failures that match according to `isFailure` are treated as failures by the circuit breaker. Other failures
+   * are passed on, circumventing the circuit breaker's failure counter.
+   *
+   * @param f
+   * @param isFailure
+   * @tparam R
+   * @tparam E
+   * @tparam A
+   * @return
+   */
+  def withCircuitBreaker[R, E, A](
+    f: ZIO[R, E, A],
+    isFailure: PartialFunction[E, Any]
+  ): ZIO[R with Clock, CircuitBreakerCallError[E], A] =
+    withCircuitBreaker {
+      f.either.flatMap {
+        case Left(e) if isFailure.isDefinedAt(e) => ZIO.fail(e)
+        case Left(e)                             => ZIO.succeed(Left(WrappedError(e)))
+        case Right(e)                            => ZIO.succeed(Right(e))
+      }
+    }.absolve
+
 }
 
 object CircuitBreaker {
@@ -41,7 +75,6 @@ object CircuitBreaker {
   case object CircuitBreakerOpen       extends CircuitBreakerCallError[Nothing]
   case class WrappedError[E](error: E) extends CircuitBreakerCallError[E]
 
-  import zio.duration._
   import State._
 
   /**
@@ -87,7 +120,7 @@ object CircuitBreaker {
         state.set(Closed) <*
         onStateChange(Closed)
 
-      override def call[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A] =
+      override def withCircuitBreaker[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A] =
         for {
           currentState <- state.get
           result <- currentState match {
