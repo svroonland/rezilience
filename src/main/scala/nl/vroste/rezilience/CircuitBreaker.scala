@@ -90,10 +90,26 @@ object CircuitBreaker {
     resetPolicy: Schedule[Clock, Any, Duration] = Schedule.exponential(1.second, 2.0),
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
   ): ZManaged[Clock, Nothing, CircuitBreaker] =
+    Ref.make[Int](0).toManaged_.flatMap { nrFailedCalls =>
+      def shouldTrip(currentState: State) = nrFailedCalls.updateAndGet(_ + 1) map { failedCalls =>
+        // The state may have already changed to Open or even HalfOpen.
+        // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
+        failedCalls == maxFailures && currentState == Closed
+      }
+      def onReset = nrFailedCalls.set(0)
+
+      makeGenericCircuitBreaker(shouldTrip, onReset, resetPolicy, onStateChange)
+    }
+
+  private def makeGenericCircuitBreaker(
+    shouldTrip: State => UIO[Boolean],
+    onReset: UIO[Unit],
+    resetPolicy: Schedule[Clock, Any, Duration],
+    onStateChange: State => UIO[Unit]
+  ): ZManaged[Clock, Nothing, CircuitBreaker] =
     for {
       state          <- Ref.make[State](Closed).toManaged_
       halfOpenSwitch <- Ref.make[Boolean](true).toManaged_
-      nrFailedCalls  <- Ref.make[Int](0).toManaged_
       scheduleState  <- (resetPolicy.initial >>= (Ref.make[resetPolicy.State](_))).toManaged_
       resetRequests  <- ZQueue.bounded[Unit](1).toManaged_
       _ <- ZStream
@@ -115,7 +131,7 @@ object CircuitBreaker {
         resetRequests.offer(()) <*
         onStateChange(Open)
 
-      val changeToClosed = nrFailedCalls.set(0) *>
+      val changeToClosed = onReset *>
         (resetPolicy.initial >>= scheduleState.set) *> // Reset the reset schedule
         state.set(Closed) <*
         onStateChange(Closed)
@@ -125,17 +141,11 @@ object CircuitBreaker {
           currentState <- state.get
           result <- currentState match {
                      case Closed =>
-                       val onSuccess = nrFailedCalls.set(0)
-                       val onFailure =
-                         (nrFailedCalls.updateAndGet(_ + 1) zip state.get) >>= {
-                           case (failedCalls, currentState) =>
-                             // The state may have already changed to Open or even HalfOpen.
-                             // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
-                             ZIO.when(failedCalls == maxFailures && currentState == Closed)(changeToOpen)
-                         }
+                       val onSuccess       = onReset
+                       def onFailure(e: E) = ZIO.whenM(state.get >>= shouldTrip)(changeToOpen)
 
-                       f.mapError(WrappedError(_))
-                         .tapBoth(_ => onFailure, _ => onSuccess)
+                       f.tapBoth(onFailure, _ => onSuccess)
+                         .mapError(WrappedError(_))
                      case Open =>
                        ZIO.fail(CircuitBreakerOpen)
                      case HalfOpen =>
