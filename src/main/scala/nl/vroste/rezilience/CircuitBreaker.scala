@@ -39,7 +39,7 @@ trait CircuitBreaker {
    *
    * @param f Effect to execute
    * @return A ZIO that either succeeds with the success of the given f or fails with either a `CircuitBreakerOpen`
-   *         or a [[WrappedError]] of the error of the given f
+   *         or a `WrappedError` of the error of the given f
    */
   def withCircuitBreaker[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A]
 
