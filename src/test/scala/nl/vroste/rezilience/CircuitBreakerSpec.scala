@@ -12,6 +12,8 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
   case object CircuitBreakerClosedError extends Error
   case object MyCallError               extends Error
 
+  // TODO add generator based checks with different nr of parallel calls to check
+  // for all kinds of race conditions
   def spec = suite("CircuitBreaker")(
     testM("lets successful calls through") {
       CircuitBreaker.make(10, Schedule.exponential(1.second)).use { cb =>
@@ -70,12 +72,12 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
             s5 <- stateChanges.take
             _  <- cb.call(ZIO.unit)
             s6 <- stateChanges.take
-          } yield assert(s1)(equalTo(CircuitBreaker.Open)) &&
-            assert(s2)(equalTo(CircuitBreaker.HalfOpen)) &&
-            assert(s3)(equalTo(CircuitBreaker.Open)) &&
+          } yield assert(s1)(equalTo(State.Open)) &&
+            assert(s2)(equalTo(State.HalfOpen)) &&
+            assert(s3)(equalTo(State.Open)) &&
             assert(s4)(isNone) &&
-            assert(s5)(equalTo(CircuitBreaker.HalfOpen)) &&
-            assert(s6)(equalTo(CircuitBreaker.Closed))
+            assert(s5)(equalTo(State.HalfOpen)) &&
+            assert(s6)(equalTo(State.Closed))
       }
     },
     testM("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
@@ -109,7 +111,7 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
             // Reset time should have re-initialized again
             _  <- TestClock.adjust(1.second)
             s1 <- stateChanges.take // HalfOpen
-          } yield assert(s1)(equalTo(CircuitBreaker.HalfOpen))
+          } yield assert(s1)(equalTo(State.HalfOpen))
       }
     }
   )

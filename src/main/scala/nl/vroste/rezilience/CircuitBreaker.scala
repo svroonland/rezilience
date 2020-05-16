@@ -8,7 +8,6 @@ object CircuitBreaker {
   case object CircuitBreakerOpen       extends CircuitBreakerCallError[Nothing]
   case class WrappedError[E](error: E) extends CircuitBreakerCallError[E]
 
-  // TODO how strict on max failures when you fire 200 calls simultaneously?
   // TODO custom definition of failure, i.e. not all E is failure to circuit breaker
   /**
    * Circuit Breaker protects external resources against overload under failure
@@ -28,12 +27,21 @@ object CircuitBreaker {
    *   [[CircuitBreakerOpen]] error. If the first call succeeds, the state changes to
    *   Closed again (normal operation). If it fails, the state changes back to Open.
    *   The reset timeout is then increased exponentially.
+   *
+   * Notes:
+   * - The maximum number of failures before tripping the circuit breaker is not absolute under
+   *   concurrent execution. I.e. if you make 20 calls to a failing system in parallel via a circuit breaker
+   *   with max 10 failures, the calls will be running concurrently. The circuit breaker will trip
+   *   after 10 calls, but the remaining 10 that are in-flight will continue to run and fail as well.
+   *
+   *   TODO what to do if you want this kind of behavior, or should we make it an option?
    */
   trait Service {
     def call[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A]
   }
 
   import zio.duration._
+  import State._
 
   def make(
     maxFailures: Int,
@@ -51,12 +59,11 @@ object CircuitBreaker {
             .mapM { _ =>
               for {
                 s        <- scheduleState.get
-                delay    = resetPolicy.extract((), s)
-                _        <- ZIO(println(s"Got reset request, delaying with ${delay}"))
                 newState <- resetPolicy.update((), s)
                 _        <- scheduleState.set(newState)
-                _        <- ZIO(println("Resetting state to HalfOpen"))
-                _        <- halfOpenSwitch.set(true) <* state.set(HalfOpen) *> onStateChange(HalfOpen)
+                _        <- halfOpenSwitch.set(true)
+                _        <- state.set(HalfOpen)
+                _        <- onStateChange(HalfOpen)
               } yield ()
             }
             .runDrain
@@ -76,13 +83,13 @@ object CircuitBreaker {
           currentState <- state.get
           result <- currentState match {
                      case Closed =>
-                       // TODO the state may have changed already after completion of `f`
                        def onSuccess(x: A) = nrFailedCalls.set(0)
                        def onFailure(e: WrappedError[E]) =
-                         nrFailedCalls.updateAndGet(_ + 1) >>= { failedCalls =>
-                           println(s"Nr failed calls is ${failedCalls}")
-
-                           ZIO.when(failedCalls >= maxFailures)(changeToOpen)
+                         (nrFailedCalls.updateAndGet(_ + 1) zip state.get) >>= {
+                           case (failedCalls, currentState) =>
+                             // The state may have already changed to Open or even HalfOpen.
+                             // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
+                             ZIO.when(failedCalls == maxFailures && currentState == Closed)(changeToOpen)
                          }
 
                        f.mapError(WrappedError(_))
@@ -106,8 +113,11 @@ object CircuitBreaker {
     }
 
   sealed trait State
-  case object Closed   extends State
-  case object HalfOpen extends State
-  case object Open     extends State
+
+  object State {
+    case object Closed   extends State
+    case object HalfOpen extends State
+    case object Open     extends State
+  }
 
 }
