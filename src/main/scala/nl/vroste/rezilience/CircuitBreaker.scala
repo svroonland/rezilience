@@ -1,6 +1,5 @@
 package nl.vroste.rezilience
 import zio.clock.Clock
-import zio.duration.Duration
 import zio.stream.ZStream
 import zio._
 
@@ -10,7 +9,6 @@ object CircuitBreaker {
   case class WrappedError[E](error: E) extends CircuitBreakerCallError[E]
 
   // TODO how strict on max failures when you fire 200 calls simultaneously?
-  // TODO reset with exponential backoff
   // TODO custom definition of failure, i.e. not all E is failure to circuit breaker
   /**
    * Circuit Breaker protects external resources against overload under failure
@@ -32,31 +30,48 @@ object CircuitBreaker {
    *   The reset timeout is then increased exponentially.
    */
   trait Service {
-    def call[R, E, A](f: ZIO[R, E, A]): ZIO[R, CircuitBreakerCallError[E], A]
+    def call[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A]
   }
+
+  import zio.duration._
 
   def make(
     maxFailures: Int,
-    resetTimeout: Duration,
+    resetPolicy: Schedule[Clock, Any, Duration] = Schedule.exponential(1.second, 2.0),
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
   ): ZManaged[Clock, Nothing, Service] =
     for {
       state          <- Ref.make[State](Closed).toManaged_
       halfOpenSwitch <- Ref.make[Boolean](true).toManaged_
       nrFailedCalls  <- Ref.make[Int](0).toManaged_
+      scheduleState  <- (resetPolicy.initial >>= (Ref.make[resetPolicy.State](_))).toManaged_
       resetRequests  <- ZQueue.bounded[Unit](1).toManaged_
       _ <- ZStream
             .fromQueue(resetRequests)
-            .tap(_ => ZIO(println(s"Got reset request, delaying with ${resetTimeout}")))
-            .mapM(_ => ZIO.unit.delay(resetTimeout))
-            .tap { _ =>
-              println("Resetting state to HalfOpen")
-              halfOpenSwitch.set(true) <* state.set(HalfOpen) *> onStateChange(HalfOpen)
+            .mapM { _ =>
+              for {
+                s        <- scheduleState.get
+                delay    = resetPolicy.extract((), s)
+                _        <- ZIO(println(s"Got reset request, delaying with ${delay}"))
+                newState <- resetPolicy.update((), s)
+                _        <- scheduleState.set(newState)
+                _        <- ZIO(println("Resetting state to HalfOpen"))
+                _        <- halfOpenSwitch.set(true) <* state.set(HalfOpen) *> onStateChange(HalfOpen)
+              } yield ()
             }
             .runDrain
             .forkManaged
     } yield new Service {
-      override def call[R, E, A](f: ZIO[R, E, A]): ZIO[R, CircuitBreakerCallError[E], A] =
+      val changeToOpen = state.set(Open) *>
+        resetRequests.offer(()) <*
+        onStateChange(Open)
+
+      val changeToClosed = nrFailedCalls.set(0) *>
+        (resetPolicy.initial >>= scheduleState.set) *> // Reset the reset schedule
+        state.set(Closed) <*
+        onStateChange(Closed)
+
+      override def call[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A] =
         for {
           currentState <- state.get
           result <- currentState match {
@@ -64,12 +79,10 @@ object CircuitBreaker {
                        // TODO the state may have changed already after completion of `f`
                        def onSuccess(x: A) = nrFailedCalls.set(0)
                        def onFailure(e: WrappedError[E]) =
-                         nrFailedCalls.updateAndGet(_ + 1).flatMap { failedCalls =>
+                         nrFailedCalls.updateAndGet(_ + 1) >>= { failedCalls =>
                            println(s"Nr failed calls is ${failedCalls}")
 
-                           ZIO.when(failedCalls >= maxFailures)(
-                             state.set(Open) *> resetRequests.offer(()) <* onStateChange(Open)
-                           )
+                           ZIO.when(failedCalls >= maxFailures)(changeToOpen)
                          }
 
                        f.mapError(WrappedError(_))
@@ -80,14 +93,10 @@ object CircuitBreaker {
                        for {
                          isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
                          result <- if (isFirstCall) {
-                                    def onFailure(e: WrappedError[E]) =
-                                      state.set(Open) *> resetRequests.offer(()) <* onStateChange(Open)
-                                    def onSuccess(x: A) =
-                                      state.set(Closed) *> nrFailedCalls.set(0) <* onStateChange(Closed)
+                                    def onFailure(e: WrappedError[E]) = changeToOpen
+                                    def onSuccess(x: A)               = changeToClosed
 
-                                    f.mapError(WrappedError(_))
-                                      .tapBoth(onFailure, onSuccess)
-
+                                    f.mapError(WrappedError(_)).tapBoth(onFailure, onSuccess)
                                   } else {
                                     ZIO.fail(CircuitBreakerOpen)
                                   }
