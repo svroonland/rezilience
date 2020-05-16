@@ -1,53 +1,62 @@
 package nl.vroste.rezilience
+import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, CircuitBreakerOpen }
 import zio.clock.Clock
 import zio.stream.ZStream
 import zio._
+
+// TODO custom definition of failure, i.e. not all E is failure to circuit breaker
+/**
+ * Circuit Breaker protects external resources against overload under failure
+ *
+ * Operates in three states:
+ *
+ * - Closed (initial state / normal operation): calls are let through normally. Call failures increase
+ *   a failure counter, call successes reset the failure counter to 0. When the
+ *   failure count reaches the max, the circuit breaker is 'tripped' and set to the
+ *   Open state. Note that after this switch, in-flight calls are not canceled. Their success
+ *   or failure does not affect the circuit breaker anymore though.
+ *
+ * - Open: all calls fail fast with a [[CircuitBreakerOpen]] error. After the reset timeout,
+ *   the states changes to HalfOpen
+ *
+ * - HalfOpen: the first call is let through. Meanwhile all other calls fail with a
+ *   [[CircuitBreakerOpen]] error. If the first call succeeds, the state changes to
+ *   Closed again (normal operation). If it fails, the state changes back to Open.
+ *   The reset timeout is then increased exponentially.
+ *
+ * Notes:
+ * - The maximum number of failures before tripping the circuit breaker is not absolute under
+ *   concurrent execution. I.e. if you make 20 calls to a failing system in parallel via a circuit breaker
+ *   with max 10 failures, the calls will be running concurrently. The circuit breaker will trip
+ *   after 10 calls, but the remaining 10 that are in-flight will continue to run and fail as well.
+ *
+ *   TODO what to do if you want this kind of behavior, or should we make it an option?
+ */
+trait CircuitBreaker {
+  def call[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A]
+}
 
 object CircuitBreaker {
   sealed trait CircuitBreakerCallError[+E]
   case object CircuitBreakerOpen       extends CircuitBreakerCallError[Nothing]
   case class WrappedError[E](error: E) extends CircuitBreakerCallError[E]
 
-  // TODO custom definition of failure, i.e. not all E is failure to circuit breaker
-  /**
-   * Circuit Breaker protects external resources against overload under failure
-   *
-   * Operates in three states:
-   *
-   * - Closed (initial state / normal operation): calls are let through normally. Call failures increase
-   *   a failure counter, call successes reset the failure counter to 0. When the
-   *   failure count reaches the max, the circuit breaker is 'tripped' and set to the
-   *   Open state. Note that after this switch, in-flight calls are not canceled. Their success
-   *   or failure does not affect the circuit breaker anymore though.
-   *
-   * - Open: all calls fail fast with a [[CircuitBreakerOpen]] error. After the reset timeout,
-   *   the states changes to HalfOpen
-   *
-   * - HalfOpen: the first call is let through. Meanwhile all other calls fail with a
-   *   [[CircuitBreakerOpen]] error. If the first call succeeds, the state changes to
-   *   Closed again (normal operation). If it fails, the state changes back to Open.
-   *   The reset timeout is then increased exponentially.
-   *
-   * Notes:
-   * - The maximum number of failures before tripping the circuit breaker is not absolute under
-   *   concurrent execution. I.e. if you make 20 calls to a failing system in parallel via a circuit breaker
-   *   with max 10 failures, the calls will be running concurrently. The circuit breaker will trip
-   *   after 10 calls, but the remaining 10 that are in-flight will continue to run and fail as well.
-   *
-   *   TODO what to do if you want this kind of behavior, or should we make it an option?
-   */
-  trait Service {
-    def call[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A]
-  }
-
   import zio.duration._
   import State._
 
+  /**
+   * Create a CircuitBreaker that resets according to the given reset policy
+   *
+   * @param maxFailures Maximum number of failures before tripping the circuit breaker
+   * @param resetPolicy Reset schedule after too many failures. Typically an exponential backoff strategy is used.
+   * @param onStateChange Observer for circuit breaker state changes
+   * @return The CircuitBreaker as a managed resource
+   */
   def make(
     maxFailures: Int,
     resetPolicy: Schedule[Clock, Any, Duration] = Schedule.exponential(1.second, 2.0),
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
-  ): ZManaged[Clock, Nothing, Service] =
+  ): ZManaged[Clock, Nothing, CircuitBreaker] =
     for {
       state          <- Ref.make[State](Closed).toManaged_
       halfOpenSwitch <- Ref.make[Boolean](true).toManaged_
@@ -68,7 +77,7 @@ object CircuitBreaker {
             }
             .runDrain
             .forkManaged
-    } yield new Service {
+    } yield new CircuitBreaker {
       val changeToOpen = state.set(Open) *>
         resetRequests.offer(()) <*
         onStateChange(Open)
