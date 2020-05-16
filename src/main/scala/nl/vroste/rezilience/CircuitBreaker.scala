@@ -16,11 +16,11 @@ import zio.duration._
  *   Open state. Note that after this switch, in-flight calls are not canceled. Their success
  *   or failure does not affect the circuit breaker anymore though.
  *
- * - Open: all calls fail fast with a [[CircuitBreakerOpen]] error. After the reset timeout,
+ * - Open: all calls fail fast with a `CircuitBreakerOpen` error. After the reset timeout,
  *   the states changes to HalfOpen
  *
  * - HalfOpen: the first call is let through. Meanwhile all other calls fail with a
- *   [[CircuitBreakerOpen]] error. If the first call succeeds, the state changes to
+ *   `CircuitBreakerOpen` error. If the first call succeeds, the state changes to
  *   Closed again (normal operation). If it fails, the state changes back to Open.
  *   The reset timeout is governed by a reset policy, which is typically an exponential backoff.
  *
@@ -38,7 +38,7 @@ trait CircuitBreaker {
    * Execute a given effect with the circuit breaker
    *
    * @param f Effect to execute
-   * @return A ZIO that either succeeds with the success of the given f or fails with either a [[CircuitBreakerOpen]]
+   * @return A ZIO that either succeeds with the success of the given f or fails with either a `CircuitBreakerOpen`
    *         or a [[WrappedError]] of the error of the given f
    */
   def withCircuitBreaker[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A]
