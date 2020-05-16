@@ -91,22 +91,31 @@ object CircuitBreaker {
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
   ): ZManaged[Clock, Nothing, CircuitBreaker] =
     Ref.make[Int](0).toManaged_.flatMap { nrFailedCalls =>
-      def shouldTrip(currentState: State) = nrFailedCalls.updateAndGet(_ + 1) map { failedCalls =>
-        // The state may have already changed to Open or even HalfOpen.
-        // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
-        failedCalls == maxFailures && currentState == Closed
-      }
-      def onReset = nrFailedCalls.set(0)
+      def shouldTrip(currentState: State) =
+        nrFailedCalls.get.map { failedCalls =>
+          // The state may have already changed to Open or even HalfOpen.
+          // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
+          failedCalls == maxFailures && currentState == Closed
+        }
 
-      makeGenericCircuitBreaker(shouldTrip, onReset, resetPolicy, onStateChange)
+      makeGenericCircuitBreaker(
+        onSuccess = nrFailedCalls.set(0),
+        onFailure = nrFailedCalls.update(_ + 1),
+        shouldTrip = shouldTrip,
+        onReset = nrFailedCalls.set(0),
+        resetPolicy = resetPolicy,
+        onStateChange = onStateChange
+      )
     }
 
   private def makeGenericCircuitBreaker(
+    onSuccess: UIO[Unit],
+    onFailure: UIO[Unit],
     shouldTrip: State => UIO[Boolean],
     onReset: UIO[Unit],
     resetPolicy: Schedule[Clock, Any, Duration],
     onStateChange: State => UIO[Unit]
-  ): ZManaged[Clock, Nothing, CircuitBreaker] =
+  ) =
     for {
       state          <- Ref.make[State](Closed).toManaged_
       halfOpenSwitch <- Ref.make[Boolean](true).toManaged_
@@ -141,10 +150,9 @@ object CircuitBreaker {
           currentState <- state.get
           result <- currentState match {
                      case Closed =>
-                       val onSuccess       = onReset
-                       def onFailure(e: E) = ZIO.whenM(state.get >>= shouldTrip)(changeToOpen)
+                       def onFail = onFailure *> ZIO.whenM(state.get >>= shouldTrip)(changeToOpen)
 
-                       f.tapBoth(onFailure, _ => onSuccess)
+                       f.tapBoth(_ => onFail, _ => onSuccess)
                          .mapError(WrappedError(_))
                      case Open =>
                        ZIO.fail(CircuitBreakerOpen)
@@ -152,10 +160,8 @@ object CircuitBreaker {
                        for {
                          isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
                          result <- if (isFirstCall) {
-                                    val onFailure = changeToOpen
-                                    val onSuccess = changeToClosed
-
-                                    f.mapError(WrappedError(_)).tapBoth(_ => onFailure, _ => onSuccess)
+                                    f.mapError(WrappedError(_))
+                                      .tapBoth(_ => onFailure *> changeToOpen, _ => changeToClosed *> onReset)
                                   } else {
                                     ZIO.fail(CircuitBreakerOpen)
                                   }
