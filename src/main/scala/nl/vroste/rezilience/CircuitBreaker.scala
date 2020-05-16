@@ -1,5 +1,5 @@
 package nl.vroste.rezilience
-import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, CircuitBreakerOpen, WrappedError }
+import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, WrappedError }
 import zio.clock.Clock
 import zio.stream.ZStream
 import zio._
@@ -16,11 +16,11 @@ import zio.duration._
  *   Open state. Note that after this switch, in-flight calls are not canceled. Their success
  *   or failure does not affect the circuit breaker anymore though.
  *
- * - Open: all calls fail fast with a [[CircuitBreakerOpen]] error. After the reset timeout,
+ * - Open: all calls fail fast with a `CircuitBreakerOpen` error. After the reset timeout,
  *   the states changes to HalfOpen
  *
  * - HalfOpen: the first call is let through. Meanwhile all other calls fail with a
- *   [[CircuitBreakerOpen]] error. If the first call succeeds, the state changes to
+ *   `CircuitBreakerOpen` error. If the first call succeeds, the state changes to
  *   Closed again (normal operation). If it fails, the state changes back to Open.
  *   The reset timeout is governed by a reset policy, which is typically an exponential backoff.
  *
@@ -38,8 +38,8 @@ trait CircuitBreaker {
    * Execute a given effect with the circuit breaker
    *
    * @param f Effect to execute
-   * @return A ZIO that either succeeds with the success of the given f or fails with either a [[CircuitBreakerOpen]]
-   *         or a [[WrappedError]] of the error of the given f
+   * @return A ZIO that either succeeds with the success of the given f or fails with either a `CircuitBreakerOpen`
+   *         or a `WrappedError` of the error of the given f
    */
   def withCircuitBreaker[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A]
 
@@ -125,8 +125,8 @@ object CircuitBreaker {
           currentState <- state.get
           result <- currentState match {
                      case Closed =>
-                       def onSuccess(x: A) = nrFailedCalls.set(0)
-                       def onFailure(e: WrappedError[E]) =
+                       val onSuccess = nrFailedCalls.set(0)
+                       val onFailure =
                          (nrFailedCalls.updateAndGet(_ + 1) zip state.get) >>= {
                            case (failedCalls, currentState) =>
                              // The state may have already changed to Open or even HalfOpen.
@@ -135,17 +135,17 @@ object CircuitBreaker {
                          }
 
                        f.mapError(WrappedError(_))
-                         .tapBoth(onFailure, onSuccess)
+                         .tapBoth(_ => onFailure, _ => onSuccess)
                      case Open =>
                        ZIO.fail(CircuitBreakerOpen)
                      case HalfOpen =>
                        for {
                          isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
                          result <- if (isFirstCall) {
-                                    def onFailure(e: WrappedError[E]) = changeToOpen
-                                    def onSuccess(x: A)               = changeToClosed
+                                    val onFailure = changeToOpen
+                                    val onSuccess = changeToClosed
 
-                                    f.mapError(WrappedError(_)).tapBoth(onFailure, onSuccess)
+                                    f.mapError(WrappedError(_)).tapBoth(_ => onFailure, _ => onSuccess)
                                   } else {
                                     ZIO.fail(CircuitBreakerOpen)
                                   }
