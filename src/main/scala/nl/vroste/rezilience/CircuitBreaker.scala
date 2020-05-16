@@ -11,6 +11,26 @@ object CircuitBreaker {
 
   // TODO how strict on max failures when you fire 200 calls simultaneously?
   // TODO reset with exponential backoff
+  // TODO custom definition of failure, i.e. not all E is failure to circuit breaker
+  /**
+   * Circuit Breaker protects external resources against overload under failure
+   *
+   * Operates in three states:
+   *
+   * - Closed (initial state / normal operation): calls are let through normally. Call failures increase
+   *   a failure counter, call successes reset the failure counter to 0. When the
+   *   failure count reaches the max, the circuit breaker is 'tripped' and set to the
+   *   Open state. Note that after this switch, in-flight calls are not canceled. Their success
+   *   or failure does not affect the circuit breaker anymore though.
+   *
+   * - Open: all calls fail fast with a [[CircuitBreakerOpen]] error. After the reset timeout,
+   *   the states changes to HalfOpen
+   *
+   * - HalfOpen: the first call is let through. Meanwhile all other calls fail with a
+   *   [[CircuitBreakerOpen]] error. If the first call succeeds, the state changes to
+   *   Closed again (normal operation). If it fails, the state changes back to Open.
+   *   The reset timeout is then increased exponentially.
+   */
   trait Service {
     def call[R, E, A](f: ZIO[R, E, A]): ZIO[R, CircuitBreakerCallError[E], A]
   }
@@ -39,42 +59,39 @@ object CircuitBreaker {
       override def call[R, E, A](f: ZIO[R, E, A]): ZIO[R, CircuitBreakerCallError[E], A] =
         for {
           currentState <- state.get
-//          _            = println(s"Current state ${currentState}")
-          // TODO reset to HalfOpen state
           result <- currentState match {
+                     case Closed =>
+                       // TODO the state may have changed already after completion of `f`
+                       def onSuccess(x: A) = nrFailedCalls.set(0)
+                       def onFailure(e: WrappedError[E]) =
+                         nrFailedCalls.updateAndGet(_ + 1).flatMap { failedCalls =>
+                           println(s"Nr failed calls is ${failedCalls}")
+
+                           ZIO.when(failedCalls >= maxFailures)(
+                             state.set(Open) *> resetRequests.offer(()) <* onStateChange(Open)
+                           )
+                         }
+
+                       f.mapError(WrappedError(_))
+                         .tapBoth(onFailure, onSuccess)
                      case Open =>
                        ZIO.fail(CircuitBreakerOpen)
                      case HalfOpen =>
                        for {
-                         letCallsThrough <- halfOpenSwitch.getAndUpdate(_ => false)
-                         result <- if (letCallsThrough) {
-                                    //noinspection SimplifyTapInspection
+                         isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
+                         result <- if (isFirstCall) {
+                                    def onFailure(e: WrappedError[E]) =
+                                      state.set(Open) *> resetRequests.offer(()) <* onStateChange(Open)
+                                    def onSuccess(x: A) =
+                                      state.set(Closed) *> nrFailedCalls.set(0) <* onStateChange(Closed)
+
                                     f.mapError(WrappedError(_))
-                                      .tapError { _ =>
-                                        state.set(Open) *> resetRequests.offer(()) <* onStateChange(Open)
-                                      }
-                                      .tap { _ =>
-                                        state.set(Closed) *> nrFailedCalls.set(0) <* onStateChange(Closed)
-                                      }
+                                      .tapBoth(onFailure, onSuccess)
 
                                   } else {
                                     ZIO.fail(CircuitBreakerOpen)
                                   }
                        } yield result
-
-                     case Closed =>
-                       // TODO the state may have changed already after completion of `f`
-                       //noinspection SimplifyTapInspection
-                       f.mapError(WrappedError(_))
-                         .tapError { _ =>
-                           for {
-                             currentNrFailedCalls <- nrFailedCalls.updateAndGet(_ + 1)
-                             _                    = println(s"Nr failed calls is ${currentNrFailedCalls}")
-                             _ <- (state.set(Open) *> resetRequests.offer(()) <* onStateChange(Open))
-                                   .when(currentNrFailedCalls >= maxFailures)
-                           } yield ()
-                         }
-                         .tap(_ => nrFailedCalls.set(0))
                    }
         } yield result
     }
