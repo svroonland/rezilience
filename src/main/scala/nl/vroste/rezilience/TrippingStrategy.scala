@@ -95,10 +95,10 @@ object TrippingStrategy {
         val minThroughputMet   = total >= minThroughput
         val minSamplePeriod    = samples.length == nrSampleBuckets
         val currentFailureRate = samples.map(_.failures).sum * 1.0d / samples.map(_.total).sum
-        // _ = println(
-        //   s"Samples length: ${samples.length}, throughput: ${total}. Condition met: ${minThroughputMet}. Failure rate: ${currentFailureRate}, threshold ${failureRateThreshold}. Buckets: ${samples
-        //     .mkString(",")}"
-        // )
+        println(
+          s"Samples length: ${samples.length}, throughput: ${total}. Condition met: ${minThroughputMet}. Failure rate: ${currentFailureRate}, threshold ${failureRateThreshold}. Buckets: ${samples
+            .mkString(",")}"
+        )
         minThroughputMet && minSamplePeriod && (currentFailureRate >= failureRateThreshold)
       }
     }
