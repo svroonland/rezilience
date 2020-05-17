@@ -74,7 +74,6 @@ trait CircuitBreaker {
         case Right(e)                            => ZIO.succeed(Right(e))
       }
     }.absolve
-
 }
 
 object CircuitBreaker {

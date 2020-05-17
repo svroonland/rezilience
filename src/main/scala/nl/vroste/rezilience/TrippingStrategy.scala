@@ -37,10 +37,10 @@ object TrippingStrategy {
   /**
    * For a CircuitBreaker that fails when the fraction of failures in a sample period exceeds some threshold
    *
-   * @param failureRateThreshold
-   * @param sampleDuration
-   * @param minThroughput
-   * @return
+   * @param failureRateThreshold The minimum fraction (between 0.0 and 1.0) of calls that must fail within the sample duration
+   * for the circuit breaker to trip
+   * @param sampleDuration Minimum amount of time to record calls
+   * @param minThroughput Minimum number of calls required to evaluate the actual failure rate.
    */
   def failureRate(
     failureRateThreshold: Double = 0.5,
@@ -63,13 +63,6 @@ object TrippingStrategy {
             case samples if samples.length < nrSampleBuckets => Bucket.empty +: samples
             case samples                                     => Bucket.empty +: samples.init
           }.delay(bucketRotationInterval)
-            // .tap { s =>
-            //   ZIO(
-            //     println(
-            //       s"Bucket size is now ${s.length}, adjusting with interval of ${bucketRotationInterval.toMillis} ms"
-            //     )
-            //   )
-            // }
             .repeat(Schedule.fixed(bucketRotationInterval))
             .forkManaged
     } yield new TrippingStrategy {
@@ -95,10 +88,6 @@ object TrippingStrategy {
         val minThroughputMet   = total >= minThroughput
         val minSamplePeriod    = samples.length == nrSampleBuckets
         val currentFailureRate = samples.map(_.failures).sum * 1.0d / samples.map(_.total).sum
-        println(
-          s"Samples length: ${samples.length}, throughput: ${total}. Condition met: ${minThroughputMet}. Failure rate: ${currentFailureRate}, threshold ${failureRateThreshold}. Buckets: ${samples
-            .mkString(",")}"
-        )
         minThroughputMet && minSamplePeriod && (currentFailureRate >= failureRateThreshold)
       }
     }
