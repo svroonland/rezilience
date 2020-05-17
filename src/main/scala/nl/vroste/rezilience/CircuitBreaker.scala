@@ -116,12 +116,12 @@ object CircuitBreaker {
    * @return
    */
   def make[R](
-    trippingStrategy: ZIO[R, Nothing, TrippingStrategy],
+    trippingStrategy: ZManaged[R, Nothing, TrippingStrategy],
     resetPolicy: Schedule[Clock, Any, Duration],
     onStateChange: State => UIO[Unit]
   ): ZManaged[R with Clock, Nothing, CircuitBreaker] =
     for {
-      strategy       <- trippingStrategy.toManaged_
+      strategy       <- trippingStrategy
       state          <- Ref.make[State](Closed).toManaged_
       halfOpenSwitch <- Ref.make[Boolean](true).toManaged_
       scheduleState  <- (resetPolicy.initial >>= (Ref.make[resetPolicy.State](_))).toManaged_
