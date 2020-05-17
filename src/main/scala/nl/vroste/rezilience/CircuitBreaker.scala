@@ -1,4 +1,5 @@
 package nl.vroste.rezilience
+
 import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, WrappedError }
 import zio.clock.Clock
 import zio.stream.ZStream
@@ -6,15 +7,14 @@ import zio._
 import zio.duration._
 
 /**
- * Circuit Breaker protects external resources against overload under failure
+ * CircuitBreaker protects external resources against overload under failure
  *
  * Operates in three states:
  *
- * - Closed (initial state / normal operation): calls are let through normally. Call failures increase
- *   a failure counter, call successes reset the failure counter to 0. When the
- *   failure count reaches the max, the circuit breaker is 'tripped' and set to the
- *   Open state. Note that after this switch, in-flight calls are not canceled. Their success
- *   or failure does not affect the circuit breaker anymore though.
+ * - Closed (initial state / normal operation): calls are let through normally. Call failures and successes
+ *   update the call statistics, eg failure count. When the statistics satisfy some criteria, the circuit
+ *   breaker is 'tripped' and set to the Open state. Note that after this switch, in-flight calls are not canceled.
+ *   Their success  or failure does not affect the circuit breaker anymore though.
  *
  * - Open: all calls fail fast with a `CircuitBreakerOpen` error. After the reset timeout,
  *   the states changes to HalfOpen
@@ -24,13 +24,20 @@ import zio.duration._
  *   Closed again (normal operation). If it fails, the state changes back to Open.
  *   The reset timeout is governed by a reset policy, which is typically an exponential backoff.
  *
- * Notes:
- * - The maximum number of failures before tripping the circuit breaker is not absolute under
+ * Two tripping strategies are implemented:
+ * 1) Failure counting. When the number of successive failures exceeds a threshold, the circuit
+ *    breaker is tripped.
+ *
+ *   Note that the maximum number of failures before tripping the circuit breaker is not absolute under
  *   concurrent execution. I.e. if you make 20 calls to a failing system in parallel via a circuit breaker
  *   with max 10 failures, the calls will be running concurrently. The circuit breaker will trip
  *   after 10 calls, but the remaining 10 that are in-flight will continue to run and fail as well.
  *
  *   TODO what to do if you want this kind of behavior, or should we make it an option?
+ *
+ * 2) Failure rate. When the fraction of failed calls in some sample period exceeds
+ *    a threshold (between 0 and 1), the circuit breaker is tripped.
+ *
  */
 trait CircuitBreaker {
 
@@ -67,33 +74,55 @@ trait CircuitBreaker {
         case Right(e)                            => ZIO.succeed(Right(e))
       }
     }.absolve
-
 }
 
 object CircuitBreaker {
+  import State._
+
   sealed trait CircuitBreakerCallError[+E]
   case object CircuitBreakerOpen       extends CircuitBreakerCallError[Nothing]
   case class WrappedError[E](error: E) extends CircuitBreakerCallError[E]
 
-  import State._
+  sealed trait State
+
+  object State {
+    case object Closed   extends State
+    case object HalfOpen extends State
+    case object Open     extends State
+  }
 
   /**
-   * Create a CircuitBreaker that resets according to the given reset policy
+   * Create a CircuitBreaker that fails when a number of successive failures (no pun intended) has been counted
    *
    * @param maxFailures Maximum number of failures before tripping the circuit breaker
    * @param resetPolicy Reset schedule after too many failures. Typically an exponential backoff strategy is used.
    * @param onStateChange Observer for circuit breaker state changes
    * @return The CircuitBreaker as a managed resource
    */
-  def make(
+  def withMaxFailures(
     maxFailures: Int,
     resetPolicy: Schedule[Clock, Any, Duration] = Schedule.exponential(1.second, 2.0),
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
   ): ZManaged[Clock, Nothing, CircuitBreaker] =
+    make(TrippingStrategy.failureCount(maxFailures), resetPolicy, onStateChange)
+
+  /**
+   * Create a CircuitBreaker with the given tripping strategy
+   *
+   * @param trippingStrategy Determines under which conditions the CircuitBraker trips
+   * @param resetPolicy Reset schedule after too many failures. Typically an exponential backoff strategy is used.
+   * @param onStateChange Observer for circuit breaker state changes
+   * @return
+   */
+  def make[R1](
+    trippingStrategy: ZManaged[R1, Nothing, TrippingStrategy],
+    resetPolicy: Schedule[Clock, Any, Any],
+    onStateChange: State => UIO[Unit] = _ => ZIO.unit
+  ): ZManaged[R1 with Clock, Nothing, CircuitBreaker] =
     for {
+      strategy       <- trippingStrategy
       state          <- Ref.make[State](Closed).toManaged_
       halfOpenSwitch <- Ref.make[Boolean](true).toManaged_
-      nrFailedCalls  <- Ref.make[Int](0).toManaged_
       scheduleState  <- (resetPolicy.initial >>= (Ref.make[resetPolicy.State](_))).toManaged_
       resetRequests  <- ZQueue.bounded[Unit](1).toManaged_
       _ <- ZStream
@@ -115,7 +144,7 @@ object CircuitBreaker {
         resetRequests.offer(()) <*
         onStateChange(Open)
 
-      val changeToClosed = nrFailedCalls.set(0) *>
+      val changeToClosed = strategy.onReset *>
         (resetPolicy.initial >>= scheduleState.set) *> // Reset the reset schedule
         state.set(Closed) <*
         onStateChange(Closed)
@@ -125,27 +154,27 @@ object CircuitBreaker {
           currentState <- state.get
           result <- currentState match {
                      case Closed =>
-                       val onSuccess = nrFailedCalls.set(0)
-                       val onFailure =
-                         (nrFailedCalls.updateAndGet(_ + 1) zip state.get) >>= {
-                           case (failedCalls, currentState) =>
-                             // The state may have already changed to Open or even HalfOpen.
-                             // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
-                             ZIO.when(failedCalls == maxFailures && currentState == Closed)(changeToOpen)
-                         }
+                       // The state may have already changed to Open or even HalfOpen.
+                       // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
+                       def onFail =
+                         strategy.onFailure *>
+                           ZIO.whenM(state.get.flatMap(s => strategy.shouldTrip.map(_ && (s == Closed)))) {
+                             changeToOpen
+                           }
 
-                       f.mapError(WrappedError(_))
-                         .tapBoth(_ => onFailure, _ => onSuccess)
+                       f.tapBoth(_ => onFail, _ => strategy.onSuccess)
+                         .mapError(WrappedError(_))
                      case Open =>
                        ZIO.fail(CircuitBreakerOpen)
                      case HalfOpen =>
                        for {
                          isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
                          result <- if (isFirstCall) {
-                                    val onFailure = changeToOpen
-                                    val onSuccess = changeToClosed
-
-                                    f.mapError(WrappedError(_)).tapBoth(_ => onFailure, _ => onSuccess)
+                                    f.mapError(WrappedError(_))
+                                      .tapBoth(
+                                        _ => strategy.onFailure *> changeToOpen,
+                                        _ => changeToClosed *> strategy.onReset
+                                      )
                                   } else {
                                     ZIO.fail(CircuitBreakerOpen)
                                   }
@@ -153,13 +182,5 @@ object CircuitBreaker {
                    }
         } yield result
     }
-
-  sealed trait State
-
-  object State {
-    case object Closed   extends State
-    case object HalfOpen extends State
-    case object Open     extends State
-  }
 
 }
