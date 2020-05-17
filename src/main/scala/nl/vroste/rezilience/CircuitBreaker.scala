@@ -117,8 +117,8 @@ object CircuitBreaker {
    */
   def make[R1](
     trippingStrategy: ZManaged[R1, Nothing, TrippingStrategy],
-    resetPolicy: Schedule[Clock, Any, Duration],
-    onStateChange: State => UIO[Unit]
+    resetPolicy: Schedule[Clock, Any, Any],
+    onStateChange: State => UIO[Unit] = _ => ZIO.unit
   ): ZManaged[R1 with Clock, Nothing, CircuitBreaker] =
     for {
       strategy       <- trippingStrategy
