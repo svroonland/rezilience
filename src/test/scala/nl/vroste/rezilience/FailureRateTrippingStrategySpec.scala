@@ -9,8 +9,6 @@ import zio.test.environment.TestClock
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerOpen
 import zio.Queue
 import nl.vroste.rezilience.CircuitBreaker.State
-//import zio.test.environment.TestClock
-//import zio.{ Queue, Schedule, ZIO }
 
 case class PrintFriendlyDuration(duration: Duration) extends AnyVal {
   def +(that: PrintFriendlyDuration) = PrintFriendlyDuration(duration + that.duration)
@@ -29,8 +27,6 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
     }
   }
 
-  // TODO add generator based checks with different nr of parallel calls to check
-  // for all kinds of race conditions
   def spec =
     suite("Failure rate tripping strategy")(
       testM("does not trip initially") {
