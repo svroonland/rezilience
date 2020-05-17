@@ -86,6 +86,8 @@ object TrippingStrategy {
             val updatedSamples = updatedBucket +: remainingSamples
 
             samplesRef.set(updatedSamples)
+          case Nil =>
+            throw new IllegalArgumentException("Samples is supposed to be a NEL")
         }
 
       override def shouldTrip: UIO[Boolean] = samplesRef.get.map { samples =>
