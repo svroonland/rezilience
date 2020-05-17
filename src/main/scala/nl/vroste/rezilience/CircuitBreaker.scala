@@ -115,11 +115,11 @@ object CircuitBreaker {
    * @param onStateChange Observer for circuit breaker state changes
    * @return
    */
-  def make[R](
-    trippingStrategy: ZManaged[R, Nothing, TrippingStrategy],
+  def make[R1](
+    trippingStrategy: ZManaged[R1, Nothing, TrippingStrategy],
     resetPolicy: Schedule[Clock, Any, Duration],
     onStateChange: State => UIO[Unit]
-  ): ZManaged[R with Clock, Nothing, CircuitBreaker] =
+  ): ZManaged[R1 with Clock, Nothing, CircuitBreaker] =
     for {
       strategy       <- trippingStrategy
       state          <- Ref.make[State](Closed).toManaged_
