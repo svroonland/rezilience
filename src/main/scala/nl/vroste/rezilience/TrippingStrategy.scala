@@ -88,20 +88,17 @@ object TrippingStrategy {
             samplesRef.set(updatedSamples)
         }
 
-      override def shouldTrip: UIO[Boolean] =
-        for {
-          samples            <- samplesRef.get
-          total              = samples.foldLeft(0L) { case (acc, Bucket(successes, failures)) => acc + successes + failures }
-          minThroughputMet   = total >= minThroughput
-          minSamplePeriod    = samples.length == nrSampleBuckets
-          currentFailureRate = samples.map(_.failures).sum * 1.0d / samples.map(_.total).sum
-          // _ = println(
-          //   s"Samples length: ${samples.length}, throughput: ${total}. Condition met: ${minThroughputMet}. Failure rate: ${currentFailureRate}, threshold ${failureRateThreshold}. Buckets: ${samples
-          //     .mkString(",")}"
-          // )
-          shouldTrip = minThroughputMet && minSamplePeriod && (currentFailureRate >= failureRateThreshold)
-          // _          = println(s"Should trip: ${shouldTrip}")
-        } yield shouldTrip
+      override def shouldTrip: UIO[Boolean] = samplesRef.get.map { samples =>
+        val total              = samples.foldLeft(0L) { case (acc, Bucket(successes, failures)) => acc + successes + failures }
+        val minThroughputMet   = total >= minThroughput
+        val minSamplePeriod    = samples.length == nrSampleBuckets
+        val currentFailureRate = samples.map(_.failures).sum * 1.0d / samples.map(_.total).sum
+        // _ = println(
+        //   s"Samples length: ${samples.length}, throughput: ${total}. Condition met: ${minThroughputMet}. Failure rate: ${currentFailureRate}, threshold ${failureRateThreshold}. Buckets: ${samples
+        //     .mkString(",")}"
+        // )
+        minThroughputMet && minSamplePeriod && (currentFailureRate >= failureRateThreshold)
+      }
     }
   }
 
