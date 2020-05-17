@@ -63,13 +63,13 @@ object TrippingStrategy {
             case samples if samples.length < nrSampleBuckets => Bucket.empty +: samples
             case samples                                     => Bucket.empty +: samples.init
           }.delay(bucketRotationInterval)
-            .tap { s =>
-              ZIO(
-                println(
-                  s"Bucket size is now ${s.length}, adjusting with interval of ${bucketRotationInterval.toMillis} ms"
-                )
-              )
-            }
+            // .tap { s =>
+            //   ZIO(
+            //     println(
+            //       s"Bucket size is now ${s.length}, adjusting with interval of ${bucketRotationInterval.toMillis} ms"
+            //     )
+            //   )
+            // }
             .repeat(Schedule.fixed(bucketRotationInterval))
             .forkManaged
     } yield new TrippingStrategy {
@@ -95,12 +95,12 @@ object TrippingStrategy {
           minThroughputMet   = total >= minThroughput
           minSamplePeriod    = samples.length == nrSampleBuckets
           currentFailureRate = samples.map(_.failures).sum * 1.0d / samples.map(_.total).sum
-          _ = println(
-            s"Samples length: ${samples.length}, throughput: ${total}. Condition met: ${minThroughputMet}. Failure rate: ${currentFailureRate}, threshold ${failureRateThreshold}. Buckets: ${samples
-              .mkString(",")}"
-          )
+          // _ = println(
+          //   s"Samples length: ${samples.length}, throughput: ${total}. Condition met: ${minThroughputMet}. Failure rate: ${currentFailureRate}, threshold ${failureRateThreshold}. Buckets: ${samples
+          //     .mkString(",")}"
+          // )
           shouldTrip = minThroughputMet && minSamplePeriod && (currentFailureRate >= failureRateThreshold)
-          _          = println(s"Should trip: ${shouldTrip}")
+          // _          = println(s"Should trip: ${shouldTrip}")
         } yield shouldTrip
     }
   }
