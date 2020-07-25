@@ -74,8 +74,7 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
             s2 <- stateChanges.take // HalfOpen
             _  <- cb.withCircuitBreaker(ZIO.fail(MyCallError)).either
             s3 <- stateChanges.take // Open again
-            _  <- TestClock.adjust(1.second)
-            s4 <- stateChanges.take.timeout(1.second)
+            s4 <- stateChanges.take.timeout(1.second) <& TestClock.adjust(1.second)
             _  <- TestClock.adjust(1.second)
             s5 <- stateChanges.take
             _  <- cb.withCircuitBreaker(ZIO.unit)
