@@ -129,7 +129,7 @@ object CircuitBreaker {
             .fromQueue(resetRequests)
             .mapM { _ =>
               for {
-                _ <- schedule.next(())
+                _ <- schedule.next(()) // TODO handle schedule completion?
                 _ <- halfOpenSwitch.set(true)
                 _ <- state.set(HalfOpen)
                 _ <- onStateChange(HalfOpen).fork // Do not wait for user code
