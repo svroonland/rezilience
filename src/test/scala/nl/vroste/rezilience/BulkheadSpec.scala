@@ -72,8 +72,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
                             _               <- maxInFlight.succeed(()).when(nrCallsInFlight == max)
                             _               <- p.await
                           } yield ())
-                        }.tapError(e => UIO(println(s"Call failed! ${e}")))
-                          .either
+                        }.tapError(e => UIO(println(s"Call failed! ${e}"))).either
                       }
                       .fork
             _      <- maxInFlight.await.raceFirst(calls.join)

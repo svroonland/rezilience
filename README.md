@@ -1,16 +1,21 @@
+[![Bintray](https://img.shields.io/bintray/v/vroste/maven/rezilience?label=latest)](https://bintray.com/vroste/maven/rezilience/_latestVersion)
+
 # Rezilience
 
 ## About
 
-`rezilience` is a ZIO-based collection of utilities for making systems more resilient to failures.
+`rezilience` is a ZIO-native collection of utilities for making asynchronous systems more resilient to failures.
 
 It is inspired by [Polly](https://github.com/App-vNext/Polly) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html)
 
-It consists of:
+It currently consists of:
 
 * `CircuitBreaker`
-* `Bulkhead`
-* `Retry`
+* `Bulkhead`: limiting the usage of a resource
+
+and will include in future releases:
+
+* `Retry`: utilities for retrying on failures
 
 ## Installation
 
@@ -21,7 +26,7 @@ resolvers += Resolver.jcenterRepo
 libraryDependencies += "nl.vroste" %% "rezilience" % "<version>"
 ```
 
-The latest version is built against ZIO 1.0.0-RC21-2.
+The latest version is built against ZIO 1.0.0.
 
 ## Circuit Breaker
 Make calls to an (external) resource through the CircuitBreaker to safeguard the resource against overload. When too many calls have failed, the circuit breaker will trip and calls will fail immediately. This also prevents a queue of calls waiting for response from the resource until timeout.
@@ -59,13 +64,8 @@ circuitBreaker.use { cb =>
 }
 ```
 
-### Custom failure definition
-
-### Creating a custom service with `ZLayer`
-
 ## Bulkhead
 
 `Bulkhead` limits the resources used by some system by limiting the number of concurrent calls to that system. Calls that exceed that number are rejected with a `BulkheadError`. To ensure good utilisation of the system, however, there is a queue/buffer of waiting calls.
  
 It also prevents queueing up of requests, which consume resources in the calling system, by rejecting calls when the queue is full.
-
