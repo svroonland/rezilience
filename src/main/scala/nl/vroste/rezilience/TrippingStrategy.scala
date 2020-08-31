@@ -1,4 +1,5 @@
 package nl.vroste.rezilience
+
 import zio.clock.Clock
 import zio.duration._
 import zio._
@@ -52,18 +53,19 @@ object TrippingStrategy {
       failureRateThreshold > 0.0 && failureRateThreshold < 1.0,
       "failureRateThreshold must be between 0 (exclusive) and 1"
     )
+    require(nrSampleBuckets > 0, "nrSampleBuckets must be larger than 0")
+    require(minThroughput > 0, "minThroughput must be larger than 0")
 
     for {
-      samplesRef <- Ref.make[List[Bucket]](List(Bucket.empty)).toManaged_
+      samplesRef <- Ref.make(List(Bucket.empty)).toManaged_
 
       // Rotate the buckets periodically
       bucketRotationInterval = sampleDuration * (1.0 / nrSampleBuckets)
       _ <- samplesRef.updateAndGet {
-            case Nil                                         => List(Bucket.empty)
             case samples if samples.length < nrSampleBuckets => Bucket.empty +: samples
             case samples                                     => Bucket.empty +: samples.init
-          }.delay(bucketRotationInterval)
-            .repeat(Schedule.fixed(bucketRotationInterval))
+          }.repeat(Schedule.spaced(bucketRotationInterval))
+            .delay(bucketRotationInterval)
             .forkManaged
     } yield new TrippingStrategy {
       override def onSuccess: UIO[Unit] = updateSamples(true)
@@ -84,10 +86,13 @@ object TrippingStrategy {
         }
 
       override def shouldTrip: UIO[Boolean] = samplesRef.get.map { samples =>
-        val total              = samples.foldLeft(0L) { case (acc, Bucket(successes, failures)) => acc + successes + failures }
+        val total              = samples.map(_.total).sum
         val minThroughputMet   = total >= minThroughput
         val minSamplePeriod    = samples.length == nrSampleBuckets
-        val currentFailureRate = samples.map(_.failures).sum * 1.0d / samples.map(_.total).sum
+        val currentFailureRate = if (total > 0) samples.map(_.failures).sum * 1.0d / total else 0
+//        println(
+//          s"should trip? total=${total}, minThroughputMet=${minThroughputMet}, nr samples=${samples.length}, minSamplePeriod=${minSamplePeriod}, currentFailureRate=${currentFailureRate}"
+//        )
         minThroughputMet && minSamplePeriod && (currentFailureRate >= failureRateThreshold)
       }
     }
