@@ -15,7 +15,7 @@ lazy val silencer = {
 inThisBuild(
   List(
     organization := "nl.vroste",
-    version := "0.0.1",
+    version := "0.1",
     homepage := Some(url("https://github.com/svroonland/rezilience")),
     licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
     scalaVersion := mainScala,
@@ -44,9 +44,9 @@ name := "rezilience"
 scalafmtOnCompile := true
 
 libraryDependencies ++= Seq(
-  "dev.zio"                %% "zio-streams"             % "1.0.0-RC21-2",
-  "dev.zio"                %% "zio-test"                % "1.0.0-RC21-2" % "test",
-  "dev.zio"                %% "zio-test-sbt"            % "1.0.0-RC21-2" % "test",
+  "dev.zio"                %% "zio-streams"             % "1.0.0",
+  "dev.zio"                %% "zio-test"                % "1.0.0" % "test",
+  "dev.zio"                %% "zio-test-sbt"            % "1.0.0" % "test",
   "org.scala-lang.modules" %% "scala-collection-compat" % "2.1.6"
 ) ++ {
   if (scalaBinaryVersion.value == "2.13") silencer else Seq.empty

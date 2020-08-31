@@ -123,31 +123,30 @@ object CircuitBreaker {
       strategy       <- trippingStrategy
       state          <- Ref.make[State](Closed).toManaged_
       halfOpenSwitch <- Ref.make[Boolean](true).toManaged_
-      scheduleState  <- (resetPolicy.initial >>= (Ref.make[resetPolicy.State](_))).toManaged_
+      schedule       <- resetPolicy.driver.toManaged_
       resetRequests  <- ZQueue.bounded[Unit](1).toManaged_
       _ <- ZStream
             .fromQueue(resetRequests)
             .mapM { _ =>
               for {
-                s        <- scheduleState.get
-                newState <- resetPolicy.update((), s)
-                _        <- scheduleState.set(newState)
-                _        <- halfOpenSwitch.set(true)
-                _        <- state.set(HalfOpen)
-                _        <- onStateChange(HalfOpen)
+                s <- schedule.next(())
+                _ <- halfOpenSwitch.set(true)
+                _ <- state.set(HalfOpen)
+                _ <- onStateChange(HalfOpen).fork // Do not wait for user code
               } yield ()
             }
             .runDrain
             .forkManaged
     } yield new CircuitBreaker {
+
       val changeToOpen = state.set(Open) *>
         resetRequests.offer(()) <*
-        onStateChange(Open)
+        onStateChange(Open).fork // Do not wait for user code
 
       val changeToClosed = strategy.onReset *>
-        (resetPolicy.initial >>= scheduleState.set) *> // Reset the reset schedule
+        schedule.reset *>
         state.set(Closed) <*
-        onStateChange(Closed)
+        onStateChange(Closed).fork // Do not wait for user code
 
       override def withCircuitBreaker[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A] =
         for {
