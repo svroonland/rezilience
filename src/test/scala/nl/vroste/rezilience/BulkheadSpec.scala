@@ -11,8 +11,11 @@ import nl.vroste.rezilience.Bulkhead.BulkheadRejection
 import zio.UIO
 
 object BulkheadSpec extends DefaultRunnableSpec {
+
   sealed trait Error
-  case object MyCallError     extends Error
+
+  case object MyCallError extends Error
+
   case object MyNotFatalError extends Error
 
   def spec = suite("Bulkhead")(
@@ -44,39 +47,41 @@ object BulkheadSpec extends DefaultRunnableSpec {
           p                <- Promise.make[Nothing, Unit]
           callsCompleted   <- Ref.make(0)
           calls            <- ZIO.foreachPar(1 to max + 2)(_ => bulkhead.call(callsCompleted.updateAndGet(_ + 1) *> p.await)).fork
-          _ <- TestClock.adjust(1.second)
+          _                <- TestClock.adjust(1.second)
           _                <- calls.interrupt
           nrCallsCompleted <- callsCompleted.get
         } yield assert(nrCallsCompleted)(equalTo(max))
       }
     },
     testM("queues up to the queue limit") {
-      val max = 10
+      val max        = 10
       val queueLimit = 5
 
-      Bulkhead.make(max, queueLimit).use { bulkhead =>
-        for {
-          p                <- Promise.make[Nothing, Unit]
-          maxInFlight <- Promise.make[Nothing, Unit]
-          callsInFlight <- Ref.make(0)
-          calls            <- ZIO.foreachPar(1 to max + queueLimit){_ => 
-            bulkhead.call{
-              (for {
-                nrCallsInFlight <- callsInFlight.updateAndGet(_ + 1)
-                _ = println(s"Nr calls in flight: ${nrCallsInFlight}")
-                _ <- maxInFlight.succeed(()).when(nrCallsInFlight == max)
-                _ <- p.await
-               } yield ())
-              }
-               .tapError(e => UIO(println(s"Call failed! ${e}")))
-               .either
-          }.fork
-          _ <- maxInFlight.await.raceFirst(calls.join)
-          _ = println("Max is in flight")
-          result <- bulkhead.call(ZIO.unit).either
-          _                <- calls.interrupt
-        } yield assert(result)(equalTo(Left(BulkheadRejection)))
+      Bulkhead.make(max, queueLimit).use {
+        bulkhead =>
+          for {
+            p             <- Promise.make[Nothing, Unit]
+            maxInFlight   <- Promise.make[Nothing, Unit]
+            callsInFlight <- Ref.make(0)
+            calls <- ZIO
+                      .foreachPar(1 to max + queueLimit) { _ =>
+                        bulkhead.call {
+                          (for {
+                            nrCallsInFlight <- callsInFlight.updateAndGet(_ + 1)
+                            _               = println(s"Nr calls in flight: ${nrCallsInFlight}")
+                            _               <- maxInFlight.succeed(()).when(nrCallsInFlight == max)
+                            _               <- p.await
+                          } yield ())
+                        }.tapError(e => UIO(println(s"Call failed! ${e}")))
+                          .either
+                      }
+                      .fork
+            _      <- maxInFlight.await.raceFirst(calls.join)
+            _      = println("Max is in flight")
+            result <- bulkhead.call(ZIO.unit).either
+            _      <- calls.interrupt
+          } yield assert(result)(equalTo(Left(BulkheadRejection)))
       }
-    },
+    }
   )
 }
