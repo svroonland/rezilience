@@ -1,4 +1,5 @@
 package nl.vroste.rezilience
+
 import zio.clock.Clock
 import zio.duration._
 import zio._
@@ -59,11 +60,10 @@ object TrippingStrategy {
       // Rotate the buckets periodically
       bucketRotationInterval = sampleDuration * (1.0 / nrSampleBuckets)
       _ <- samplesRef.updateAndGet {
-            case Nil                                         => List(Bucket.empty)
             case samples if samples.length < nrSampleBuckets => Bucket.empty +: samples
             case samples                                     => Bucket.empty +: samples.init
-          }.delay(bucketRotationInterval)
-            .repeat(Schedule.fixed(bucketRotationInterval))
+          }.repeat(Schedule.spaced(bucketRotationInterval)) // TODO Schedule.fixed when bug is fixed
+            .delay(bucketRotationInterval)
             .forkManaged
     } yield new TrippingStrategy {
       override def onSuccess: UIO[Unit] = updateSamples(true)
@@ -88,6 +88,9 @@ object TrippingStrategy {
         val minThroughputMet   = total >= minThroughput
         val minSamplePeriod    = samples.length == nrSampleBuckets
         val currentFailureRate = samples.map(_.failures).sum * 1.0d / samples.map(_.total).sum
+//        println(
+//          s"should trip? total=${total}, minThroughputMet=${minThroughputMet}, nr samples=${samples.length}, minSamplePeriod=${minSamplePeriod}, currentFailureRate=${currentFailureRate}"
+//        )
         minThroughputMet && minSamplePeriod && (currentFailureRate >= failureRateThreshold)
       }
     }

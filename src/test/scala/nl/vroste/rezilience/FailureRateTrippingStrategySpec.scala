@@ -60,14 +60,14 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
 
         val strategy = TrippingStrategy.failureRate(rate, sampleDuration, minThroughput, nrSampleBuckets = 10)
         CircuitBreaker
-          .make(strategy, Schedule.fixed(5.seconds))
+          .make(strategy, resetPolicy = Schedule.fixed(5.seconds))
           .use {
             cb =>
               for {
                 // Make a succeeding and a failing call 4 times every 100 ms
                 _ <- {
                   cb.withCircuitBreaker(ZIO.unit) *> cb.withCircuitBreaker(ZIO.fail("Oh Oh")).either
-                }.repeat(Schedule.fixed(150.millis) && Schedule.recurs(3))
+                }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(3))
                 // Next call should fail
                 _ <- ZIO.sleep(50.millis)
                 r <- cb.withCircuitBreaker(ZIO(println("Succeeding call that should fail fast"))).run
