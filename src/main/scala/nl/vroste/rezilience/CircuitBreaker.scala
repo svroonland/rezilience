@@ -134,20 +134,21 @@ object CircuitBreaker {
                 _        <- scheduleState.set(newState)
                 _        <- halfOpenSwitch.set(true)
                 _        <- state.set(HalfOpen)
-                _        <- onStateChange(HalfOpen)
+                _        <- onStateChange(HalfOpen).fork // Do not wait for user code
               } yield ()
             }
             .runDrain
             .forkManaged
     } yield new CircuitBreaker {
+
       val changeToOpen = state.set(Open) *>
         resetRequests.offer(()) <*
-        onStateChange(Open)
+        onStateChange(Open).fork // Do not wait for user code
 
       val changeToClosed = strategy.onReset *>
         (resetPolicy.initial >>= scheduleState.set) *> // Reset the reset schedule
         state.set(Closed) <*
-        onStateChange(Closed)
+        onStateChange(Closed).fork // Do not wait for user code
 
       override def withCircuitBreaker[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A] =
         for {
