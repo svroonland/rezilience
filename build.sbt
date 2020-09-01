@@ -33,9 +33,9 @@ name := "rezilience"
 scalafmtOnCompile := true
 
 libraryDependencies ++= Seq(
-  "dev.zio"                %% "zio-streams"             % "1.0.0",
-  "dev.zio"                %% "zio-test"                % "1.0.0" % "test",
-  "dev.zio"                %% "zio-test-sbt"            % "1.0.0" % "test",
+  "dev.zio"                %% "zio-streams"             % "1.0.1",
+  "dev.zio"                %% "zio-test"                % "1.0.1" % "test",
+  "dev.zio"                %% "zio-test-sbt"            % "1.0.1" % "test",
   "org.scala-lang.modules" %% "scala-collection-compat" % "2.1.6"
 )
 
