@@ -51,14 +51,14 @@ object Bulkhead {
     for {
       queue    <- ZQueue.dropping[UIO[Unit]](maxQueueing).toManaged_
       inFlight <- Ref.make[Int](0).toManaged_
-      _ <- ZStream
-            .fromQueue(queue)
-            .mapMPar(maxInFlightCalls) { task =>
-              inFlight.update(_ + 1).bracket_(inFlight.update(_ - 1), task)
-            }
-            .runDrain
-            .fork
-            .toManaged_
+      _        <- ZStream
+                    .fromQueue(queue)
+                    .mapMPar(maxInFlightCalls) { task =>
+                      inFlight.update(_ + 1).bracket_(inFlight.update(_ - 1), task)
+                    }
+                    .runDrain
+                    .fork
+                    .toManaged_
     } yield new Bulkhead {
       override def call[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
