@@ -53,7 +53,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
         } yield assert(nrCallsCompleted)(equalTo(max))
       }
     },
-    testM("queues up to the queue limit") {
+    testM("queues up to the queue limit and then reject calls") {
       val max        = 10
       val queueLimit = 5
 
