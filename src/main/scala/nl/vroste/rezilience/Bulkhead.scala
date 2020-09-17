@@ -40,6 +40,15 @@ object Bulkhead {
 
   case class Metrics(inFlight: Int, inQueue: Int)
 
+  private case class State(enqueued: Int, inFlight: Int) {
+    val total               = enqueued + inFlight
+    def enqueue: State      = copy(enqueued = enqueued + 1)
+    def startProcess: State = copy(enqueued = enqueued - 1, inFlight + 1)
+    def endProcess: State   = copy(inFlight = inFlight - 1)
+
+    override def toString = s"{enqueued=${enqueued},inFlight=${inFlight}}"
+  }
+
   /**
    * Create a Bulkhead with the given parameters
    *
@@ -49,26 +58,42 @@ object Bulkhead {
    */
   def make(maxInFlightCalls: Int, maxQueueing: Int = 32): ZManaged[Any, Nothing, Bulkhead] =
     for {
-      queue    <- ZQueue.dropping[UIO[Unit]](maxQueueing).toManaged_
-      inFlight <- Ref.make[Int](0).toManaged_
-      _        <- ZStream
-                    .fromQueue(queue)
-                    .mapMPar(maxInFlightCalls) { task =>
-                      inFlight.update(_ + 1).bracket_(inFlight.update(_ - 1), task)
-                    }
-                    .runDrain
-                    .fork
-                    .toManaged_
+      // Create a queue with an upper bound, but the actual max queue size enforcing and dropping is done below
+      queue             <-
+        ZQueue.bounded[(UIO[Unit], Promise[BulkheadRejection.type, Unit])](maxInFlightCalls + maxQueueing).toManaged_
+      inFlightAndQueued <- Ref.make(State(0, 0)).toManaged_
+      _                 <- ZStream
+                             .fromQueue(queue)
+                             .mapConcatM { case (action, enqueued) =>
+                               inFlightAndQueued.get.flatMap { state =>
+                                 if (state.total < maxInFlightCalls + maxQueueing)
+                                   (inFlightAndQueued.update(_.enqueue) *> enqueued.succeed(())).as(List(action))
+                                 else
+                                   enqueued.fail(BulkheadRejection).as(List.empty)
+                               }
+                             }
+                             .buffer(maxQueueing)
+                             .mapMPar(maxInFlightCalls) { task =>
+                               inFlightAndQueued
+                                 .update(_.startProcess)
+                                 .bracket_(inFlightAndQueued.update(_.endProcess), task)
+                             }
+                             .runDrain
+                             .fork
+                             .toManaged_
     } yield new Bulkhead {
       override def call[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
-          p          <- Promise.make[E, A]
+          result     <- Promise.make[E, A]
+          enqueued   <- Promise.make[BulkheadRejection.type, Unit]
           r          <- ZIO.environment[R]
-          isEnqueued <- queue.offer(task.provide(r).foldM(p.fail, p.succeed).unit)
+          action      = task.provide(r).foldM(result.fail, result.succeed).unit
+          isEnqueued <- queue.offer((action, enqueued))
           _          <- ZIO.fail(BulkheadRejection).when(!isEnqueued)
-          result     <- p.await.mapError(WrappedError(_))
-        } yield result
+          _          <- enqueued.await
+          r          <- result.await.mapError(WrappedError(_))
+        } yield r
 
-      override def metrics: UIO[Metrics] = (inFlight.get zip queue.size).map(Function.tupled(Metrics.apply))
+      override def metrics: UIO[Metrics] = (inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued)))
     }
 }

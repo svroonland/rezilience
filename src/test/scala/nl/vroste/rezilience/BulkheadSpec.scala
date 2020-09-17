@@ -67,7 +67,6 @@ object BulkheadSpec extends DefaultRunnableSpec {
                                bulkhead.call {
                                  (for {
                                    nrCallsInFlight <- callsInFlight.updateAndGet(_ + 1)
-                                   _                = println(s"Nr calls in flight: ${nrCallsInFlight}")
                                    _               <- maxInFlight.succeed(()).when(nrCallsInFlight == max)
                                    _               <- p.await
                                  } yield ())
@@ -75,10 +74,10 @@ object BulkheadSpec extends DefaultRunnableSpec {
                              }
                              .fork
           _             <- maxInFlight.await.raceFirst(calls.join)
-          _              = println("Max is in flight")
           result        <- bulkhead.call(ZIO.unit).either
+          _              = println(result)
           _             <- calls.interrupt
-        } yield assert(result)(equalTo(Left(BulkheadRejection)))
+        } yield assert(result)(isLeft(equalTo(BulkheadRejection)))
       }
     }
   )
