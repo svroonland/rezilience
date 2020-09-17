@@ -25,15 +25,15 @@ object TrippingStrategy {
    * @param maxFailures Maximum number of failures before tripping the circuit breaker
    * @return
    */
-  def failureCount(maxFailures: Int): ZManaged[Any, Nothing, TrippingStrategy] = Ref.make[Int](0).toManaged_.map {
-    nrFailedCalls =>
+  def failureCount(maxFailures: Int): ZManaged[Any, Nothing, TrippingStrategy] =
+    Ref.make[Int](0).toManaged_.map { nrFailedCalls =>
       new TrippingStrategy {
         override def onSuccess: UIO[Unit]     = nrFailedCalls.set(0)
         override def onFailure: UIO[Unit]     = nrFailedCalls.update(_ + 1)
         override def shouldTrip: UIO[Boolean] = nrFailedCalls.get.map(_ == maxFailures)
         override def onReset: UIO[Unit]       = nrFailedCalls.set(0)
       }
-  }
+    }
 
   /**
    * For a CircuitBreaker that fails when the fraction of failures in a sample period exceeds some threshold
@@ -61,12 +61,12 @@ object TrippingStrategy {
 
       // Rotate the buckets periodically
       bucketRotationInterval = sampleDuration * (1.0 / nrSampleBuckets)
-      _ <- samplesRef.updateAndGet {
-            case samples if samples.length < nrSampleBuckets => Bucket.empty +: samples
-            case samples                                     => Bucket.empty +: samples.init
-          }.repeat(Schedule.spaced(bucketRotationInterval))
-            .delay(bucketRotationInterval)
-            .forkManaged
+      _                     <- samplesRef.updateAndGet {
+                                 case samples if samples.length < nrSampleBuckets => Bucket.empty +: samples
+                                 case samples                                     => Bucket.empty +: samples.init
+                               }.repeat(Schedule.spaced(bucketRotationInterval))
+                                 .delay(bucketRotationInterval)
+                                 .forkManaged
     } yield new TrippingStrategy {
       override def onSuccess: UIO[Unit] = updateSamples(true)
       override def onFailure: UIO[Unit] = updateSamples(false)
@@ -81,7 +81,7 @@ object TrippingStrategy {
             val updatedSamples = updatedBucket +: remainingSamples
 
             samplesRef.set(updatedSamples)
-          case Nil =>
+          case Nil                                                        =>
             throw new IllegalArgumentException("Samples is supposed to be a NEL")
         }
 

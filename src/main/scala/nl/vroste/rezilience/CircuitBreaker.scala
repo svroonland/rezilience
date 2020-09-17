@@ -37,7 +37,6 @@ import zio.duration._
  *
  * 2) Failure rate. When the fraction of failed calls in some sample period exceeds
  *    a threshold (between 0 and 1), the circuit breaker is tripped.
- *
  */
 trait CircuitBreaker {
 
@@ -125,18 +124,18 @@ object CircuitBreaker {
       halfOpenSwitch <- Ref.make[Boolean](true).toManaged_
       schedule       <- resetPolicy.driver.toManaged_
       resetRequests  <- ZQueue.bounded[Unit](1).toManaged_
-      _ <- ZStream
-            .fromQueue(resetRequests)
-            .mapM { _ =>
-              for {
-                _ <- schedule.next(()) // TODO handle schedule completion?
-                _ <- halfOpenSwitch.set(true)
-                _ <- state.set(HalfOpen)
-                _ <- onStateChange(HalfOpen).fork // Do not wait for user code
-              } yield ()
-            }
-            .runDrain
-            .forkManaged
+      _              <- ZStream
+                          .fromQueue(resetRequests)
+                          .mapM { _ =>
+                            for {
+                              _ <- schedule.next(()) // TODO handle schedule completion?
+                              _ <- halfOpenSwitch.set(true)
+                              _ <- state.set(HalfOpen)
+                              _ <- onStateChange(HalfOpen).fork // Do not wait for user code
+                            } yield ()
+                          }
+                          .runDrain
+                          .forkManaged
     } yield new CircuitBreaker {
 
       val changeToOpen = state.set(Open) *>
@@ -151,34 +150,34 @@ object CircuitBreaker {
       override def withCircuitBreaker[R, E, A](f: ZIO[R, E, A]): ZIO[R with Clock, CircuitBreakerCallError[E], A] =
         for {
           currentState <- state.get
-          result <- currentState match {
-                     case Closed =>
-                       // The state may have already changed to Open or even HalfOpen.
-                       // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
-                       def onFail =
-                         strategy.onFailure *>
-                           ZIO.whenM(state.get.flatMap(s => strategy.shouldTrip.map(_ && (s == Closed)))) {
-                             changeToOpen
-                           }
-
-                       f.tapBoth(_ => onFail, _ => strategy.onSuccess)
-                         .mapError(WrappedError(_))
-                     case Open =>
-                       ZIO.fail(CircuitBreakerOpen)
-                     case HalfOpen =>
-                       for {
-                         isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
-                         result <- if (isFirstCall) {
-                                    f.mapError(WrappedError(_))
-                                      .tapBoth(
-                                        _ => strategy.onFailure *> changeToOpen,
-                                        _ => changeToClosed *> strategy.onReset
-                                      )
-                                  } else {
-                                    ZIO.fail(CircuitBreakerOpen)
+          result       <- currentState match {
+                            case Closed   =>
+                              // The state may have already changed to Open or even HalfOpen.
+                              // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
+                              def onFail =
+                                strategy.onFailure *>
+                                  ZIO.whenM(state.get.flatMap(s => strategy.shouldTrip.map(_ && (s == Closed)))) {
+                                    changeToOpen
                                   }
-                       } yield result
-                   }
+
+                              f.tapBoth(_ => onFail, _ => strategy.onSuccess)
+                                .mapError(WrappedError(_))
+                            case Open     =>
+                              ZIO.fail(CircuitBreakerOpen)
+                            case HalfOpen =>
+                              for {
+                                isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
+                                result      <- if (isFirstCall) {
+                                                 f.mapError(WrappedError(_))
+                                                   .tapBoth(
+                                                     _ => strategy.onFailure *> changeToOpen,
+                                                     _ => changeToClosed *> strategy.onReset
+                                                   )
+                                               } else {
+                                                 ZIO.fail(CircuitBreakerOpen)
+                                               }
+                              } yield result
+                          }
         } yield result
     }
 
