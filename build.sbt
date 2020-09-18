@@ -4,7 +4,7 @@ val allScala  = Seq("2.12.11", mainScala)
 inThisBuild(
   List(
     organization := "nl.vroste",
-    version := "0.1",
+    version := "0.2",
     homepage := Some(url("https://github.com/svroonland/rezilience")),
     licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
     scalaVersion := mainScala,

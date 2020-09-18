@@ -22,7 +22,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache
-      - run: sbt ++2.13.1! test packageDoc
+      - run: sbt ++2.13.1! test
       - save_cache:
           key: sbt-cache
           paths:
@@ -50,7 +50,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache
-      - run: sbt ++2.12.11! test packageDoc
+      - run: sbt ++2.12.11! test
       - save_cache:
           key: sbt-cache
           paths:

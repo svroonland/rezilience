@@ -26,7 +26,7 @@ resolvers += Resolver.jcenterRepo
 libraryDependencies += "nl.vroste" %% "rezilience" % "<version>"
 ```
 
-The latest version is built against ZIO 1.0.0.
+The latest version is built against ZIO 1.0.1.
 
 ## Circuit Breaker
 Make calls to an (external) resource through the CircuitBreaker to safeguard the resource against overload. When too many calls have failed, the circuit breaker will trip and calls will fail immediately. This also prevents a queue of calls waiting for response from the resource until timeout.
