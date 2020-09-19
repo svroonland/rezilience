@@ -2,16 +2,28 @@
 
 # Rezilience
 
+- [About](#about)
+- [Installation](#installation)
+- [Circuit Breaker](#circuit-breaker)
+  * [Features](#features)
+  * [Usage](#usage)
+- [Bulkhead](#bulkhead)
+  * [Usage](#usage-1)
+- [RateLimiter](#ratelimiter)
+  * [Usage](#usage-2)
+- [Credits](#credits)
+
 ## About
 
 `rezilience` is a ZIO-native collection of utilities for making asynchronous systems more resilient to failures.
 
-It is inspired by [Polly](https://github.com/App-vNext/Polly) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html)
+It is inspired by [Polly](https://github.com/App-vNext/Polly), [Resilience4J](https://github.com/resilience4j/resilience4j) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html).
 
 It currently consists of:
 
 * `CircuitBreaker`
-* `Bulkhead`: limiting the usage of a resource
+* `Bulkhead`
+* `RateLimiter`
 
 and will include in future releases:
 
@@ -94,3 +106,30 @@ bulkhead.use { bulkhead =>
        
 }
 ```
+
+## RateLimiter
+`RateLimiter` limits the number of calls to some resource to a maximum number in some interval. It is similar to Bulkhead, but while Bulkhead limits the number of concurrent calls, RateLimiter limits the rate of calls.
+
+RateLimiter is created without type parameters and allows any effect with any environment and error channel to be called under the protection of rate limiting.
+
+### Usage
+
+```scala
+import zio._
+import zio.duration._
+import nl.vroste.rezilience._
+
+// We use Throwable as error type in this example 
+def myCallToExternalResource(someInput: String): ZIO[Any, Throwable, Int] = ???
+
+val rateLimiter: UManaged[RateLimiter] = RateLimiter.make(max = 10, interval = 1.second)
+
+rateLimiter.use { rateLimiter =>
+  val result: ZIO[Any, Throwable, Int] =
+        rateLimiter.call(myCallToExternalResource("some input"))
+       
+}
+```
+
+## Credits
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
