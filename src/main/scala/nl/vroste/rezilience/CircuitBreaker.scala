@@ -69,8 +69,8 @@ trait CircuitBreaker {
     withCircuitBreaker {
       f.either.flatMap {
         case Left(e) if isFailure.isDefinedAt(e) => ZIO.fail(e)
-        case Left(e)                             => ZIO.succeed(Left(WrappedError(e)))
-        case Right(e)                            => ZIO.succeed(Right(e))
+        case Left(e)                             => ZIO.left(WrappedError(e))
+        case Right(e)                            => ZIO.right(e)
       }
     }.absolve
 }
