@@ -1,5 +1,5 @@
 package nl.vroste.rezilience
-import zio.duration.Duration
+import zio.duration.{ durationInt, Duration }
 import zio.stream.ZStream
 import zio._
 import zio.clock.Clock
@@ -37,7 +37,7 @@ object RateLimiter {
    * @param interval Interval duration
    * @return RateLimiter
    */
-  def make(max: Long, interval: Duration): ZManaged[Clock, Nothing, RateLimiter] = for {
+  def make(max: Long, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] = for {
     q <- Queue.unbounded[UIO[Any]].toManaged_
     _ <- ZStream
            .fromQueue(q)

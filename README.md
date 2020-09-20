@@ -3,6 +3,7 @@
 # Rezilience
 
 - [About](#about)
+- [Benefits over other libraries](#benefits-over-other-libraries)
 - [Installation](#installation)
 - [Circuit Breaker](#circuit-breaker)
   * [Features](#features)
@@ -11,8 +12,11 @@
   * [Usage](#usage-1)
 - [RateLimiter](#ratelimiter)
   * [Usage](#usage-2)
+- [Retry](#retry)
+  * [Usage](#usage-3)
+- [Combining policies](#combining-policies)
+  * [Usage](#usage-4)
 - [Credits](#credits)
-
 ## About
 
 `rezilience` is a ZIO-native collection of utilities for making asynchronous systems more resilient to failures.
@@ -25,6 +29,11 @@ It consists of:
 * `Bulkhead`
 * `RateLimiter`
 * `Retry`
+
+## Benefits over other libraries
+* `rezilience` allows you to use your own error type (the `E` in `ZIO[R, E, A]`) instead of forcing your effects to have `Exception` as error type
+* `rezilience` is lightweight, using only ZIO fibers and not spawning threads or blocking
+* It integrates smoothly with ZIO and ZIO libraries without prescribing any constraints.
 
 ## Installation
 
@@ -64,14 +73,14 @@ import CircuitBreaker._
 // We use Throwable as error type in this example 
 def myCallToExternalResource(someInput: String): ZIO[Any, Throwable, Int] = ???
 
-val circuitBreaker: ZManaged[Clock, Nothing, CircuitBreaker] = CircuitBreaker.make(
+val circuitBreaker: ZManaged[Clock, Nothing, CircuitBreaker[Throwable]] = CircuitBreaker.make[Throwable](
     trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
     resetPolicy = Schedule.exponential(1.second),
     onStateChange = (s: State) => ZIO(println(s"State changed to ${s}")).ignore
     )
 
 circuitBreaker.use { cb =>
-    val result: ZIO[Any, CircuitBreakerCallError[Throwable], Int] = cb.withCircuitBreaker(myCallToExternalResource("some input"))
+    val result: ZIO[Any, CircuitBreakerCallError[Throwable], Int] = cb.call(myCallToExternalResource("some input"))
 }
 ```
 
@@ -151,8 +160,34 @@ val myEffect: ZIO[Any, Exception, Unit] = ???
 
 // Retry exponentially on timeout exceptions
 myEffect.retry(
-  Retry.whenCase({ case TimeoutException => })(Retry.exponentialBackoff(1.second, 1.minute, maxRecurs = 5))
+  Retry.whenCase({ case TimeoutException => })(Retry.exponentialBackoff(min = 1.second, max = 1.minute))
 )
+```
+
+## Combining policies
+
+`PolicyWrap` can combine the above policies into one wrapper interface.
+
+### Usage
+
+```scala
+import zio._
+import zio.clock._
+import zio.duration._
+import nl.vroste.rezilience._
+
+val policy: ZManaged[Clock, Nothing, PolicyWrap[Throwable]] = ZManaged.mapN(
+  RateLimiter.make(1, 1.second),
+  Bulkhead.make(10),
+  CircuitBreaker.withMaxFailures[Throwable](10)
+)(PolicyWrap.make(_, _, _))
+
+val myEffect: ZIO[Any, Exception, Unit] = ???
+
+policy.use { p => 
+  p.call(myEffect)
+}
+
 ```
 
 ## Credits
