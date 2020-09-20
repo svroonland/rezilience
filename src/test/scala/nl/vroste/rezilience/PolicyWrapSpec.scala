@@ -20,7 +20,7 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
 
       policy.use { policy =>
         for {
-          result <- policy.call(ZIO.succeed(123))
+          result <- policy(ZIO.succeed(123))
         } yield assert(result)(equalTo(123))
 
       }
@@ -33,7 +33,7 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
 
       policy.use { policy =>
         for {
-          result <- policy.call(ZIO.fail(MyCallError)).flip
+          result <- policy(ZIO.fail(MyCallError)).flip
         } yield assert(result)(equalTo(WrappedError(MyCallError)))
       }
     },
@@ -47,8 +47,8 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
 
       policy.use { policy =>
         for {
-          _      <- policy.call(ZIO.fail(MyCallError)).flip
-          result <- policy.call(ZIO.fail(MyCallError)).flip
+          _      <- policy(ZIO.fail(MyCallError)).flip
+          result <- policy(ZIO.fail(MyCallError)).flip
         } yield assert(result)(equalTo(PolicyWrap.CircuitBreakerOpen))
       }
     },
@@ -64,10 +64,10 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
         for {
           latch  <- Promise.make[Nothing, Unit]
           latch3 <- Promise.make[Nothing, Unit]
-          _      <- policy.call(latch.succeed(()) *> latch3.await).fork // This one will go in-flight immediately
+          _      <- policy(latch.succeed(()) *> latch3.await).fork // This one will go in-flight immediately
           _      <- latch.await
           result <-
-            policy.call(ZIO.unit).flip raceFirst policy.call(ZIO.unit).flip // One of these is enqueued, one is rejected
+            policy(ZIO.unit).flip raceFirst policy(ZIO.unit).flip // One of these is enqueued, one is rejected
         } yield assert(result)(equalTo(PolicyWrap.BulkheadRejection))
       }
     },
@@ -81,9 +81,9 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
 
       policy.use { policy =>
         for {
-          _             <- policy.call(ZIO.unit)
-          _             <- policy.call(ZIO.unit)
-          fib           <- policy.call(ZIO.succeed(123)).fork
+          _             <- policy(ZIO.unit)
+          _             <- policy(ZIO.unit)
+          fib           <- policy(ZIO.succeed(123)).fork
           _             <- TestClock.adjust(0.seconds)
           initialStatus <- fib.status
           _             <- TestClock.adjust(1.seconds)

@@ -80,7 +80,7 @@ val circuitBreaker: ZManaged[Clock, Nothing, CircuitBreaker[Any]] = CircuitBreak
     )
 
 circuitBreaker.use { cb =>
-    val result: ZIO[Any, CircuitBreakerCallError[Throwable], Int] = cb.call(myCallToExternalResource("some input"))
+    val result: ZIO[Any, CircuitBreakerCallError[Throwable], Int] = cb(myCallToExternalResource("some input"))
 }
 ```
 
@@ -108,7 +108,7 @@ val bulkhead: UManaged[Bulkhead] = Bulkhead.make(maxInFlightCalls = 10, maxQueue
 
 bulkhead.use { bulkhead =>
   val result: ZIO[Any, BulkheadError[Throwable], Int] =
-        bulkhead.call(myCallToExternalResource("some input"))
+        bulkhead(myCallToExternalResource("some input"))
        
 }
 ```
@@ -132,7 +132,7 @@ val rateLimiter: UManaged[RateLimiter] = RateLimiter.make(max = 10, interval = 1
 
 rateLimiter.use { rateLimiter =>
   val result: ZIO[Any, Throwable, Int] =
-        rateLimiter.call(myCallToExternalResource("some input"))
+        rateLimiter(myCallToExternalResource("some input"))
        
 }
 ```
@@ -184,8 +184,8 @@ val policy: ZManaged[Clock, Nothing, PolicyWrap[Any]] = ZManaged.mapN(
 
 val myEffect: ZIO[Any, Exception, Unit] = ???
 
-policy.use { p => 
-  p.call(myEffect)
+policy.use { policy => 
+  policy(myEffect)
 }
 
 ```

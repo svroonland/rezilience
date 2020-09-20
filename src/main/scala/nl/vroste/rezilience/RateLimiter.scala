@@ -21,7 +21,7 @@ trait RateLimiter {
    * @param task Task to execute. When the rate limit is exceeded, the call will be postponed. The environment of the
    *             task i
    */
-  def call[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A]
+  def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A]
 }
 
 object RateLimiter {
@@ -46,7 +46,7 @@ object RateLimiter {
            .runDrain
            .forkManaged
   } yield new RateLimiter {
-    override def call[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {
+    override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {
       p      <- Promise.make[E, A]
       env    <- ZIO.environment[R]
       effect  = task.foldM(p.fail, p.succeed).provide(env)

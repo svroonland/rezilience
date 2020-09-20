@@ -63,11 +63,11 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
             for {
               // Make a succeeding and a failing call 4 times every 100 ms
               _ <- {
-                cb.call(ZIO.unit) *> cb.call(ZIO.fail("Oh Oh")).either
+                cb(ZIO.unit) *> cb(ZIO.fail("Oh Oh")).either
               }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(3))
               // Next call should fail
               _ <- ZIO.sleep(50.millis)
-              r <- cb.call(UIO(println("Succeeding call that should fail fast"))).run
+              r <- cb(UIO(println("Succeeding call that should fail fast"))).run
             } yield assert(r)(fails(equalTo(CircuitBreakerOpen)))
           }
       }.provideSomeLayer(zio.clock.Clock.live),
@@ -87,7 +87,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
             for {
               // Make a succeeding and a failing call 4 times every 100 ms
               _ <- {
-                cb.call(ZIO.unit) *> cb.call(ZIO.fail("Oh Oh")).either
+                cb(ZIO.unit) *> cb(ZIO.fail("Oh Oh")).either
               }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(10))
             } yield assertCompletes
           }
@@ -105,7 +105,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
                             .make[String](strategy, Schedule.fixed(1.seconds), onStateChange = stateChanges.offer(_).ignore)
         } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
           def expectState(s: State)                = stateChanges.take.filterOrDieMessage(_ == s)(s"Expected state ${s}")
-          def makeCall[R, A](f: ZIO[R, String, A]) = cb.call(f)
+          def makeCall[R, A](f: ZIO[R, String, A]) = cb(f)
 
           for {
             // Make a succeeding and a failing call 4 times every 100 ms

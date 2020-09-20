@@ -25,7 +25,7 @@ trait Bulkhead {
    * @return Effect that succeeds with the success of the given task or fails, when executed,
    *         with a WrappedError of the task's error, or when not executed, with a BulkheadRejection.
    */
-  def call[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A]
+  def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A]
 
   /**
    * Provides the number of in-flight and queued calls
@@ -82,7 +82,7 @@ object Bulkhead {
                              .fork
                              .toManaged_
     } yield new Bulkhead {
-      override def call[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
+      override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
           result     <- Promise.make[E, A]
           enqueued   <- Promise.make[BulkheadRejection.type, Unit]

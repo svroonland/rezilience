@@ -9,7 +9,7 @@ import zio.clock.Clock
  * Represents a combination of rezilience policies
  */
 trait PolicyWrap[-E] {
-  def call[R, E1 <: E, A](task: ZIO[R, E1, A]): ZIO[R with Clock, PolicyError[E1], A]
+  def apply[R, E1 <: E, A](task: ZIO[R, E1, A]): ZIO[R with Clock, PolicyError[E1], A]
 }
 
 object PolicyWrap {
@@ -33,11 +33,10 @@ object PolicyWrap {
     circuitBreaker: CircuitBreaker[E] = noopCircuitBreaker,
     retrySchedule: Schedule[Any, PolicyError[E], Any] = Schedule.stop
   ): PolicyWrap[E] = new PolicyWrap[E] {
-    override def call[R, E1 <: E, A](task: ZIO[R, E1, A]): ZIO[R with Clock, PolicyError[E1], A] =
-      rateLimiter.call {
-        bulkhead.call {
-          circuitBreaker
-            .call(task)
+    override def apply[R, E1 <: E, A](task: ZIO[R, E1, A]): ZIO[R with Clock, PolicyError[E1], A] =
+      rateLimiter {
+        bulkhead {
+          circuitBreaker(task)
             .mapError(circuitBreakerErrorToPolicyError)
         }
           .mapError(bulkheadErrorToPolicyError)
@@ -46,19 +45,19 @@ object PolicyWrap {
   }
 
   def noopCircuitBreaker[E]: CircuitBreaker[E] = new CircuitBreaker[E] {
-    override def call[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
+    override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
       f.mapError(CircuitBreaker.WrappedError(_))
   }
 
   val noopBulkhead: Bulkhead = new Bulkhead {
-    override def call[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
+    override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
       task.mapError(Bulkhead.WrappedError(_))
 
     override def metrics: UIO[Metrics] = UIO.succeed(Metrics.apply(0, 0))
   }
 
   val noopRateLimiter: RateLimiter = new RateLimiter {
-    override def call[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = task
+    override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = task
   }
 
   def circuitBreakerErrorToPolicyError[E]: CircuitBreakerCallError[E] => PolicyError[E] = {

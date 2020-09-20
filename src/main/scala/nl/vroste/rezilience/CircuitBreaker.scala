@@ -47,7 +47,7 @@ trait CircuitBreaker[-E] {
    * @return A ZIO that either succeeds with the success of the given f or fails with either a `CircuitBreakerOpen`
    *         or a `WrappedError` of the error of the given f
    */
-  def call[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A]
+  def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A]
 }
 
 object CircuitBreaker {
@@ -128,7 +128,7 @@ object CircuitBreaker {
         state.set(Closed) <*
         onStateChange(Closed).fork // Do not wait for user code
 
-      override def call[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
+      override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
         for {
           currentState <- state.get
           result       <- currentState match {
