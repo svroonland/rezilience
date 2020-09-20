@@ -1,11 +1,10 @@
 package nl.vroste.rezilience
 import nl.vroste.rezilience.PolicyWrap.WrappedError
 import zio.duration.durationInt
-import zio.{ Fiber, Promise, Schedule, ZIO, ZManaged }
-import zio.test.DefaultRunnableSpec
-import zio.test._
 import zio.test.Assertion._
 import zio.test.environment.TestClock
+import zio.test.{ DefaultRunnableSpec, _ }
+import zio.{ Fiber, Promise, ZIO, ZManaged }
 
 object PolicyWrapSpec extends DefaultRunnableSpec {
   sealed trait Error
@@ -15,7 +14,7 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
   override def spec = suite("PolicyWrap")(
     testM("succeeds the first call immediately regardless of the policies") {
       val policy =
-        ZManaged.mapN(RateLimiter.make(1), Bulkhead.make(100), CircuitBreaker.withMaxFailures[Error](10))(
+        ZManaged.mapN(RateLimiter.make(1), Bulkhead.make(100), CircuitBreaker.withMaxFailures(10))(
           PolicyWrap.make(_, _, _)
         )
 
@@ -28,7 +27,7 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
     },
     testM("fails the first call when retry is disabled") {
       val policy =
-        ZManaged.mapN(RateLimiter.make(1), Bulkhead.make(100), CircuitBreaker.withMaxFailures[Error](10))(
+        ZManaged.mapN(RateLimiter.make(1), Bulkhead.make(100), CircuitBreaker.withMaxFailures(10))(
           PolicyWrap.make(_, _, _)
         )
 
@@ -43,7 +42,7 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
         ZManaged.mapN(
           RateLimiter.make(2),
           Bulkhead.make(100),
-          CircuitBreaker.withMaxFailures[Error](1)
+          CircuitBreaker.withMaxFailures(1)
         )(PolicyWrap.make(_, _, _))
 
       policy.use { policy =>
@@ -58,18 +57,17 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
         ZManaged.mapN(
           RateLimiter.make(10),
           Bulkhead.make(1, maxQueueing = 1),
-          CircuitBreaker.withMaxFailures[Error](1)
+          CircuitBreaker.withMaxFailures(1)
         )(PolicyWrap.make(_, _, _))
 
       policy.use { policy =>
         for {
           latch  <- Promise.make[Nothing, Unit]
-          latch2 <- Promise.make[Nothing, Unit]
-          _      <- policy.call(latch.succeed(()) *> latch2.await).fork
-          _      <- policy.call(latch.succeed(()) *> latch2.await).fork
+          latch3 <- Promise.make[Nothing, Unit]
+          _      <- policy.call(latch.succeed(()) *> latch3.await).fork // This one will go in-flight immediately
           _      <- latch.await
-          result <- policy.call(ZIO.succeed(123)).flip
-          _      <- latch2.succeed(())
+          result <-
+            policy.call(ZIO.unit).flip raceFirst policy.call(ZIO.unit).flip // One of these is enqueued, one is rejected
         } yield assert(result)(equalTo(PolicyWrap.BulkheadRejection))
       }
     },
@@ -94,5 +92,4 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
       }
     }
   )
-
 }

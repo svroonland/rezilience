@@ -33,7 +33,7 @@ It consists of:
 ## Benefits over other libraries
 * `rezilience` allows you to use your own error type (the `E` in `ZIO[R, E, A]`) instead of forcing your effects to have `Exception` as error type
 * `rezilience` is lightweight, using only ZIO fibers and not spawning threads or blocking
-* It integrates smoothly with ZIO and ZIO libraries without prescribing any constraints.
+* It integrates smoothly with ZIO and ZIO libraries without prescribing any constraints and with good type inference.
 
 ## Installation
 
@@ -73,7 +73,7 @@ import CircuitBreaker._
 // We use Throwable as error type in this example 
 def myCallToExternalResource(someInput: String): ZIO[Any, Throwable, Int] = ???
 
-val circuitBreaker: ZManaged[Clock, Nothing, CircuitBreaker[Throwable]] = CircuitBreaker.make[Throwable](
+val circuitBreaker: ZManaged[Clock, Nothing, CircuitBreaker[Any]] = CircuitBreaker.make(
     trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
     resetPolicy = Schedule.exponential(1.second),
     onStateChange = (s: State) => ZIO(println(s"State changed to ${s}")).ignore
@@ -176,10 +176,10 @@ import zio.clock._
 import zio.duration._
 import nl.vroste.rezilience._
 
-val policy: ZManaged[Clock, Nothing, PolicyWrap[Throwable]] = ZManaged.mapN(
+val policy: ZManaged[Clock, Nothing, PolicyWrap[Any]] = ZManaged.mapN(
   RateLimiter.make(1, 1.second),
   Bulkhead.make(10),
-  CircuitBreaker.withMaxFailures[Throwable](10)
+  CircuitBreaker.withMaxFailures(10)
 )(PolicyWrap.make(_, _, _))
 
 val myEffect: ZIO[Any, Exception, Unit] = ???

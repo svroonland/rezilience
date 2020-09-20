@@ -81,7 +81,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
           .make[String](
             strategy,
             Schedule.fixed(5.seconds),
-            state => ZIO.effectTotal(println(s"CB state changed to ${state}"))
+            onStateChange = state => ZIO.effectTotal(println(s"CB state changed to ${state}"))
           )
           .use { cb =>
             for {

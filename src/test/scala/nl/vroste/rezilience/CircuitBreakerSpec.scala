@@ -16,14 +16,14 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
   // for all kinds of race conditions
   def spec = suite("CircuitBreaker")(
     testM("lets successful calls through") {
-      CircuitBreaker.withMaxFailures[Error](10, Schedule.exponential(1.second)).use { cb =>
+      CircuitBreaker.withMaxFailures(10, Schedule.exponential(1.second)).use { cb =>
         for {
           _ <- cb.call(ZIO.unit).repeat(Schedule.recurs(20))
         } yield assertCompletes
       }
     },
     testM("fails fast after max nr failures calls") {
-      CircuitBreaker.withMaxFailures[Error](10, Schedule.exponential(1.second)).use { cb =>
+      CircuitBreaker.withMaxFailures(10, Schedule.exponential(1.second)).use { cb =>
         for {
           _      <- ZIO.foreach_(1 to 10)(_ => cb.call(ZIO.fail(MyCallError)).either)
           result <- cb.call(ZIO.fail(MyCallError)).either
@@ -31,17 +31,24 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
       }
     },
     testM("ignore failures that should not be considered a failure") {
-      CircuitBreaker.withMaxFailures[Error](3, Schedule.exponential(1.second)).use { cb =>
-        for {
-          _      <- ZIO.foreach_(1 to 3)(_ => cb.call(ZIO.fail(MyNotFatalError))).either
-          result <- cb.call(ZIO.fail(MyCallError)).either
-        } yield assert(result)(isLeft(not(equalTo(CircuitBreaker.CircuitBreakerOpen))))
+      val isFailure: PartialFunction[Error, Boolean] = {
+        case MyNotFatalError => false
+        case _: Error        => true
       }
+
+      CircuitBreaker
+        .withMaxFailures(3, Schedule.exponential(1.second), isFailure)
+        .use { cb =>
+          for {
+            _      <- ZIO.foreach_(1 to 3)(_ => cb.call(ZIO.fail(MyNotFatalError))).either
+            result <- cb.call(ZIO.fail(MyCallError)).either
+          } yield assert(result)(isLeft(not(equalTo(CircuitBreaker.CircuitBreakerOpen))))
+        }
     },
     testM("reset to closed state after reset timeout") {
       (for {
         stateChanges <- Queue.unbounded[State].toManaged_
-        cb           <- CircuitBreaker.withMaxFailures[Error](
+        cb           <- CircuitBreaker.withMaxFailures(
                           10,
                           Schedule.exponential(1.second),
                           onStateChange = stateChanges.offer(_).ignore
@@ -59,7 +66,7 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     testM("retry exponentially") {
       (for {
         stateChanges <- Queue.unbounded[State].toManaged_
-        cb           <- CircuitBreaker.withMaxFailures[Error](
+        cb           <- CircuitBreaker.withMaxFailures(
                           3,
                           Schedule.exponential(base = 1.second, factor = 2.0),
                           onStateChange = stateChanges.offer(_).ignore
@@ -88,7 +95,7 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     testM("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
       (for {
         stateChanges <- Queue.unbounded[State].toManaged_
-        cb           <- CircuitBreaker.withMaxFailures[Error](
+        cb           <- CircuitBreaker.withMaxFailures(
                           3,
                           Schedule.exponential(base = 1.second, factor = 2.0),
                           onStateChange = stateChanges.offer(_).ignore

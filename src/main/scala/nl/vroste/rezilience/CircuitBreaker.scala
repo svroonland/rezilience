@@ -38,7 +38,7 @@ import zio.stream.ZStream
  * 2) Failure rate. When the fraction of failed calls in some sample period exceeds
  *    a threshold (between 0 and 1), the circuit breaker is tripped.
  */
-trait CircuitBreaker[E] {
+trait CircuitBreaker[-E] {
 
   /**
    * Execute a given effect with the circuit breaker
@@ -47,7 +47,7 @@ trait CircuitBreaker[E] {
    * @return A ZIO that either succeeds with the success of the given f or fails with either a `CircuitBreakerOpen`
    *         or a `WrappedError` of the error of the given f
    */
-  def call[R, A](f: ZIO[R, E, A]): ZIO[R, CircuitBreakerCallError[E], A]
+  def call[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A]
 }
 
 object CircuitBreaker {
@@ -78,7 +78,7 @@ object CircuitBreaker {
   def withMaxFailures[E](
     maxFailures: Int,
     resetPolicy: Schedule[Clock, Any, Duration] = Schedule.exponential(1.second, 2.0),
-    isFailure: PartialFunction[E, Any] = PartialFunction.fromFunction[E, Any](_ => true),
+    isFailure: PartialFunction[E, Boolean] = PartialFunction.fromFunction[E, Boolean](_ => true),
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
   ): ZManaged[Clock, Nothing, CircuitBreaker[E]] =
     make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, onStateChange)
@@ -96,7 +96,7 @@ object CircuitBreaker {
   def make[E](
     trippingStrategy: ZManaged[Clock, Nothing, TrippingStrategy],
     resetPolicy: Schedule[Clock, Any, Any],
-    isFailure: PartialFunction[E, Any] = PartialFunction.fromFunction[E, Any](_ => true),
+    isFailure: PartialFunction[E, Boolean] = PartialFunction.fromFunction[E, Boolean](_ => true),
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
   ): ZManaged[Clock, Nothing, CircuitBreaker[E]] =
     for {
@@ -128,7 +128,7 @@ object CircuitBreaker {
         state.set(Closed) <*
         onStateChange(Closed).fork // Do not wait for user code
 
-      override def call[R, A](f: ZIO[R, E, A]): ZIO[R, CircuitBreakerCallError[E], A] =
+      override def call[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
         for {
           currentState <- state.get
           result       <- currentState match {

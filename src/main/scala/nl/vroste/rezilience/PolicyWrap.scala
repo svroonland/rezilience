@@ -8,8 +8,8 @@ import zio.clock.Clock
 /**
  * Represents a combination of rezilience policies
  */
-trait PolicyWrap[E] {
-  def call[R, A](task: ZIO[R, E, A]): ZIO[R with Clock, PolicyError[E], A]
+trait PolicyWrap[-E] {
+  def call[R, E1 <: E, A](task: ZIO[R, E1, A]): ZIO[R with Clock, PolicyError[E1], A]
 }
 
 object PolicyWrap {
@@ -33,7 +33,7 @@ object PolicyWrap {
     circuitBreaker: CircuitBreaker[E] = noopCircuitBreaker,
     retrySchedule: Schedule[Any, PolicyError[E], Any] = Schedule.stop
   ): PolicyWrap[E] = new PolicyWrap[E] {
-    override def call[R, A](task: ZIO[R, E, A]): ZIO[R with Clock, PolicyError[E], A] =
+    override def call[R, E1 <: E, A](task: ZIO[R, E1, A]): ZIO[R with Clock, PolicyError[E1], A] =
       rateLimiter.call {
         bulkhead.call {
           circuitBreaker
@@ -46,7 +46,7 @@ object PolicyWrap {
   }
 
   def noopCircuitBreaker[E]: CircuitBreaker[E] = new CircuitBreaker[E] {
-    override def call[R, A](f: ZIO[R, E, A]): ZIO[R, CircuitBreakerCallError[E], A] =
+    override def call[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
       f.mapError(CircuitBreaker.WrappedError(_))
   }
 
