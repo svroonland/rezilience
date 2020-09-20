@@ -23,7 +23,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
       Bulkhead.make(10).use { bulkhead =>
         for {
           p <- Promise.make[Nothing, Unit]
-          _ <- bulkhead.call(p.succeed(()))
+          _ <- bulkhead(p.succeed(()))
           _ <- p.await
         } yield assertCompletes
       }
@@ -34,7 +34,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
         for {
           p              <- Promise.make[Nothing, Unit]
           callsCompleted <- Ref.make(0)
-          calls          <- ZIO.foreachPar(1 to max)(_ => p.await *> bulkhead.call(callsCompleted.updateAndGet(_ + 1))).fork
+          calls          <- ZIO.foreachPar(1 to max)(_ => p.await *> bulkhead(callsCompleted.updateAndGet(_ + 1))).fork
           _              <- p.succeed(())
           results        <- calls.join
         } yield assert(results)(hasSameElements((1 to max).toList))
@@ -46,7 +46,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
         for {
           p                <- Promise.make[Nothing, Unit]
           callsCompleted   <- Ref.make(0)
-          calls            <- ZIO.foreachPar(1 to max + 2)(_ => bulkhead.call(callsCompleted.updateAndGet(_ + 1) *> p.await)).fork
+          calls            <- ZIO.foreachPar(1 to max + 2)(_ => bulkhead(callsCompleted.updateAndGet(_ + 1) *> p.await)).fork
           _                <- TestClock.adjust(1.second)
           _                <- calls.interrupt
           nrCallsCompleted <- callsCompleted.get
@@ -64,7 +64,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
           callsInFlight <- Ref.make(0)
           calls         <- ZIO
                              .foreachPar(1 to max + queueLimit) { _ =>
-                               bulkhead.call {
+                               bulkhead {
                                  (for {
                                    nrCallsInFlight <- callsInFlight.updateAndGet(_ + 1)
                                    _               <- maxInFlight.succeed(()).when(nrCallsInFlight == max)
@@ -74,7 +74,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
                              }
                              .fork
           _             <- maxInFlight.await.raceFirst(calls.join)
-          result        <- bulkhead.call(ZIO.unit).either
+          result        <- bulkhead(ZIO.unit).either
           _              = println(result)
           _             <- calls.interrupt
         } yield assert(result)(isLeft(equalTo(BulkheadRejection)))

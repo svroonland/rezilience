@@ -11,29 +11,29 @@ object RateLimiterSpec extends DefaultRunnableSpec {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
           now   <- clock.instant
-          times <- ZIO.foreach((1 to 10).toList)(_ => rl.call(clock.instant))
+          times <- ZIO.foreach((1 to 10).toList)(_ => rl(clock.instant))
         } yield assert(times)(forall(equalTo(now)))
       }
     },
     testM("succeed with the result of the call") {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
-          result <- rl.call(ZIO.succeed(3))
+          result <- rl(ZIO.succeed(3))
         } yield assert(result)(equalTo(3))
       }
     },
     testM("fail with the result of a failed call") {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
-          result <- rl.call(ZIO.fail(None)).either
+          result <- rl(ZIO.fail(None)).either
         } yield assert(result)(isLeft(isNone))
       }
     },
     testM("continue after a failed call") {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
-          _ <- rl.call(ZIO.fail(None)).either
-          _ <- rl.call(ZIO.succeed(3))
+          _ <- rl(ZIO.fail(None)).either
+          _ <- rl(ZIO.succeed(3))
         } yield assertCompletes
       }
     },
@@ -41,7 +41,7 @@ object RateLimiterSpec extends DefaultRunnableSpec {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
           now   <- clock.instant
-          fib   <- ZIO.foreach((1 to 20).toList)(_ => rl.call(clock.instant)).fork
+          fib   <- ZIO.foreach((1 to 20).toList)(_ => rl(clock.instant)).fork
           _     <- TestClock.adjust(1.second)
           later <- clock.instant
           times <- fib.join

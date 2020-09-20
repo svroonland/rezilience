@@ -18,25 +18,32 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     testM("lets successful calls through") {
       CircuitBreaker.withMaxFailures(10, Schedule.exponential(1.second)).use { cb =>
         for {
-          _ <- cb.withCircuitBreaker(ZIO.unit).repeat(Schedule.recurs(20))
+          _ <- cb(ZIO.unit).repeat(Schedule.recurs(20))
         } yield assertCompletes
       }
     },
     testM("fails fast after max nr failures calls") {
       CircuitBreaker.withMaxFailures(10, Schedule.exponential(1.second)).use { cb =>
         for {
-          _      <- ZIO.foreach_(1 to 10)(_ => cb.withCircuitBreaker(ZIO.fail(MyCallError)).either)
-          result <- cb.withCircuitBreaker(ZIO.fail(MyCallError)).either
+          _      <- ZIO.foreach_(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
+          result <- cb(ZIO.fail(MyCallError)).either
         } yield assert(result)(isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen)))
       }
     },
     testM("ignore failures that should not be considered a failure") {
-      CircuitBreaker.withMaxFailures(3, Schedule.exponential(1.second)).use { cb =>
-        for {
-          _      <- ZIO.foreach_(1 to 3)(_ => cb.withCircuitBreaker(ZIO.fail(MyNotFatalError))).either
-          result <- cb.withCircuitBreaker(ZIO.fail(MyCallError)).either
-        } yield assert(result)(isLeft(not(equalTo(CircuitBreaker.CircuitBreakerOpen))))
+      val isFailure: PartialFunction[Error, Boolean] = {
+        case MyNotFatalError => false
+        case _: Error        => true
       }
+
+      CircuitBreaker
+        .withMaxFailures(3, Schedule.exponential(1.second), isFailure)
+        .use { cb =>
+          for {
+            _      <- ZIO.foreach_(1 to 3)(_ => cb(ZIO.fail(MyNotFatalError))).either
+            result <- cb(ZIO.fail(MyCallError)).either
+          } yield assert(result)(isLeft(not(equalTo(CircuitBreaker.CircuitBreakerOpen))))
+        }
     },
     testM("reset to closed state after reset timeout") {
       (for {
@@ -44,15 +51,15 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
         cb           <- CircuitBreaker.withMaxFailures(
                           10,
                           Schedule.exponential(1.second),
-                          stateChanges.offer(_).ignore
+                          onStateChange = stateChanges.offer(_).ignore
                         )
       } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
         for {
-          _ <- ZIO.foreach_(1 to 10)(_ => cb.withCircuitBreaker(ZIO.fail(MyCallError)).either)
+          _ <- ZIO.foreach_(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
           _ <- stateChanges.take
           _ <- TestClock.adjust(3.second)
           _ <- stateChanges.take
-          _ <- cb.withCircuitBreaker(ZIO.unit)
+          _ <- cb(ZIO.unit)
         } yield assertCompletes
       }
     },
@@ -62,20 +69,20 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
         cb           <- CircuitBreaker.withMaxFailures(
                           3,
                           Schedule.exponential(base = 1.second, factor = 2.0),
-                          stateChanges.offer(_).ignore
+                          onStateChange = stateChanges.offer(_).ignore
                         )
       } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
         for {
-          _  <- ZIO.foreach_(1 to 3)(_ => cb.withCircuitBreaker(ZIO.fail(MyCallError)).either)
+          _  <- ZIO.foreach_(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
           s1 <- stateChanges.take // Open
           _  <- TestClock.adjust(1.second)
           s2 <- stateChanges.take // HalfOpen
-          _  <- cb.withCircuitBreaker(ZIO.fail(MyCallError)).either
+          _  <- cb(ZIO.fail(MyCallError)).either
           s3 <- stateChanges.take // Open again
           s4 <- stateChanges.take.timeout(1.second) <& TestClock.adjust(1.second)
           _  <- TestClock.adjust(1.second)
           s5 <- stateChanges.take
-          _  <- cb.withCircuitBreaker(ZIO.unit)
+          _  <- cb(ZIO.unit)
           s6 <- stateChanges.take
         } yield assert(s1)(equalTo(State.Open)) &&
           assert(s2)(equalTo(State.HalfOpen)) &&
@@ -91,25 +98,25 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
         cb           <- CircuitBreaker.withMaxFailures(
                           3,
                           Schedule.exponential(base = 1.second, factor = 2.0),
-                          stateChanges.offer(_).ignore
+                          onStateChange = stateChanges.offer(_).ignore
                         )
       } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
         for {
-          _ <- ZIO.foreach_(1 to 3)(_ => cb.withCircuitBreaker(ZIO.fail(MyCallError)).either)
+          _ <- ZIO.foreach_(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
           _ <- stateChanges.take // Open
           _ <- TestClock.adjust(1.second)
           _ <- stateChanges.take // HalfOpen
 
-          _ <- cb.withCircuitBreaker(ZIO.fail(MyCallError)).either
+          _ <- cb(ZIO.fail(MyCallError)).either
           _ <- stateChanges.take // Open again, this time with double reset timeout
 
           _ <- TestClock.adjust(2.second)
           _ <- stateChanges.take // HalfOpen
 
-          _ <- cb.withCircuitBreaker(ZIO.unit)
+          _ <- cb(ZIO.unit)
           _ <- stateChanges.take // Closed again
 
-          _ <- ZIO.foreach_(1 to 3)(_ => cb.withCircuitBreaker(ZIO.fail(MyCallError)).either)
+          _ <- ZIO.foreach_(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
           _ <- stateChanges.take // Open
 
           // Reset time should have re-initialized again

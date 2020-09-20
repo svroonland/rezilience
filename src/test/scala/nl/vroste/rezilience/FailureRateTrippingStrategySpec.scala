@@ -3,11 +3,10 @@ package nl.vroste.rezilience
 import zio.duration._
 import zio.test.Assertion._
 import zio.test._
-import zio.{ Schedule, ZIO }
+import zio.{ Queue, Schedule, UIO, ZIO }
 import zio.random.Random
 import zio.test.environment.TestClock
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerOpen
-import zio.Queue
 import nl.vroste.rezilience.CircuitBreaker.State
 
 case class PrintFriendlyDuration(duration: Duration) extends AnyVal {
@@ -59,16 +58,16 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
 
         val strategy = TrippingStrategy.failureRate(rate, sampleDuration, minThroughput, nrSampleBuckets = 10)
         CircuitBreaker
-          .make(strategy, resetPolicy = Schedule.fixed(5.seconds))
+          .make[String](strategy, resetPolicy = Schedule.fixed(5.seconds))
           .use { cb =>
             for {
               // Make a succeeding and a failing call 4 times every 100 ms
               _ <- {
-                cb.withCircuitBreaker(ZIO.unit) *> cb.withCircuitBreaker(ZIO.fail("Oh Oh")).either
+                cb(ZIO.unit) *> cb(ZIO.fail("Oh Oh")).either
               }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(3))
               // Next call should fail
               _ <- ZIO.sleep(50.millis)
-              r <- cb.withCircuitBreaker(ZIO(println("Succeeding call that should fail fast"))).run
+              r <- cb(UIO(println("Succeeding call that should fail fast"))).run
             } yield assert(r)(fails(equalTo(CircuitBreakerOpen)))
           }
       }.provideSomeLayer(zio.clock.Clock.live),
@@ -79,12 +78,16 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
 
         val strategy = TrippingStrategy.failureRate(rate, sampleDuration, minThroughput, nrSampleBuckets = 10)
         CircuitBreaker
-          .make(strategy, Schedule.fixed(5.seconds), state => ZIO.effectTotal(println(s"CB state changed to ${state}")))
+          .make[String](
+            strategy,
+            Schedule.fixed(5.seconds),
+            onStateChange = state => ZIO.effectTotal(println(s"CB state changed to ${state}"))
+          )
           .use { cb =>
             for {
               // Make a succeeding and a failing call 4 times every 100 ms
               _ <- {
-                cb.withCircuitBreaker(ZIO.unit) *> cb.withCircuitBreaker(ZIO.fail("Oh Oh")).either
+                cb(ZIO.unit) *> cb(ZIO.fail("Oh Oh")).either
               }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(10))
             } yield assertCompletes
           }
@@ -99,10 +102,10 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
         (for {
           stateChanges <- Queue.unbounded[State].toManaged_
           cb           <- CircuitBreaker
-                            .make(strategy, Schedule.fixed(1.seconds), stateChanges.offer(_).ignore)
+                            .make[String](strategy, Schedule.fixed(1.seconds), onStateChange = stateChanges.offer(_).ignore)
         } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
-          def expectState(s: State)              = stateChanges.take.filterOrDieMessage(_ == s)(s"Expected state ${s}")
-          def makeCall[R, E, A](f: ZIO[R, E, A]) = cb.withCircuitBreaker(f)
+          def expectState(s: State)                = stateChanges.take.filterOrDieMessage(_ == s)(s"Expected state ${s}")
+          def makeCall[R, A](f: ZIO[R, String, A]) = cb(f)
 
           for {
             // Make a succeeding and a failing call 4 times every 100 ms
