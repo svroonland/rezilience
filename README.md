@@ -19,15 +19,12 @@
 
 It is inspired by [Polly](https://github.com/App-vNext/Polly), [Resilience4J](https://github.com/resilience4j/resilience4j) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html).
 
-It currently consists of:
+It consists of:
 
 * `CircuitBreaker`
 * `Bulkhead`
 * `RateLimiter`
-
-and will include in future releases:
-
-* `Retry`: utilities for retrying on failures
+* `Retry`
 
 ## Installation
 
@@ -129,6 +126,33 @@ rateLimiter.use { rateLimiter =>
         rateLimiter.call(myCallToExternalResource("some input"))
        
 }
+```
+
+## Retry
+ZIO contains excellent built-in support for retrying effects on failures using `Schedule`, there is not much this library could add.
+
+Two helper methods are made available:
+
+* `Retry.exponentialBackoff`  
+  Exponential backoff with a maximum delay and an optional maximum number of recurs. When the maximum delay is reached, subsequent delays are the maximum. 
+  
+* `Retry.whenCase`  
+  Accepts a partial function and a schedule and will apply the schedule only when the input matches partial function. This is useful to retry only on certain types of failures/exceptions
+  
+### Usage
+  
+```scala
+import zio._
+import zio.duration._
+import nl.vroste.rezilience._
+import java.util.concurrent.TimeoutException
+
+val myEffect: ZIO[Any, Exception, Unit] = ???
+
+// Retry exponentially on timeout exceptions
+myEffect.retry(
+  Retry.whenCase({ case TimeoutException => })(Retry.exponentialBackoff(1.second, 1.minute, maxRecurs = 5))
+)
 ```
 
 ## Credits

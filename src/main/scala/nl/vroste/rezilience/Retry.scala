@@ -6,7 +6,22 @@ import zio.duration._
 object Retry {
 
   /**
-   * Schedule for exponential backoff up to a maximum interval and an optional maximum number of retries
+   * Schedule for exponential backoff up to a maximum interval
+   *
+   * @param min Minimum backoff time
+   * @param max Maximum backoff time. When this value is reached, subsequent intervals will be equal to this value.
+   * @param factor Exponential factor. 2 means doubling, 1 is constant, < 1 means decreasing
+   * @tparam A Schedule input
+   */
+  def exponentialBackoff[A](
+    min: Duration,
+    max: Duration,
+    factor: Double = 2.0
+  ): Schedule[Clock, A, Duration] =
+    Schedule.exponential(min, factor).whileOutput(_ <= max) andThen Schedule.fixed(max).as(max)
+
+  /**
+   * Schedule for exponential backoff up to a maximum interval and a maximum number of retries
    *
    * @param min Minimum backoff time
    * @param max Maximum backoff time. When this value is reached, subsequent intervals will be equal to this value.
@@ -17,16 +32,15 @@ object Retry {
   def exponentialBackoff[A](
     min: Duration,
     max: Duration,
-    factor: Double = 2.0,
-    maxRecurs: Option[Int] = None
-  ): Schedule[Clock, A, (Duration, Long)] =
-    (Schedule.exponential(min, factor).whileOutput(_ <= max) andThen Schedule.fixed(max).as(max)) &&
-      maxRecurs.map(Schedule.recurs).getOrElse(Schedule.forever)
+    maxRecurs: Int,
+    factor: Double = 2.0
+  ): Schedule[Clock, A, (Duration, Long)] = exponentialBackoff[A](min, max, factor) && Schedule.recurs(maxRecurs)
 
   /**
    * Apply the given schedule only when inputs match the partial function
    */
-  def when[Env, In, Out](pf: PartialFunction[In, Any])(schedule: Schedule[Env, In, Out]): Schedule[Env, In, (In, Out)] =
+  def whenCase[Env, In, Out](pf: PartialFunction[In, Any])(
+    schedule: Schedule[Env, In, Out]
+  ): Schedule[Env, In, (In, Out)] =
     Schedule.recurWhile(pf.isDefinedAt) && schedule
-
 }
