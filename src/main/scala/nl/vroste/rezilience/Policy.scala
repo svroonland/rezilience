@@ -33,6 +33,9 @@ trait Policy[-EIn, +EOut] { self =>
 }
 
 object Policy {
+  implicit def toPolicy[E](rateLimiter: RateLimiter): Policy[E, E] = rateLimiter.toPolicy[E]
+  implicit def toPolicy[E](retry: Retry[E]): Policy[E, E]          = retry.toPolicy[E]
+
   sealed trait PolicyError[+E]
 
   case class WrappedError[E](e: E) extends PolicyError[E]
@@ -40,7 +43,7 @@ object Policy {
   case object CircuitBreakerOpen   extends PolicyError[Nothing]
 
   /**
-   * Creates a common rezilience policy that wraps calls with a circuit breaker, followed by a bulkhead,
+   * Creates a common rezilience policy that wraps calls with a bulkhead, followed by a circuit breaker,
    * followed by a rate limiter, followed by a retry policy.
    *
    * i.e. retry(withRateLimiter(withCircuitBreaker(withBulkhead(effect)))
@@ -57,13 +60,13 @@ object Policy {
       circuitBreaker.toPolicy[PolicyError[E]].mapError(circuitBreakerErrorToPolicyError).mapError(flattenWrappedError)
     val b: Policy[E, PolicyError[E]]               =
       bulkhead.toPolicy[E].mapError(bulkheadErrorToPolicyError)
-    val rl: Policy[PolicyError[E], PolicyError[E]] = rateLimiter.toPolicy[PolicyError[E]]
+
+    val r = rateLimiter.toPolicy[PolicyError[E]]
 
     val retryPolicy = retry
       .widen[PolicyError[E]] { case WrappedError(e) => e }
-      .toPolicy[PolicyError[E]]
 
-    b compose cb compose rl compose retryPolicy
+    b compose cb compose r compose retryPolicy
   }
 
   def noopRetry[E]: Retry[E] = new Retry[E] {

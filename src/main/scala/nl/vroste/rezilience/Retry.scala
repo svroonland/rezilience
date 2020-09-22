@@ -1,7 +1,7 @@
 package nl.vroste.rezilience
 import zio.clock.Clock
 import zio.duration._
-import zio.{ Ref, Schedule, ZIO }
+import zio.{ Ref, Schedule, ZIO, ZManaged }
 
 trait Retry[-E] { self =>
   def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A]
@@ -54,9 +54,9 @@ object Retry {
       zio.Schedule.recurWhile(pf.isDefinedAt) && schedule
   }
 
-  def make[E](schedule: Schedule[Any, E, Duration]): ZIO[Clock, Nothing, Retry[E]] =
+  def make[E](schedule: Schedule[Any, E, Any]): ZManaged[Clock, Nothing, Retry[E]] =
     for {
-      clock <- ZIO.environment[Clock]
+      clock <- ZManaged.environment[Clock]
     } yield new Retry[E] {
       override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] =
         ZIO.environment[R].flatMap(env => f.provide(env).retry(schedule).provide(clock))

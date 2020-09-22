@@ -33,7 +33,7 @@ It consists of:
 ## Benefits over other libraries
 * `rezilience` allows you to use your own error type (the `E` in `ZIO[R, E, A]`) instead of forcing your effects to have `Exception` as error type
 * `rezilience` is lightweight, using only ZIO fibers and not spawning threads or blocking
-* It integrates smoothly with ZIO and ZIO libraries without prescribing any constraints and with good type inference.
+* It integrates smoothly with ZIO and ZIO libraries without prescribing any constraints and with type inference (as much as possible)
 
 ## Installation
 
@@ -160,11 +160,22 @@ val myEffect: ZIO[Any, Exception, Unit] = ???
 
 // Retry exponentially on timeout exceptions
 myEffect.retry(
-  Retry.whenCase({ case TimeoutException => })(Retry.exponentialBackoff(min = 1.second, max = 1.minute))
+  Retry.make(Retry.Schedule.whenCase({ case TimeoutException => })(Retry.Schedule.exponentialBackoff(min = 1.second, max = 1.minute)))
 )
 ```
 
 ## Combining policies
+
+The above policies can be combined into one `Policy` to combine several resilience strategies.
+
+Many variations of policy combinations are possible, but one example is to have a `Retry` around a `RateLimiter`.
+
+Because of type-safety, you sometimes need to transform your individual policies to work with the errors produced by inner policies. Take for example, a Retry around a `CircuitBreaker` that you want to call with. If you want to retry on any error, a `Retry[Any]` is fine. But if you only want to use a Retry on ZIOs with error type `E` and your Retry policy defines that it only wants to retry a subset of those errors, eg `E1 <: E`, you will need to adapt it to decide what to do with the `CircuitBreakerError[E]` that is the output error type of the `CircuitBreaker`. For example:
+
+
+TODO
+
+
 
 `PolicyWrap` can combine the above policies into one wrapper interface.
 
@@ -189,6 +200,13 @@ policy.use { policy =>
 }
 
 ```
+
+## Additional resiliency recommendations
+These additional resiliency policies are standard ZIO functionality and therefore have no dedicated implementations in this library, but they can be applied in combination with `rezilience` policies.
+
+* Add a timeout to calls to external systems using eg `ZIO#timeout`, `timeoutFail` or `timeoutTo`. When combining different policies from this library, the timeout should be the first decorator.
+
+* Add a fallback using `ZIO#orElse`, a 'degraded mode' alternative response when a resource is not available.
 
 ## Credits
 <small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>

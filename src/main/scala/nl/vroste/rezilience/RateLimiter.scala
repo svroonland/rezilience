@@ -10,6 +10,7 @@ import zio.clock.Clock
  * Uses a token bucket algorithm
  *
  * Note that only the moment of starting the effect is rate limited: the number of concurrent executions is not bounded.
+ * For that you may use a Bulkhead
  *
  * Calls are queued up in an unbounded queue until capacity becomes available.
  */
