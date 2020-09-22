@@ -17,23 +17,30 @@
 - [Combining policies](#combining-policies)
   * [Usage](#usage-4)
 - [Credits](#credits)
+
 ## About
 
-`rezilience` is a ZIO-native collection of utilities for making asynchronous systems more resilient to failures.
+`rezilience` is a ZIO-native collection of policies for making asynchronous systems more resilient to failures.
 
 It is inspired by [Polly](https://github.com/App-vNext/Polly), [Resilience4J](https://github.com/resilience4j/resilience4j) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html).
 
-It consists of:
+It consists of these policies:
 
 * `CircuitBreaker`
 * `Bulkhead`
 * `RateLimiter`
 * `Retry`
 
-## Benefits over other libraries
-* `rezilience` allows you to use your own error type (the `E` in `ZIO[R, E, A]`) instead of forcing your effects to have `Exception` as error type
-* `rezilience` is lightweight, using only ZIO fibers and not spawning threads or blocking
-* It integrates smoothly with ZIO and ZIO libraries without prescribing any constraints and with type inference (as much as possible)
+## Features / Design goals
+* Type-safety: all errors that can result from any of the `rezilience` policies are encoded in the method signatures, so no unexpected RuntimeExceptions.
+* Support for your own error types (the `E` in `ZIO[R, E, A]`) instead of requiring your effects to have `Exception` as error type
+* Lightweight: `rezilience` uses only ZIO fibers and will not create threads or blocking
+* Resource-safe: built on ZIO's `ZManaged`, any allocated resources are cleaned up safely after use
+* Thread-safe: all policies are safe under concurrent use.
+* ZIO integration: some policies take for example ZIO `Schedule`s and `rezilience` tries to help type inference using variance annotations
+* Metrics: all policies (will) provide usage metrics for monitoring purposes
+* Composable: policies can be composed into one overall policy
+* Discoverable: no syntax extensions or implicit conversions, just plain scala 
 
 ## Installation
 
@@ -46,22 +53,42 @@ libraryDependencies += "nl.vroste" %% "rezilience" % "<version>"
 
 The latest version is built against ZIO 1.0.1.
 
+## General usage
+
+`rezilience` policies are created as `ZManaged` resources. This allows them to run background operations which are cleaned up safely after usage. Since these `ZManaged`s are just descriptions of the policy, they can be passed around to various call sites and `use`d to create many instances.
+
+All instantiated policies are defined as traits with an `apply` method that takes a ZIO effect as parameter. Therefore a policy can be used as if it were a function taking a ZIO effect, eg:
+
+```scala
+Retry.make(...).use { retryPolicy => 
+  retryPolicy(callToExternalSystem) // shorthand for retryPolicy.apply(callToExternalSystem) 
+}
+```
+
+Some policies do not require any type information upon their creation, all types are inferred during usage (calling `apply` like in the example above). Other policies can have behavior that is dependent on the type of error of the effects they are applied on. They can only be applied on effects with an `E` that is a subtype of the errors that the policy is defined for. For example:
+
+```scala
+val isFailure: PartialFunction[Error, Boolean] = {
+  case MyNotFatalError => false
+  case _: Error        => true
+}
+
+CircuitBreaker.withMaxFailures(3, isFailure = isFailure).use { circuitBreaker => circuitBreaker(callToExternalSystem) }
+```
+
 ## Circuit Breaker
-Make calls to an (external) resource through the CircuitBreaker to safeguard the resource against overload. When too many calls have failed, the circuit breaker will trip and calls will fail immediately. This also prevents a queue of calls waiting for response from the resource until timeout.
+Make calls to an external system through the CircuitBreaker to safeguard that system against overload. When too many calls have failed, the circuit breaker will trip and calls will fail immediately, giving the external system some time to recover. This also prevents a queue of calls waiting for response from the external system until timeout.
 
 ### Features
-* Support for custom error type (the `E` in `ZIO[R, E, A]`) for indicating failures. As with ZIO, you are not limited by `Exception`s for failures. 
 * Define which errors are to be considered a failure for the CircuitBreaker to count using a partial function
 * Two tripping strategies:
   * Simple: trip the circuit breaker when the _number_ of consecutive failing calls exceeds some threshold.
   * Advanced: trip when the _proportion_ of failing calls exceeds some threshold.
 * Exponential backoff for resetting the circuit breaker, or whatever ZIO `Schedule` fits your needs.
-* Support for custom tripping strategies via the `TrippingStrategy` trait
-* Observe state changes via callback method
+* Support for custom tripping strategies implementing the `TrippingStrategy` trait
+* Observe state changes via a callback method
 
-### Usage
-
-A `CircuitBreaker` is a Managed resource
+### Usage example
 
 ```scala
 import zio._
@@ -86,20 +113,18 @@ circuitBreaker.use { cb =>
 
 ## Bulkhead
 
-`Bulkhead` limits the resources used by some system by limiting the number of concurrent calls to that system. Calls that exceed that number are immediately rejected with a `BulkheadError`. To ensure good utilisation of the system, however, there is a queue/buffer of some size for waiting calls.
+`Bulkhead` limits the number of concurrent calls to a system. Calls exceeding this number are queued, this helps to maximize resource usage. When the queue is full, calls are immediately rejected with a `BulkheadRejection`. 
  
-Using a `Bulkhead` also prevents queueing up of requests, which consume resources in the calling system, by rejecting calls immediately when the queue is full.
+Using a `Bulkhead` not only protects the external system, it also prevents queueing up of requests, which consumes resources in the calling system, by rejecting calls immediately when the queue is full.
 
-Any Bulkhead can execute any type of `ZIO[R, E, A]` effects, so you can execute effects of different types while limiting concurrent usage of the same underlying resource.
+Any Bulkhead can execute any type of `ZIO[R, E, A]`, so you can execute effects of different types while limiting concurrent usage of the same underlying resource.
 
-A `Bulkhead` is implemented as a `ZManaged`.
-
-### Usage
+### Usage example
 
 ```scala
-import nl.vroste.rezilience.Bulkhead.BulkheadError
 import zio._
 import nl.vroste.rezilience._
+import nl.vroste.rezilience.Bulkhead.BulkheadError
 
 // We use Throwable as error type in this example 
 def myCallToExternalResource(someInput: String): ZIO[Any, Throwable, Int] = ???
@@ -109,7 +134,6 @@ val bulkhead: UManaged[Bulkhead] = Bulkhead.make(maxInFlightCalls = 10, maxQueue
 bulkhead.use { bulkhead =>
   val result: ZIO[Any, BulkheadError[Throwable], Int] =
         bulkhead(myCallToExternalResource("some input"))
-       
 }
 ```
 
@@ -138,7 +162,7 @@ rateLimiter.use { rateLimiter =>
 ```
 
 ## Retry
-ZIO contains excellent built-in support for retrying effects on failures using `Schedule`, there is not much this library could add.
+ZIO already has excellent built-in support for retrying effects on failures using a `Schedule`, there is not much this library can add.
 
 Two helper methods are made available:
 
@@ -147,6 +171,8 @@ Two helper methods are made available:
   
 * `Retry.whenCase`  
   Accepts a partial function and a schedule and will apply the schedule only when the input matches partial function. This is useful to retry only on certain types of failures/exceptions
+  
+For consistency with the other policies and to support combining policies, there is `Retry.make(schedule)`.
   
 ### Usage
   
@@ -176,9 +202,6 @@ Because of type-safety, you sometimes need to transform your individual policies
 TODO
 
 
-
-`PolicyWrap` can combine the above policies into one wrapper interface.
-
 ### Usage
 
 ```scala
@@ -187,16 +210,16 @@ import zio.clock._
 import zio.duration._
 import nl.vroste.rezilience._
 
-val policy: ZManaged[Clock, Nothing, PolicyWrap[Any]] = ZManaged.mapN(
+val policy: ZManaged[Clock, Nothing, Policy[Any, Bulkhead.BulkheadError[Nothing]]]   = 
+ZManaged.mapN(
   RateLimiter.make(1, 1.second),
-  Bulkhead.make(10),
-  CircuitBreaker.withMaxFailures(10)
-)(PolicyWrap.make(_, _, _))
+  Bulkhead.make(10)
+)(_.toPolicy compose _.toPolicy)
 
 val myEffect: ZIO[Any, Exception, Unit] = ???
 
-policy.use { policy => 
-  policy(myEffect)
+policy.use { p => 
+  p(myEffect)
 }
 
 ```
@@ -206,7 +229,7 @@ These additional resiliency policies are standard ZIO functionality and therefor
 
 * Add a timeout to calls to external systems using eg `ZIO#timeout`, `timeoutFail` or `timeoutTo`. When combining different policies from this library, the timeout should be the first decorator.
 
-* Add a fallback using `ZIO#orElse`, a 'degraded mode' alternative response when a resource is not available.
+* Add a fallback using `ZIO#orElse`, a 'degraded mode' alternative response when a resource is not available. You usually want to do this as the outermost decorator.
 
 ## Credits
 <small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>

@@ -1,7 +1,7 @@
 package nl.vroste.rezilience
 
 import zio._
-import zio.stream.ZStream
+import zio.stream.{ ZSink, ZStream }
 import Bulkhead._
 
 /**
@@ -39,12 +39,12 @@ trait Bulkhead { self =>
 
 object Bulkhead {
   sealed trait BulkheadError[+E]
-  case class WrappedError[E](e: E) extends BulkheadError[E]
-  case object BulkheadRejection    extends BulkheadError[Nothing]
+  final case class WrappedError[E](e: E) extends BulkheadError[E]
+  final case object BulkheadRejection    extends BulkheadError[Nothing]
 
-  case class Metrics(inFlight: Int, inQueue: Int)
+  final case class Metrics(inFlight: Int, inQueue: Int)
 
-  private case class State(enqueued: Int, inFlight: Int) {
+  private final case class State(enqueued: Int, inFlight: Int) {
     val total               = enqueued + inFlight
     def enqueue: State      = copy(enqueued = enqueued + 1)
     def startProcess: State = copy(enqueued = enqueued - 1, inFlight + 1)
