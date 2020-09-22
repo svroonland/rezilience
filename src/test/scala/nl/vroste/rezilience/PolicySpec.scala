@@ -76,7 +76,7 @@ object PolicySpec extends DefaultRunnableSpec {
         ZManaged.mapN(
           RateLimiter.make(2),
           Bulkhead.make(10),
-          CircuitBreaker.withMaxFailures[Error](1)
+          CircuitBreaker.withMaxFailures(1)
         )(Policy.common(_, _, _))
 
       policy.use { policy =>

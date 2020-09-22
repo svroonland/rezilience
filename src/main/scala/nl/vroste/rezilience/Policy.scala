@@ -43,26 +43,27 @@ object Policy {
    * Creates a common rezilience policy that wraps calls with a circuit breaker, followed by a bulkhead,
    * followed by a rate limiter, followed by a retry policy.
    *
-   * i.e. retry(withRateLimiter(withBulkhead(withCircuitBreaker(effect)))
+   * i.e. retry(withRateLimiter(withCircuitBreaker(withBulkhead(effect)))
    *
    * Each of these wraps are optional by the default values for these three policies being noop versions
    */
   def common[E](
     rateLimiter: RateLimiter = noopRateLimiter,
     bulkhead: Bulkhead = noopBulkhead,
-    circuitBreaker: CircuitBreaker[E] = noopCircuitBreaker,
+    circuitBreaker: CircuitBreaker[PolicyError[E]] = noopCircuitBreaker,
     retry: Retry[E] = noopRetry[E]
   ): Policy[E, PolicyError[E]] = {
-    val cb: Policy[E, PolicyError[E]]              = circuitBreaker.toPolicy.mapError(circuitBreakerErrorToPolicyError)
-    val b: Policy[PolicyError[E], PolicyError[E]]  =
-      bulkhead.toPolicy[PolicyError[E]].mapError(bulkheadErrorToPolicyError).mapError(flattenWrappedError)
+    val cb: Policy[PolicyError[E], PolicyError[E]] =
+      circuitBreaker.toPolicy[PolicyError[E]].mapError(circuitBreakerErrorToPolicyError).mapError(flattenWrappedError)
+    val b: Policy[E, PolicyError[E]]               =
+      bulkhead.toPolicy[E].mapError(bulkheadErrorToPolicyError)
     val rl: Policy[PolicyError[E], PolicyError[E]] = rateLimiter.toPolicy[PolicyError[E]]
 
     val retryPolicy = retry
       .widen[PolicyError[E]] { case WrappedError(e) => e }
       .toPolicy[PolicyError[E]]
 
-    cb compose b compose rl compose retryPolicy
+    b compose cb compose rl compose retryPolicy
   }
 
   def noopRetry[E]: Retry[E] = new Retry[E] {
