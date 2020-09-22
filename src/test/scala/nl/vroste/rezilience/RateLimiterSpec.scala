@@ -1,5 +1,5 @@
 package nl.vroste.rezilience
-import zio.{ clock, ZIO }
+import zio.{ clock, Promise, ZIO }
 import zio.duration._
 import zio.test._
 import zio.test.Assertion._
@@ -49,6 +49,19 @@ object RateLimiterSpec extends DefaultRunnableSpec {
           forall(isGreaterThan(now) && isLessThanEqualTo(later))
         )
       }
+    },
+    testM("will interrupt the effect when being executed") {
+      RateLimiter.make(10, 1.second).use { rl =>
+        for {
+          latch       <- Promise.make[Nothing, Unit]
+          interrupted <- Promise.make[Nothing, Unit]
+          fib         <- rl(latch.succeed(()) *> ZIO.never.onInterrupt(interrupted.succeed(()))).fork
+          _           <- latch.await
+          _           <- fib.interrupt
+          _           <- interrupted.await
+        } yield assertCompletes
+      }
+
     }
   )
 }
