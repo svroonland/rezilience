@@ -14,7 +14,7 @@ import Bulkhead._
  * It also prevents queueing up of requests, which consume resources in the calling system, by rejecting
  * calls when the queue is full.
  */
-trait Bulkhead {
+trait Bulkhead { self =>
 
   /**
    * Call the system protected by the Bulkhead
@@ -26,6 +26,10 @@ trait Bulkhead {
    *         with a WrappedError of the task's error, or when not executed, with a BulkheadRejection.
    */
   def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A]
+
+  def toPolicy[E]: Policy[E, BulkheadError[E]] = new Policy[E, BulkheadError[E]] {
+    override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, BulkheadError[E1], A] = self(f)
+  }
 
   /**
    * Provides the number of in-flight and queued calls

@@ -13,7 +13,7 @@ import zio.clock.Clock
  *
  * Calls are queued up in an unbounded queue until capacity becomes available.
  */
-trait RateLimiter {
+trait RateLimiter { self =>
 
   /**
    * Call the system with RateLimiter protection
@@ -22,6 +22,10 @@ trait RateLimiter {
    *             task i
    */
   def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A]
+
+  def toPolicy[E]: Policy[E, E] = new Policy[E, E] {
+    override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] = self(f)
+  }
 }
 
 object RateLimiter {

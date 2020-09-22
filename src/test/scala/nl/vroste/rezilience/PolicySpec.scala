@@ -1,21 +1,21 @@
 package nl.vroste.rezilience
-import nl.vroste.rezilience.PolicyWrap.WrappedError
+import nl.vroste.rezilience.Policy.WrappedError
 import zio.duration.durationInt
 import zio.test.Assertion._
 import zio.test.environment.TestClock
 import zio.test.{ DefaultRunnableSpec, _ }
 import zio.{ Fiber, Promise, ZIO, ZManaged }
 
-object PolicyWrapSpec extends DefaultRunnableSpec {
+object PolicySpec extends DefaultRunnableSpec {
   sealed trait Error
   case object MyCallError     extends Error
   case object MyNotFatalError extends Error
 
-  override def spec = suite("PolicyWrap")(
+  override def spec = suite("Policy")(
     testM("succeeds the first call immediately regardless of the policies") {
       val policy =
         ZManaged.mapN(RateLimiter.make(1), Bulkhead.make(100), CircuitBreaker.withMaxFailures(10))(
-          PolicyWrap.make(_, _, _)
+          Policy.common(_, _, _)
         )
 
       policy.use { policy =>
@@ -28,7 +28,7 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
     testM("fails the first call when retry is disabled") {
       val policy =
         ZManaged.mapN(RateLimiter.make(1), Bulkhead.make(100), CircuitBreaker.withMaxFailures(10))(
-          PolicyWrap.make(_, _, _)
+          Policy.common(_, _, _)
         )
 
       policy.use { policy =>
@@ -43,13 +43,13 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
           RateLimiter.make(2),
           Bulkhead.make(100),
           CircuitBreaker.withMaxFailures(1)
-        )(PolicyWrap.make(_, _, _))
+        )(Policy.common(_, _, _))
 
       policy.use { policy =>
         for {
           _      <- policy(ZIO.fail(MyCallError)).flip
           result <- policy(ZIO.fail(MyCallError)).flip
-        } yield assert(result)(equalTo(PolicyWrap.CircuitBreakerOpen))
+        } yield assert(result)(equalTo(Policy.CircuitBreakerOpen))
       }
     },
     testM("fail with a bulkhead error after too many calls in progress") {
@@ -58,7 +58,7 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
           RateLimiter.make(10),
           Bulkhead.make(1, maxQueueing = 1),
           CircuitBreaker.withMaxFailures(1)
-        )(PolicyWrap.make(_, _, _))
+        )(Policy.common(_, _, _))
 
       policy.use { policy =>
         for {
@@ -68,7 +68,7 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
           _      <- latch.await
           result <-
             policy(ZIO.unit).flip raceFirst policy(ZIO.unit).flip // One of these is enqueued, one is rejected
-        } yield assert(result)(equalTo(PolicyWrap.BulkheadRejection))
+        } yield assert(result)(equalTo(Policy.BulkheadRejection))
       }
     },
     testM("rate limit") {
@@ -77,7 +77,7 @@ object PolicyWrapSpec extends DefaultRunnableSpec {
           RateLimiter.make(2),
           Bulkhead.make(10),
           CircuitBreaker.withMaxFailures[Error](1)
-        )(PolicyWrap.make(_, _, _))
+        )(Policy.common(_, _, _))
 
       policy.use { policy =>
         for {

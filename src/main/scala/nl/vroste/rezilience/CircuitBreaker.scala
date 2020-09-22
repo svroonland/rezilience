@@ -38,7 +38,7 @@ import zio.stream.ZStream
  * 2) Failure rate. When the fraction of failed calls in some sample period exceeds
  *    a threshold (between 0 and 1), the circuit breaker is tripped.
  */
-trait CircuitBreaker[-E] {
+trait CircuitBreaker[-E] { self =>
 
   /**
    * Execute a given effect with the circuit breaker
@@ -48,6 +48,10 @@ trait CircuitBreaker[-E] {
    *         or a `WrappedError` of the error of the given f
    */
   def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A]
+
+  def toPolicy[E2 <: E]: Policy[E2, CircuitBreakerCallError[E2]] = new Policy[E2, CircuitBreakerCallError[E2]] {
+    override def apply[R, E1 <: E2, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E2], A] = self(f)
+  }
 }
 
 object CircuitBreaker {
