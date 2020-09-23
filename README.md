@@ -3,19 +3,20 @@
 # Rezilience
 
 - [About](#about)
-- [Benefits over other libraries](#benefits-over-other-libraries)
+- [Features / Design goals](#features---design-goals)
 - [Installation](#installation)
+- [General usage](#general-usage)
 - [Circuit Breaker](#circuit-breaker)
   * [Features](#features)
-  * [Usage](#usage)
+  * [Usage example](#usage-example)
 - [Bulkhead](#bulkhead)
-  * [Usage](#usage-1)
+  * [Usage example](#usage-example-1)
 - [RateLimiter](#ratelimiter)
-  * [Usage](#usage-2)
+  * [Usage](#usage)
 - [Retry](#retry)
-  * [Usage](#usage-3)
+  * [Usage](#usage-1)
 - [Combining policies](#combining-policies)
-  * [Usage](#usage-4)
+- [Additional resiliency recommendations](#additional-resiliency-recommendations)
 - [Credits](#credits)
 
 ## About
