@@ -50,7 +50,7 @@ object RateLimiterSpec extends DefaultRunnableSpec {
         )
       }
     },
-    testM("will interrupt the effect when being executed") {
+    testM("will interrupt the effect when a call is interrupted") {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
           latch       <- Promise.make[Nothing, Unit]

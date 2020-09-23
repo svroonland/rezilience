@@ -78,7 +78,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
         } yield assert(result)(isLeft(equalTo(BulkheadRejection)))
       }
     },
-    testM("will interrupt the effect when being executed") {
+    testM("will interrupt the effect when a call is interrupted") {
       Bulkhead.make(10).use { bulkhead =>
         for {
           latch       <- Promise.make[Nothing, Unit]
