@@ -91,23 +91,35 @@ Make calls to an external system through the CircuitBreaker to safeguard that sy
 ### Usage example
 
 ```scala
+import nl.vroste.rezilience.CircuitBreaker._
+import nl.vroste.rezilience._
 import zio._
 import zio.clock.Clock
+import zio.console.putStrLn
 import zio.duration._
-import nl.vroste.rezilience._
-import CircuitBreaker._
 
-// We use Throwable as error type in this example 
-def myCallToExternalResource(someInput: String): ZIO[Any, Throwable, Int] = ???
+object CircuitBreakerExample {
+  // We use Throwable as error type in this example
+  def callExternalSystem(someInput: String): ZIO[Any, Throwable, Int] = ZIO.succeed(someInput.length)
 
-val circuitBreaker: ZManaged[Clock, Nothing, CircuitBreaker[Any]] = CircuitBreaker.make(
+  val circuitBreaker: ZManaged[Clock, Nothing, CircuitBreaker[Any]] = CircuitBreaker.make(
     trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
     resetPolicy = Schedule.exponential(1.second),
     onStateChange = (s: State) => ZIO(println(s"State changed to ${s}")).ignore
-    )
+  )
 
-circuitBreaker.use { cb =>
-    val result: ZIO[Any, CircuitBreakerCallError[Throwable], Int] = cb(myCallToExternalResource("some input"))
+  circuitBreaker.use { cb =>
+    val result: ZIO[Any, CircuitBreakerCallError[Throwable], Int] = cb(callExternalSystem("some input"))
+
+    result
+      .flatMap(r => putStrLn(s"External system returned $r"))
+      .catchSome {
+        case CircuitBreakerOpen =>
+          putStrLn("Circuit breaker blocked the call to our external system")
+        case WrappedError(e)    =>
+          putStrLn(s"External system threw an exception: $e")
+      }
+  }
 }
 ```
 
@@ -196,11 +208,20 @@ The above policies can be combined into one `Policy` to combine several resilien
 
 Many variations of policy combinations are possible, but one example is to have a `Retry` around a `RateLimiter`.
 
-Because of type-safety, you sometimes need to transform your individual policies to work with the errors produced by inner policies. Take for example, a Retry around a `CircuitBreaker` that you want to call with. If you want to retry on any error, a `Retry[Any]` is fine. But if you only want to use a Retry on ZIOs with error type `E` and your Retry policy defines that it only wants to retry a subset of those errors, eg `E1 <: E`, you will need to adapt it to decide what to do with the `CircuitBreakerError[E]` that is the output error type of the `CircuitBreaker`. For example:
+To compose policies, convert them into a `Policy` instance using `toPolicy` and use `.compose` to wrap it in another policy. For example:
 
+```scala
+val policy: ZManaged[Clock, Nothing, Policy[Any, Any]] = for {
+  rateLimiter <- RateLimiter.make(1, 2.seconds)
+  bulkhead    <- Bulkhead.make(2)
+  retry       <- Retry.make(Schedule.recurs(3))
+} yield bulkhead
+  .toPolicy[Any] compose rateLimiter.toPolicy[Any] compose retry.toPolicy[Any]
+```
 
-TODO
+Unfortunately the type inference here is not quite there yet, requiring the `Any` type parameters. 
 
+Because of type-safety, you sometimes need to transform your individual policies to work with the errors produced by inner policies. Take for example, a Retry around a `CircuitBreaker` that you want to call with. If you want to retry on any error, a `Retry[Any]` is fine. But if you only want to use a Retry on ZIOs with error type `E` and your Retry policy defines that it only wants to retry a subset of those errors, eg `E1 <: E`, you will need to adapt it to decide what to do with the `CircuitBreakerError[E]` that is the output error type of the `CircuitBreaker`. 
 
 ### Usage
 
