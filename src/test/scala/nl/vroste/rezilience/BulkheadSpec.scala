@@ -44,12 +44,11 @@ object BulkheadSpec extends DefaultRunnableSpec {
       val max = 10
       Bulkhead.make(max).use { bulkhead =>
         for {
-          p                <- Promise.make[Nothing, Unit]
           callsCompleted   <- Ref.make(0)
-          calls            <- ZIO.foreachPar(1 to max + 2)(_ => bulkhead(callsCompleted.updateAndGet(_ + 1) *> p.await)).fork
+          calls            <- ZIO.foreachPar(1 to max + 2)(_ => bulkhead(callsCompleted.updateAndGet(_ + 1) *> ZIO.never)).fork
           _                <- TestClock.adjust(1.second)
-          _                <- calls.interrupt
           nrCallsCompleted <- callsCompleted.get
+          _                <- calls.interrupt
         } yield assert(nrCallsCompleted)(equalTo(max))
       }
     },
@@ -75,9 +74,20 @@ object BulkheadSpec extends DefaultRunnableSpec {
                              .fork
           _             <- maxInFlight.await.raceFirst(calls.join)
           result        <- bulkhead(ZIO.unit).either
-          _              = println(result)
           _             <- calls.interrupt
         } yield assert(result)(isLeft(equalTo(BulkheadRejection)))
+      }
+    },
+    testM("will interrupt the effect when a call is interrupted") {
+      Bulkhead.make(10).use { bulkhead =>
+        for {
+          latch       <- Promise.make[Nothing, Unit]
+          interrupted <- Promise.make[Nothing, Unit]
+          fib         <- bulkhead(latch.succeed(()) *> ZIO.never.onInterrupt(interrupted.succeed(()))).fork
+          _           <- latch.await
+          _           <- fib.interrupt
+          _           <- interrupted.await
+        } yield assertCompletes
       }
     }
   )
