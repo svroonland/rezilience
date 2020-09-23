@@ -35,7 +35,7 @@ It consists of these policies:
 * Type-safety: all errors that can result from any of the `rezilience` policies are encoded in the method signatures, so no unexpected RuntimeExceptions.
 * Support for your own error types (the `E` in `ZIO[R, E, A]`) instead of requiring your effects to have `Exception` as error type
 * Lightweight: `rezilience` uses only ZIO fibers and will not create threads or blocking
-* Resource-safe: built on ZIO's `ZManaged`, any allocated resources are cleaned up safely after use
+* Resource-safe: built on ZIO's `ZManaged`, any allocated resources are cleaned up safely after use. Call interruptions are handled properly.
 * Thread-safe: all policies are safe under concurrent use.
 * ZIO integration: some policies take for example ZIO `Schedule`s and `rezilience` tries to help type inference using variance annotations
 * Metrics: all policies (will) provide usage metrics for monitoring purposes
@@ -186,7 +186,7 @@ val myEffect: ZIO[Any, Exception, Unit] = ???
 
 // Retry exponentially on timeout exceptions
 myEffect.retry(
-  Retry.make(Retry.Schedule.whenCase({ case TimeoutException => })(Retry.Schedule.exponentialBackoff(min = 1.second, max = 1.minute)))
+  Retry.Schedule.whenCase({ case TimeoutException => })(Retry.Schedule.exponentialBackoff(min = 1.second, max = 1.minute))
 )
 ```
 
@@ -228,6 +228,8 @@ policy.use { p =>
 These additional resiliency policies are standard ZIO functionality and therefore have no dedicated implementations in this library, but they can be applied in combination with `rezilience` policies.
 
 * Add a timeout to calls to external systems using eg `ZIO#timeout`, `timeoutFail` or `timeoutTo`. When combining different policies from this library, the timeout should be the first decorator.
+
+* Add a cache to speed up response time and provide an alternative in case of failures. `rezilience` does not provide a cache since it is a specialized topic. A library like [scalacache](https://cb372.github.io/scalacache/docs/modes.html) offers ZIO integration via cats-effect interop.
 
 * Add a fallback using `ZIO#orElse`, a 'degraded mode' alternative response when a resource is not available. You usually want to do this as the outermost decorator.
 
