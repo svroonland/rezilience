@@ -223,28 +223,6 @@ Unfortunately the type inference here is not quite there yet, requiring the `Any
 
 Because of type-safety, you sometimes need to transform your individual policies to work with the errors produced by inner policies. Take for example, a Retry around a `CircuitBreaker` that you want to call with. If you want to retry on any error, a `Retry[Any]` is fine. But if you only want to use a Retry on ZIOs with error type `E` and your Retry policy defines that it only wants to retry a subset of those errors, eg `E1 <: E`, you will need to adapt it to decide what to do with the `CircuitBreakerError[E]` that is the output error type of the `CircuitBreaker`. 
 
-### Usage
-
-```scala
-import zio._
-import zio.clock._
-import zio.duration._
-import nl.vroste.rezilience._
-
-val policy: ZManaged[Clock, Nothing, Policy[Any, Bulkhead.BulkheadError[Nothing]]]   = 
-ZManaged.mapN(
-  RateLimiter.make(1, 1.second),
-  Bulkhead.make(10)
-)(_.toPolicy compose _.toPolicy)
-
-val myEffect: ZIO[Any, Exception, Unit] = ???
-
-policy.use { p => 
-  p(myEffect)
-}
-
-```
-
 ## Additional resiliency recommendations
 The following additional resiliency policies are not included in this library. Some because they are standard ZIO functionality. They can be applied in combination with `rezilience` policies.
 
