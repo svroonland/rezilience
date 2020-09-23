@@ -74,7 +74,6 @@ object BulkheadSpec extends DefaultRunnableSpec {
                              .fork
           _             <- maxInFlight.await.raceFirst(calls.join)
           result        <- bulkhead(ZIO.unit).either
-          _              = println(result)
           _             <- calls.interrupt
         } yield assert(result)(isLeft(equalTo(BulkheadRejection)))
       }
