@@ -1,12 +1,10 @@
 package nl.vroste.rezilience
 import nl.vroste.rezilience.Policy.WrappedError
-import zio.clock.Clock
-import zio.console.putStrLn
 import zio.duration.durationInt
 import zio.test.Assertion._
 import zio.test.environment.TestClock
 import zio.test.{ DefaultRunnableSpec, _ }
-import zio.{ Fiber, Promise, Schedule, ZIO, ZManaged }
+import zio.{ Fiber, Promise, ZIO, ZManaged }
 
 object PolicySpec extends DefaultRunnableSpec {
   sealed trait Error
@@ -92,27 +90,6 @@ object PolicySpec extends DefaultRunnableSpec {
           _             <- fib.join
         } yield assert(initialStatus)(Assertion.isSubtype[Fiber.Status.Suspended](anything))
       }
-    },
-    testM("have good combination ergonomics") {
-      val policy = for {
-        rateLimiter <- RateLimiter.make(1, 2.seconds)
-        bulkhead    <- Bulkhead.make(2)
-        retry       <- Retry.make(Schedule.recurs(3))
-      } yield Policy.compose(
-        bulkhead.toPolicy[Any],
-        rateLimiter.toPolicy[Bulkhead.BulkheadError[Any]],
-        retry
-          .toPolicy[Bulkhead.BulkheadError[Any]]
-      )
-
-      policy.use { p =>
-        for {
-          _ <-
-            p {
-              putStrLn("Oh no me failed").delay(1.second) *> ZIO.fail("Oh no me failed error").when(true)
-            }
-        } yield assertCompletes
-      }
-    }.provideCustomLayer(Clock.live)
+    }
   )
 }
