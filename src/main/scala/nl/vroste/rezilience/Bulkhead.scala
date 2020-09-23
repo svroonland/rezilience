@@ -1,8 +1,8 @@
 package nl.vroste.rezilience
 
+import nl.vroste.rezilience.Bulkhead._
 import zio._
 import zio.stream.ZStream
-import Bulkhead._
 
 /**
  * Limits the number of simultaneous in-flight calls to an external resource
@@ -14,7 +14,7 @@ import Bulkhead._
  * It also prevents queueing up of requests, which consume resources in the calling system, by rejecting
  * calls when the queue is full.
  */
-trait Bulkhead {
+trait Bulkhead { self =>
 
   /**
    * Call the system protected by the Bulkhead
@@ -27,6 +27,10 @@ trait Bulkhead {
    */
   def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A]
 
+  def toPolicy[E]: Policy[E, BulkheadError[E]] = new Policy[E, BulkheadError[E]] {
+    override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, BulkheadError[E1], A] = self(f)
+  }
+
   /**
    * Provides the number of in-flight and queued calls
    */
@@ -35,12 +39,12 @@ trait Bulkhead {
 
 object Bulkhead {
   sealed trait BulkheadError[+E]
-  case class WrappedError[E](e: E) extends BulkheadError[E]
-  case object BulkheadRejection    extends BulkheadError[Nothing]
+  final case class WrappedError[E](e: E) extends BulkheadError[E]
+  final case object BulkheadRejection    extends BulkheadError[Nothing]
 
-  case class Metrics(inFlight: Int, inQueue: Int)
+  final case class Metrics(inFlight: Int, inQueue: Int)
 
-  private case class State(enqueued: Int, inFlight: Int) {
+  private final case class State(enqueued: Int, inFlight: Int) {
     val total               = enqueued + inFlight
     def enqueue: State      = copy(enqueued = enqueued + 1)
     def startProcess: State = copy(enqueued = enqueued - 1, inFlight + 1)
