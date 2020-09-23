@@ -17,7 +17,15 @@ trait Retry[-E] { self =>
       lastError                      <- Ref.make[Option[E1]](None)
       // We lose access to the E2 type error when we convert it using the partial function, so store it in a ref
       inner: ZIO[R, E, Either[E1, A]] =
-        f.foldM(e2 => lastError.set(Some(e2)) *> pf.unapply(e2).map(ZIO.fail(_)).getOrElse(ZIO.left(e2)), ZIO.right(_))
+        f.foldM(
+          e2 =>
+            lastError.set(Some(e2)) *>
+              pf
+                .andThen(ZIO.fail(_))
+                .lift(e2)
+                .getOrElse(ZIO.left(e2)),
+          ZIO.right(_)
+        )
       result                         <- self.apply(inner).flatMapError(_ => lastError.get).mapError(_.get).absolve
     } yield result
   }
