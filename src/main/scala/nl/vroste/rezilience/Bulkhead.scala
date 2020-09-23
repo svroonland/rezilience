@@ -88,15 +88,18 @@ object Bulkhead {
     } yield new Bulkhead {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
-          result     <- Promise.make[E, A]
-          enqueued   <- Promise.make[BulkheadRejection.type, Unit]
-          r          <- ZIO.environment[R]
-          action      = task.provide(r).foldM(result.fail, result.succeed).unit
-          isEnqueued <- queue.offer((action, enqueued))
-          _          <- ZIO.fail(BulkheadRejection).when(!isEnqueued)
-          _          <- enqueued.await
-          r          <- result.await.mapError(WrappedError(_))
-        } yield r
+          result      <- Promise.make[E, A]
+          interrupted <- Promise.make[Nothing, Unit]
+          enqueued    <- Promise.make[BulkheadRejection.type, Unit]
+          env         <- ZIO.environment[R]
+          action       = task.provide(env).foldM(result.fail, result.succeed).unit raceFirst interrupted.await
+          resultValue <- (for {
+                           isEnqueued <- queue.offer((action, enqueued))
+                           _          <- ZIO.fail(BulkheadRejection).when(!isEnqueued)
+                           _          <- enqueued.await
+                           r          <- result.await.mapError(WrappedError(_))
+                         } yield r).onInterrupt(interrupted.succeed(()))
+        } yield resultValue
 
       override def metrics: UIO[Metrics] = (inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued)))
     }

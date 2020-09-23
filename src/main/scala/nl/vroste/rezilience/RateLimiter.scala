@@ -52,11 +52,11 @@ object RateLimiter {
            .forkManaged
   } yield new RateLimiter {
     override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {
-      p      <- Promise.make[E, A]
-      env    <- ZIO.environment[R]
-      effect  = task.foldM(p.fail, p.succeed).provide(env)
-      _      <- q.offer(effect)
-      result <- p.await
+      p           <- Promise.make[E, A]
+      interrupted <- Promise.make[Nothing, Unit]
+      env         <- ZIO.environment[R]
+      effect       = task.foldM(p.fail, p.succeed).provide(env) raceFirst interrupted.await
+      result      <- (q.offer(effect) *> p.await).onInterrupt(interrupted.succeed(()))
     } yield result
   }
 }
