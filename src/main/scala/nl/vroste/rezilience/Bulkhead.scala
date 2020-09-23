@@ -1,8 +1,8 @@
 package nl.vroste.rezilience
 
+import nl.vroste.rezilience.Bulkhead._
 import zio._
-import zio.stream.{ ZSink, ZStream }
-import Bulkhead._
+import zio.stream.ZStream
 
 /**
  * Limits the number of simultaneous in-flight calls to an external resource

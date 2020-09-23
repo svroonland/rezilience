@@ -42,6 +42,14 @@ object Policy {
   case object BulkheadRejection    extends PolicyError[Nothing]
   case object CircuitBreakerOpen   extends PolicyError[Nothing]
 
+  def compose[E, E1, E1A >: E1, E2](p1: Policy[E, E1], p2: Policy[E1A, E2]): Policy[E, E2] = p1.compose(p2)
+
+  def compose[E, E1, E1A >: E1, E2, E2A >: E2, E3](
+    p1: Policy[E, E1],
+    p2: Policy[E1A, E2],
+    p3: Policy[E2A, E3]
+  ): Policy[E, E3] = p1.compose(p2).compose(p3)
+
   /**
    * Creates a common rezilience policy that wraps calls with a bulkhead, followed by a circuit breaker,
    * followed by a rate limiter, followed by a retry policy.

@@ -225,7 +225,7 @@ policy.use { p =>
 ```
 
 ## Additional resiliency recommendations
-These additional resiliency policies are standard ZIO functionality and therefore have no dedicated implementations in this library, but they can be applied in combination with `rezilience` policies.
+The following additional resiliency policies are not included in this library. Some because they are standard ZIO functionality. They can be applied in combination with `rezilience` policies.
 
 * Add a timeout to calls to external systems using eg `ZIO#timeout`, `timeoutFail` or `timeoutTo`. When combining different policies from this library, the timeout should be the first decorator.
 
