@@ -22,7 +22,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache
-      - run: sbt ++2.13.1! test
+      - run: sbt ++2.13.1! rezilienceJVM/test
       - save_cache:
           key: sbt-cache
           paths:
@@ -36,7 +36,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache
-      - run: sbt ++2.13.1! test
+      - run: sbt ++2.13.1! rezilienceJVM/test
       - save_cache:
           key: sbt-cache
           paths:
@@ -50,7 +50,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache
-      - run: sbt ++2.12.11! test
+      - run: sbt ++2.12.11! rezilienceJVM/test
       - save_cache:
           key: sbt-cache
           paths:
@@ -64,7 +64,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache
-      - run: sbt ++2.12.11! test
+      - run: sbt ++2.12.11! rezilienceJVM/test
       - save_cache:
           key: sbt-cache
           paths:
@@ -73,16 +73,14 @@ jobs:
             - "~/.m2"
   release:
     docker:
-      - image: hseeberger/scala-sbt:8u242_1.3.10_2.13.1
+      - image: hseeberger/scala-sbt:11.0.7_1.3.13_2.12.12
     steps:
       - checkout
       - run: git fetch --tags
       - restore_cache:
           key: sbt-cache
-      - run: echo -n "${PGP_PUBLIC}" | base64 -d > /tmp/public.asc
-      - run: echo -n "${PGP_SECRET}" | base64 -d > /tmp/secret.asc
-      - run: echo "credentials += Credentials(\"Sonatype Nexus Repository Manager\", \"oss.sonatype.org\", \"$SONATYPE_USER\", \"$SONATYPE_PASSWORD\")" > ~/.sbt/1.0/sonatype.sbt
-      - run: sbt ++2.13.1! clean sonatypeBundleClean +publishSigned sonatypeBundleRelease
+      - run: apt install -y protobuf-compiler
+      - run: sbt ciReleaseBintray
 
 workflows:
   version: 2
@@ -117,7 +115,6 @@ workflows:
             tags:
               only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
       - release:
-          context: Sonatype
           requires:
             - test213_jdk8
             - test213_jdk11
