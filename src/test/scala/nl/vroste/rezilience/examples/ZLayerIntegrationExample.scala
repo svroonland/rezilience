@@ -1,6 +1,7 @@
 package nl.vroste.rezilience.examples
 
-import nl.vroste.rezilience.RateLimiter
+import nl.vroste.rezilience.Policy.PolicyError
+import nl.vroste.rezilience.{ CircuitBreaker, Policy, RateLimiter }
 import zio._
 import zio.clock.Clock
 
@@ -12,7 +13,8 @@ object ZLayerIntegrationExample extends zio.App {
   type Amount  = Int
 
   // The definition of our Database service
-  type Database = Has[Database.Service]
+  type Database          = Has[Database.Service]
+  type ResilientDatabase = Has[ResilientDatabase.Service]
 
   object Database {
     trait Service {
@@ -27,6 +29,20 @@ object ZLayerIntegrationExample extends zio.App {
     def newAccount(name: Account): ZIO[Database, Throwable, Unit] =
       ZIO.service[Database.Service].flatMap(_.newAccount(name))
 
+  }
+
+  object ResilientDatabase {
+    trait Service {
+      def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, PolicyError[Throwable], Unit]
+      def newAccount(name: Account): ZIO[Any, PolicyError[Throwable], Unit]
+    }
+
+    // Accessors
+    def transfer(amount: Amount, from: Account, to: Account): ZIO[ResilientDatabase, PolicyError[Throwable], Unit] =
+      ZIO.service[ResilientDatabase.Service].flatMap(_.transfer(amount, from, to))
+
+    def newAccount(name: Account): ZIO[ResilientDatabase, PolicyError[Throwable], Unit] =
+      ZIO.service[ResilientDatabase.Service].flatMap(_.newAccount(name))
   }
 
   // Some live implementation of our Database service
@@ -54,13 +70,29 @@ object ZLayerIntegrationExample extends zio.App {
       }
     }
 
+  val addCircuitBreakerToDatabase: ZLayer[Database with Clock, Nothing, ResilientDatabase] =
+    ZLayer.fromServiceManaged { database: Database.Service =>
+      CircuitBreaker
+        .withMaxFailures[Throwable](10)
+        .map(_.toPolicy[Throwable].mapError(Policy.circuitBreakerErrorToPolicyError))
+        .map { rl =>
+          new ResilientDatabase.Service {
+            override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, PolicyError[Throwable], Unit] =
+              rl(database.transfer(amount, from, to))
+
+            override def newAccount(name: Account): ZIO[Any, PolicyError[Throwable], Unit] =
+              rl(database.newAccount(name))
+          }
+        }
+    }
+
   // The complete environment of our application
-  val env: ZLayer[Clock, Nothing, Database] =
-    (Clock.live ++ databaseLayer) >>> addRateLimiterToDatabase
+  val env: ZLayer[Clock, Nothing, ResilientDatabase] =
+    (Clock.live ++ databaseLayer) >+> addRateLimiterToDatabase >>> addCircuitBreakerToDatabase
 
   // Run our program against the Database service being unconcerned with the rate limiter
   override def run(args: List[String]): URIO[ZEnv, ExitCode] =
-    (Database.transfer(1, "a", "b") *> Database.transfer(3, "b", "a"))
+    (ResilientDatabase.transfer(1, "a", "b") *> ResilientDatabase.transfer(3, "b", "a"))
       .provideCustomLayer(env)
       .exitCode
 }
