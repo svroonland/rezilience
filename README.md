@@ -52,7 +52,7 @@ resolvers += Resolver.jcenterRepo
 libraryDependencies += "nl.vroste" %% "rezilience" % "<version>"
 ```
 
-The latest version is built against ZIO 1.0.1.
+The latest version is built against ZIO 1.0.1 and is available for Scala 2.12, 2.13 and Scala.JS 1.2.
 
 ## General usage
 
