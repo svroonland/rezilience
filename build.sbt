@@ -24,7 +24,6 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
     publishMavenStyle := true,
     publishArtifact in Test :=
       false,
-    assemblyJarName in assembly := "rezilience-" + version.value + ".jar",
     test in assembly := {},
     target in assembly := file(baseDirectory.value + "/../bin/"),
     assemblyMergeStrategy in assembly := {
@@ -44,13 +43,6 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
       "org.scala-lang.modules" %%% "scala-collection-compat" % "2.2.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
-  )
-//  jvmSettings(
-//    // Add JVM-specific settings here
-//  ).
-  .jsSettings(
-    // Add JS-specific settings here
-    scalaJSUseMainModuleInitializer := true
   )
 
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
