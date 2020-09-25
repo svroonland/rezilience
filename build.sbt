@@ -13,28 +13,18 @@ lazy val root = project
 lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
   .in(file("rezilience"))
   .settings(
+    name := "rezilience",
     organization := "nl.vroste",
     homepage := Some(url("https://github.com/svroonland/rezilience")),
     licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
     scalaVersion := mainScala,
     crossScalaVersions := allScala,
-    parallelExecution in Test := false,
+    parallelExecution in Test := true,
     fork in Test := false,
     fork in run := true,
     publishMavenStyle := true,
-    publishArtifact in Test :=
-      false,
-    test in assembly := {},
-    target in assembly := file(baseDirectory.value + "/../bin/"),
-    assemblyMergeStrategy in assembly := {
-      case PathList("META-INF", xs @ _*)       => MergeStrategy.discard
-      case n if n.startsWith("reference.conf") => MergeStrategy.concat
-      case _                                   => MergeStrategy.first
-    },
     bintrayOrganization := Some("vroste"),
-    bintrayReleaseOnPublish in ThisBuild := false,
     bintrayPackageLabels := Seq("zio", "circuit-breaker"),
-    name := "rezilience",
     scalafmtOnCompile := true,
     libraryDependencies ++= Seq(
       "dev.zio"                %%% "zio-streams"             % "1.0.1",
