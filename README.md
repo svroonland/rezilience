@@ -77,6 +77,29 @@ val isFailure: PartialFunction[Error, Boolean] = {
 CircuitBreaker.withMaxFailures(3, isFailure = isFailure).use { circuitBreaker => circuitBreaker(callToExternalSystem) }
 ```
 
+### ZLayer integration
+You can apply `rezilience` policies at the level of an individual ZIO effect. But having to wrap all your calls in eg a rate limiter can clutter your code somewhat. When you are using the ZIO module pattern using `ZLayer`, it is also possible to integrate a `rezilience` policy with some service at the `ZLayer` level. In the spirit of aspect oriented programming, the code using your service will not be cluttered with the aspect of rate limiting.
+
+For example:
+
+```scala
+val addRateLimiterToDatabase: ZLayer[Database with Clock, Nothing, Database] =
+ZLayer.fromServiceManaged { database: Database.Service =>
+  RateLimiter.make(10).map { rateLimiter =>
+    new Database.Service {
+      override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
+        rateLimiter(database.transfer(amount, from, to))
+    }
+  }
+}
+
+val env: ZLayer[Clock, Nothing, Database] = (Clock.live ++ databaseLayer) >>> addRateLimiterToDatabase
+```
+
+This works well for policies that do not alter the error type like RateLimiter and Retry, but for policies that do alter the error type, you will need to map eg a `CircuitBreakerOpen` to the error type in your service definition. If your service's error type is something like `Throwable`, you can throw any new kind of exception, but for custom error types this is not possible. In that case you can define a new service type like `ResilientDatabase` where the error types are `PolicyError[E]`.
+
+See the [full example](src/test/scala/nl/vroste/rezilience/examples/ZLayerIntegrationExample.scala) for more.
+
 ## Circuit Breaker
 Make calls to an external system through the CircuitBreaker to safeguard that system against overload. When too many calls have failed, the circuit breaker will trip and calls will fail immediately, giving the external system some time to recover. This also prevents a queue of calls waiting for response from the external system until timeout.
 
