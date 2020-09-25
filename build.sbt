@@ -1,8 +1,18 @@
+import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 val mainScala = "2.13.3"
 val allScala  = Seq("2.12.11", mainScala)
 
-inThisBuild(
-  List(
+lazy val root = project
+  .in(file("."))
+  .aggregate(rezilience.js, rezilience.jvm)
+  .settings(
+    publish := {},
+    publishLocal := {}
+  )
+
+lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
+  .in(file("."))
+  .settings(
     organization := "nl.vroste",
     version := "0.2",
     homepage := Some(url("https://github.com/svroonland/rezilience")),
@@ -25,21 +35,24 @@ inThisBuild(
     },
     bintrayOrganization := Some("vroste"),
     bintrayReleaseOnPublish in ThisBuild := false,
-    bintrayPackageLabels := Seq("zio", "circuit-breaker")
+    bintrayPackageLabels := Seq("zio", "circuit-breaker"),
+    name := "rezilience",
+    scalafmtOnCompile := true,
+    libraryDependencies ++= Seq(
+      "dev.zio"                %%% "zio-streams"             % "1.0.1",
+      "dev.zio"                %%% "zio-test"                % "1.0.1" % "test",
+      "dev.zio"                %%% "zio-test-sbt"            % "1.0.1" % "test",
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.2.0"
+    ),
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
-)
-
-name := "rezilience"
-scalafmtOnCompile := true
-
-libraryDependencies ++= Seq(
-  "dev.zio"                %% "zio-streams"             % "1.0.1",
-  "dev.zio"                %% "zio-test"                % "1.0.1" % "test",
-  "dev.zio"                %% "zio-test-sbt"            % "1.0.1" % "test",
-  "org.scala-lang.modules" %% "scala-collection-compat" % "2.2.0"
-)
-
-testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
+//  jvmSettings(
+//    // Add JVM-specific settings here
+//  ).
+  .jsSettings(
+    // Add JS-specific settings here
+    scalaJSUseMainModuleInitializer := true
+  )
 
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
