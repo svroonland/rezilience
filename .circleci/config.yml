@@ -22,7 +22,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache
-      - run: sbt ++2.13.1! rezilienceJVM/test
+      - run: sbt ++2.13.1! compile rezilienceJVM/test
       - save_cache:
           key: sbt-cache
           paths:
@@ -36,7 +36,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache
-      - run: sbt ++2.13.1! rezilienceJVM/test
+      - run: sbt ++2.13.1! compile rezilienceJVM/test
       - save_cache:
           key: sbt-cache
           paths:
@@ -50,7 +50,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache
-      - run: sbt ++2.12.11! rezilienceJVM/test
+      - run: sbt ++2.12.11! compile rezilienceJVM/test
       - save_cache:
           key: sbt-cache
           paths:
@@ -64,7 +64,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache
-      - run: sbt ++2.12.11! rezilienceJVM/test
+      - run: sbt ++2.12.11! compile rezilienceJVM/test
       - save_cache:
           key: sbt-cache
           paths:
