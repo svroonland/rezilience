@@ -11,7 +11,7 @@ lazy val root = project
   )
 
 lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
-  .in(file("."))
+  .in(file("rezilience"))
   .settings(
     organization := "nl.vroste",
     version := "0.2",
