@@ -5,7 +5,7 @@
 `rezilience` is a ZIO-native collection of policies for making asynchronous systems more resilient to failures.
 
 ## Documentation
-[Documentation](vroste.github.io/rezilience)
+[Documentation](https://svroonland.github.io/rezilience)
 
 ## Installation
 
