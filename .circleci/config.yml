@@ -79,7 +79,6 @@ jobs:
       - run: git fetch --tags
       - restore_cache:
           key: sbt-cache
-      - run: apt install -y protobuf-compiler
       - run: sbt ciReleaseBintray
 
 workflows:
