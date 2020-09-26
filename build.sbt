@@ -41,13 +41,15 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 
 lazy val docs = project
   .enablePlugins(MicrositesPlugin)
+  .enablePlugins(SiteScaladocPlugin)
+  .enablePlugins(ScalaUnidocPlugin)
   .settings(
     name := "rezilience",
     description := "ZIO-native utilities for making asynchronous systems more resilient to failures",
 //    publishArtifact := false,
-//    siteSubdirName in ScalaUnidoc := "api",
-//    addMappingsToSiteDir(mappings in (ScalaUnidoc, packageDoc), siteSubdirName in ScalaUnidoc),
-//    unidocProjectFilter in ( ScalaUnidoc, unidoc ) := inAnyProject -- inProjects(core.js, catsEffect.js, zio.js, benchmarks),
+    siteSubdirName in ScalaUnidoc := "api",
+    addMappingsToSiteDir(mappings in (ScalaUnidoc, packageDoc), siteSubdirName in ScalaUnidoc),
+    unidocProjectFilter in (ScalaUnidoc, unidoc) := inAnyProject -- inProjects(rezilience.js),
 //    git.remoteRepo := "git@github.com:vigoo/desert.git",
 //    micrositeUrl := "https://svroonland.github.io",
 //    micrositeBaseUrl := "/rezilience",
