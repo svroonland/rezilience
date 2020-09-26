@@ -1,6 +1,7 @@
 package nl.vroste.rezilience
 
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
+import nl.vroste.rezilience.Policy.{ circuitBreakerErrorToPolicyError, PolicyError }
 import zio._
 import zio.clock.Clock
 import zio.duration._
@@ -49,8 +50,10 @@ trait CircuitBreaker[-E] { self =>
    */
   def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A]
 
-  def toPolicy[E2 <: E]: Policy[E2, CircuitBreakerCallError[E2]] = new Policy[E2, CircuitBreakerCallError[E2]] {
-    override def apply[R, E1 <: E2, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E2], A] = self(f)
+  def toPolicy: Policy[E] = new Policy[E] {
+    override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A]               =
+      self(f).mapError(circuitBreakerErrorToPolicyError)
+    override def applyP[R, E1 <: E, A](f: ZIO[R, PolicyError[E1], A]): ZIO[R, PolicyError[E1], A] = ???
   }
 }
 

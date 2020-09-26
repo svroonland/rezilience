@@ -1,13 +1,14 @@
 package nl.vroste.rezilience
 import nl.vroste.rezilience.Bulkhead.{ BulkheadError, Metrics }
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
+import nl.vroste.rezilience.Policy.PolicyError
 import zio.{ UIO, ZIO }
 
 /**
  * Represents a composition of one or more rezilience policies
  */
-trait Policy[-EIn, +EOut] { self =>
-  def apply[R, E1 <: EIn, A](f: ZIO[R, E1, A]): ZIO[R, EOut, A]
+trait Policy[-E] { self =>
+  def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A]
 
   /**
    * Apply another policy on top of this one
@@ -23,32 +24,31 @@ trait Policy[-EIn, +EOut] { self =>
    * @tparam EOut2
    * @return
    */
-  final def compose[EOut2, EOut3 >: EOut](that: Policy[EOut3, EOut2]): Policy[EIn, EOut2] = new Policy[EIn, EOut2] {
-    override def apply[R, E1 <: EIn, A](f: ZIO[R, E1, A]): ZIO[R, EOut2, A] = that(self(f))
-  }
-
-  final def mapError[EOut2](f: EOut => EOut2): Policy[EIn, EOut2] = new Policy[EIn, EOut2] {
-    override def apply[R, E1 <: EIn, A](g: ZIO[R, E1, A]): ZIO[R, EOut2, A] = self(g).mapError(f)
+  final def compose[E2 <: E](that: Policy[PolicyError[E2]]): Policy[PolicyError[E2]] = new Policy[PolicyError[E2]] {
+    override def apply[R, E1 <: PolicyError[E2], A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] = {
+      var x = self(f)
+      val y = that.apply(x)
+    }
   }
 }
 
 object Policy {
-  implicit def toPolicy[E](rateLimiter: RateLimiter): Policy[E, E] = rateLimiter.toPolicy[E]
-  implicit def toPolicy[E](retry: Retry[E]): Policy[E, E]          = retry.toPolicy[E]
+//  implicit def toPolicy(rateLimiter: RateLimiter): Policy[E, E] = rateLimiter.toPolicy[E]
+//  implicit def toPolicy[E](retry: Retry[E]): Policy[E, E]          = retry.toPolicy[E]
 
   sealed trait PolicyError[+E]
 
   case class WrappedError[E](e: E) extends PolicyError[E]
   case object BulkheadRejection    extends PolicyError[Nothing]
   case object CircuitBreakerOpen   extends PolicyError[Nothing]
-
-  def compose[E, E1, E1A >: E1, E2](p1: Policy[E, E1], p2: Policy[E1A, E2]): Policy[E, E2] = p1.compose(p2)
-
-  def compose[E, E1, E1A >: E1, E2, E2A >: E2, E3](
-    p1: Policy[E, E1],
-    p2: Policy[E1A, E2],
-    p3: Policy[E2A, E3]
-  ): Policy[E, E3] = p1.compose(p2).compose(p3)
+//
+//  def compose[E, E1, E1A >: E1, E2](p1: Policy[E, E1], p2: Policy[E1A, E2]): Policy[E, E2] = p1.compose(p2)
+//
+//  def compose[E, E1, E1A >: E1, E2, E2A >: E2, E3](
+//    p1: Policy[E, E1],
+//    p2: Policy[E1A, E2],
+//    p3: Policy[E2A, E3]
+//  ): Policy[E, E3] = p1.compose(p2).compose(p3)
 
   /**
    * Creates a common rezilience policy that wraps calls with a bulkhead, followed by a circuit breaker,
@@ -63,7 +63,7 @@ object Policy {
     bulkhead: Bulkhead = noopBulkhead,
     circuitBreaker: CircuitBreaker[PolicyError[E]] = noopCircuitBreaker,
     retry: Retry[E] = noopRetry[E]
-  ): Policy[E, PolicyError[E]] = {
+  ): Policy[E] = {
     val cb: Policy[PolicyError[E], PolicyError[E]] =
       circuitBreaker.toPolicy[PolicyError[E]].mapError(circuitBreakerErrorToPolicyError).mapError(flattenWrappedError)
     val b: Policy[E, PolicyError[E]]               =
