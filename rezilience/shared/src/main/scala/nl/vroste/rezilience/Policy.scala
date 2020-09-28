@@ -102,16 +102,6 @@ object Policy {
     override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = task
   }
 
-  def circuitBreakerErrorToPolicyError[E]: CircuitBreakerCallError[E] => PolicyError[E] = {
-    case CircuitBreaker.CircuitBreakerOpen => CircuitBreakerOpen
-    case CircuitBreaker.WrappedError(e)    => WrappedError(e)
-  }
-
-  def bulkheadErrorToPolicyError[E]: BulkheadError[E] => PolicyError[E] = {
-    case Bulkhead.BulkheadRejection => BulkheadRejection
-    case Bulkhead.WrappedError(e)   => WrappedError(e)
-  }
-
   def flattenWrappedError[E]: PolicyError[PolicyError[E]] => PolicyError[E] = {
     case WrappedError(e)    => e
     case CircuitBreakerOpen => CircuitBreakerOpen

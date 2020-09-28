@@ -1,6 +1,7 @@
 package nl.vroste.rezilience
 
 import nl.vroste.rezilience.Bulkhead._
+import nl.vroste.rezilience.Policy.PolicyError
 import zio._
 import zio.stream.ZStream
 
@@ -29,7 +30,10 @@ trait Bulkhead { self =>
 
   def toPolicy: Policy[Any] = new Policy[Any] {
     override def apply[R, E1 <: Any, A](f: ZIO[R, E1, A]): ZIO[R, Policy.PolicyError[E1], A] =
-      self(f).mapError(Policy.bulkheadErrorToPolicyError)
+      self(f).mapError {
+        case Bulkhead.BulkheadRejection => Policy.BulkheadRejection
+        case Bulkhead.WrappedError(e)   => Policy.WrappedError(e)
+      }
   }
 
   /**
