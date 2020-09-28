@@ -1,7 +1,7 @@
 package nl.vroste.rezilience
 import nl.vroste.rezilience.Bulkhead.{ BulkheadError, Metrics }
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
-import nl.vroste.rezilience.Policy.PolicyError
+import nl.vroste.rezilience.Policy.{ flattenWrappedError, PolicyError }
 import zio.{ UIO, ZIO }
 
 /**
@@ -20,16 +20,22 @@ trait Policy[-E] { self =>
    *    }
    * }
    *
-   * @param that
-   * @tparam EOut2
+   * @param that The other policy
+   * @tparam E2
    * @return
    */
-  final def compose[E2 <: E](that: Policy[PolicyError[E2]]): Policy[PolicyError[E2]] = new Policy[PolicyError[E2]] {
-    override def apply[R, E1 <: PolicyError[E2], A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] = {
-      var x = self(f)
-      val y = that.apply(x)
+  def compose[E2 <: E](that: Policy[PolicyError[E2]]): Policy[E2] =
+    new Policy[E2] {
+      override def apply[R, E1 <: E2, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
+        that(self(f)).mapError(flattenWrappedError)
     }
-  }
+
+//  final def compose[E2 <: E](that: Policy[PolicyError[E2]]): Policy[PolicyError[E2]] = new Policy[PolicyError[E2]] {
+//    override def apply[R, E1 <: PolicyError[E2], A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] = {
+//      var x = self(f)
+//      val y = that.apply(x)
+//    }
+//  }
 }
 
 object Policy {
@@ -41,14 +47,6 @@ object Policy {
   case class WrappedError[E](e: E) extends PolicyError[E]
   case object BulkheadRejection    extends PolicyError[Nothing]
   case object CircuitBreakerOpen   extends PolicyError[Nothing]
-//
-//  def compose[E, E1, E1A >: E1, E2](p1: Policy[E, E1], p2: Policy[E1A, E2]): Policy[E, E2] = p1.compose(p2)
-//
-//  def compose[E, E1, E1A >: E1, E2, E2A >: E2, E3](
-//    p1: Policy[E, E1],
-//    p2: Policy[E1A, E2],
-//    p3: Policy[E2A, E3]
-//  ): Policy[E, E3] = p1.compose(p2).compose(p3)
 
   /**
    * Creates a common rezilience policy that wraps calls with a bulkhead, followed by a circuit breaker,
@@ -61,30 +59,25 @@ object Policy {
   def common[E](
     rateLimiter: RateLimiter = noopRateLimiter,
     bulkhead: Bulkhead = noopBulkhead,
-    circuitBreaker: CircuitBreaker[PolicyError[E]] = noopCircuitBreaker,
+    circuitBreaker: CircuitBreaker[E] = noopCircuitBreaker,
     retry: Retry[E] = noopRetry[E]
-  ): Policy[E] = {
-    val cb: Policy[PolicyError[E], PolicyError[E]] =
-      circuitBreaker.toPolicy[PolicyError[E]].mapError(circuitBreakerErrorToPolicyError).mapError(flattenWrappedError)
-    val b: Policy[E, PolicyError[E]]               =
-      bulkhead.toPolicy[E].mapError(bulkheadErrorToPolicyError)
-
-    val r = rateLimiter.toPolicy[PolicyError[E]]
-
-    val retryPolicy = retry
-      .widen[PolicyError[E]] { case WrappedError(e) => e }
-
-    b compose cb compose r compose retryPolicy
-  }
+  ): Policy[E]               =
+    bulkhead.toPolicy compose
+      circuitBreaker.widen[PolicyError[E]] { case WrappedError(e) => e }.toPolicy compose
+      rateLimiter.toPolicy compose
+      retry.widen[PolicyError[E]] { case WrappedError(e) => e }.toPolicy
 
   def noopRetry[E]: Retry[E] = new Retry[E] {
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] = f
   }
 
-  def noopCircuitBreaker[E]: CircuitBreaker[E] = new CircuitBreaker[E] {
+  class NoopCircuitBreaker[E] extends CircuitBreaker[E] {
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
       f.mapError(CircuitBreaker.WrappedError(_))
+    override def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]                      = new NoopCircuitBreaker[E2]
   }
+
+  def noopCircuitBreaker[E]: CircuitBreaker[E] = new NoopCircuitBreaker[E]
 
   val noopBulkhead: Bulkhead = new Bulkhead {
     override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =

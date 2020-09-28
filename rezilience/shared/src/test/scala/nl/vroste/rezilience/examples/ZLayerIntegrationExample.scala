@@ -1,7 +1,7 @@
 package nl.vroste.rezilience.examples
 
 import nl.vroste.rezilience.Policy.PolicyError
-import nl.vroste.rezilience.{ CircuitBreaker, Policy, RateLimiter }
+import nl.vroste.rezilience.{ CircuitBreaker, RateLimiter }
 import zio._
 import zio.clock.Clock
 
@@ -74,7 +74,7 @@ object ZLayerIntegrationExample extends zio.App {
     ZLayer.fromServiceManaged { database: Database.Service =>
       CircuitBreaker
         .withMaxFailures[Throwable](10)
-        .map(_.toPolicy[Throwable].mapError(Policy.circuitBreakerErrorToPolicyError))
+        .map(_.toPolicy)
         .map { rl =>
           new ResilientDatabase.Service {
             override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, PolicyError[Throwable], Unit] =

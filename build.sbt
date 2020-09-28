@@ -80,4 +80,4 @@ lazy val docs = project
 //    micrositeAnalyticsToken := "UA-56320875-2",
 //    includeFilter in makeSite := "*.html" | "*.css" | "*.png" | "*.jpg" | "*.gif" | "*.js" | "*.swf" | "*.txt" | "*.xml" | "*.svg",
   )
-  .dependsOn(rezilience.jvm)
+//  .dependsOn(rezilience.jvm)

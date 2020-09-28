@@ -27,8 +27,9 @@ trait Bulkhead { self =>
    */
   def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A]
 
-  def toPolicy[E]: Policy[E, BulkheadError[E]] = new Policy[E, BulkheadError[E]] {
-    override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, BulkheadError[E1], A] = self(f)
+  def toPolicy: Policy[Any] = new Policy[Any] {
+    override def apply[R, E1 <: Any, A](f: ZIO[R, E1, A]): ZIO[R, Policy.PolicyError[E1], A] =
+      self(f).mapError(Policy.bulkheadErrorToPolicyError)
   }
 
   /**

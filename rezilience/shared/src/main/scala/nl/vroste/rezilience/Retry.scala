@@ -8,6 +8,9 @@ trait Retry[-E] { self =>
 
   /**
    * Transform this policy to apply to larger class of errors
+   *
+   * Only where the partial function is defined will the policy be applied, other errors are not retried
+   *
    * @param pf
    * @tparam E2
    * @return
@@ -30,8 +33,9 @@ trait Retry[-E] { self =>
     } yield result
   }
 
-  def toPolicy[E2 <: E]: Policy[E2, E2] = new Policy[E2, E2] {
-    override def apply[R, E1 <: E2, A](f: ZIO[R, E1, A]): ZIO[R, E2, A] = self(f)
+  def toPolicy: Policy[E] = new Policy[E] {
+    override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, Policy.PolicyError[E1], A] =
+      self(f).mapError(Policy.WrappedError(_))
   }
 }
 

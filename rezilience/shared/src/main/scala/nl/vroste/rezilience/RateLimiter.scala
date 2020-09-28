@@ -25,10 +25,8 @@ trait RateLimiter { self =>
   def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A]
 
   def toPolicy: Policy[Any] = new Policy[Any] {
-    override def apply[R, E1 <: Any, A](f: ZIO[R, E1, A]): ZIO[R, Policy.PolicyError[E1], A]                      =
+    override def apply[R, E1 <: Any, A](f: ZIO[R, E1, A]): ZIO[R, Policy.PolicyError[E1], A] =
       self(f).mapError(Policy.WrappedError(_))
-    override def applyP[R, E1 <: Any, A](f: ZIO[R, Policy.PolicyError[E1], A]): ZIO[R, Policy.PolicyError[E1], A] =
-      self(f)
   }
 }
 
