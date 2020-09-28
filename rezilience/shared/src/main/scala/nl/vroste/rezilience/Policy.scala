@@ -32,12 +32,17 @@ trait Policy[-E] { self =>
 }
 
 object Policy {
-
-  sealed trait PolicyError[+E]
+  sealed trait PolicyError[+E] { self =>
+    def toException: Exception = PolicyException(self)
+  }
 
   case class WrappedError[E](e: E) extends PolicyError[E]
   case object BulkheadRejection    extends PolicyError[Nothing]
   case object CircuitBreakerOpen   extends PolicyError[Nothing]
+
+  case class PolicyException[E](error: PolicyError[E]) extends Exception("Policy error")
+
+  def unwrap[E]: PartialFunction[PolicyError[E], E] = { case WrappedError(e) => e }
 
   /**
    * Creates a common rezilience policy that wraps calls with a bulkhead, followed by a circuit breaker,
@@ -54,13 +59,20 @@ object Policy {
     retry: Retry[E] = noopRetry[E]
   ): Policy[E] =
     bulkhead.toPolicy compose
-      circuitBreaker.widen[PolicyError[E]] { case WrappedError(e) => e }.toPolicy compose
+      circuitBreaker.widen(unwrap[E]).toPolicy compose
       rateLimiter.toPolicy compose
-      retry.widen[PolicyError[E]] { case WrappedError(e) => e }.toPolicy
+      retry.widen(unwrap[E]).toPolicy
 
   private class NoopRetry[E] extends Retry[E] {
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] = f
     override def widen[E2](pf: PartialFunction[E2, E]): Retry[E2]      = new NoopRetry[E2]
+  }
+
+  /**
+   * A policy that does not change the execution of the effect
+   */
+  val noop: Policy[Any] = new Policy[Any] {
+    override def apply[R, E1 <: Any, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] = f.mapError(WrappedError(_))
   }
 
   def noopRetry[E]: Retry[E] = new NoopRetry[E]

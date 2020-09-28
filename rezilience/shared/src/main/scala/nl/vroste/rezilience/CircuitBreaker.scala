@@ -59,11 +59,12 @@ trait CircuitBreaker[-E] {
   /**
    * Transform this policy to apply to larger class of errors
    *
-   * Only where the partial function is defined will the policy be applied, other errors are not retried
+   * Only for errors where the partial function is defined will errors be considered as failures, otherwise
+   * the error is passed through to the caller
    *
-   * @param pf
+   * @param pf Map an error of type E2 to an error of type E
    * @tparam E2
-   * @return
+   * @return A new CircuitBreaker defined for failures of type E2
    */
   def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]
 }
@@ -73,21 +74,15 @@ object CircuitBreaker {
   import State._
 
   sealed trait CircuitBreakerCallError[+E]
-
-  case object CircuitBreakerOpen extends CircuitBreakerCallError[Nothing]
-
+  case object CircuitBreakerOpen       extends CircuitBreakerCallError[Nothing]
   case class WrappedError[E](error: E) extends CircuitBreakerCallError[E]
 
   sealed trait State
 
   object State {
-
-    case object Closed extends State
-
+    case object Closed   extends State
     case object HalfOpen extends State
-
-    case object Open extends State
-
+    case object Open     extends State
   }
 
   /**
@@ -222,7 +217,5 @@ object CircuitBreaker {
     )
   }
 
-  private def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ =>
-    true
-  }
+  private def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
 }

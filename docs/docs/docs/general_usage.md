@@ -48,7 +48,7 @@ ZLayer.fromServiceManaged { database: Database.Service =>
 val env: ZLayer[Clock, Nothing, Database] = (Clock.live ++ databaseLayer) >>> addRateLimiterToDatabase
 ```
 
-This works well for policies that do not alter the error type like RateLimiter and Retry, but for policies that do alter the error type, you will need to map eg a `CircuitBreakerOpen` to the error type in your service definition. If your service's error type is something like `Throwable`, you can throw any new kind of exception, but for custom error types this is not possible. In that case you can define a new service type like `ResilientDatabase` where the error types are `PolicyError[E]`.
+This works well for policies that do not alter the error type like RateLimiter and Retry, but for policies that do alter the error type, you will need to map eg a `CircuitBreakerOpen` to the error type in your service definition. For cases where your service's error type is `Throwable`, you can convert a `PolicyError` to an `Exception` using `.toException`. For custom error types this is not possible. In that case you can define a new service type like `ResilientDatabase` where the error types are `PolicyError[E]`.
 
 See the [full example](rezilience/shared/src/test/scala/nl/vroste/rezilience/examples/ZLayerIntegrationExample.scala) for more.
 
