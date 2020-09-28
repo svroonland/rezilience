@@ -29,6 +29,17 @@ CircuitBreaker.withMaxFailures(3, isFailure = isFailure).use { circuitBreaker =>
 }
 ```
 
+## Mapping errors
+
+`rezilience` policies are type-safe in the error channel, which means that they change the error type of the effects they are applied to. For example, applying a `CircuitBreaker` to an effect of type `ZIO[Any, Throwable, Unit]` will result in a `ZIO[Any, CircuitBreakerError[Throwable], Unit]`. You will need to handle this error explicitly. Some convenience methods are made available on the `CircuitBreakerError` for this:
+
+* `CircuitBreakerError#fold[O](circuitBreakerOpen: O, unwrap: E => O)`  
+  Convert a `CircuitBreakerOpen` or a `WrappedError` into an `O`.
+* `.toException`  
+  Converts a `CircuitBreakerError` to a `CircuitBreakerException`.
+
+Similar methods exist on `BulkheadError` and `PolicyError` (see [Bulkhead](bulkhead.md) and [Combining Policiesa](combining.md))
+
 ## ZLayer integration
 You can apply `rezilience` policies at the level of an individual ZIO effect. But having to wrap all your calls in eg a rate limiter can clutter your code somewhat. When you are using the ZIO module pattern using `ZLayer`, it is also possible to integrate a `rezilience` policy with some service at the `ZLayer` level. In the spirit of aspect oriented programming, the code using your service will not be cluttered with the aspect of rate limiting.
 
@@ -48,7 +59,7 @@ ZLayer.fromServiceManaged { database: Database.Service =>
 val env: ZLayer[Clock, Nothing, Database] = (Clock.live ++ databaseLayer) >>> addRateLimiterToDatabase
 ```
 
-This works well for policies that do not alter the error type like RateLimiter and Retry, but for policies that do alter the error type, you will need to map eg a `CircuitBreakerOpen` to the error type in your service definition. For cases where your service's error type is `Throwable`, you can convert a `PolicyError` to an `Exception` using `.toException`. For custom error types this is not possible. In that case you can define a new service type like `ResilientDatabase` where the error types are `PolicyError[E]`.
+This works well for policies that do not alter the error type like RateLimiter and Retry, but for policies that do alter the error type, you will need to map eg a `CircuitBreakerOpen` to the error type in your service definition. For cases where your service's error type is `Throwable`, you can convert a `CircuitBreakerError`, `BulkheadError` or `PolicyError` to an `Exception` using `.toException`. For custom error types this is not possible. In that case you can define a new service type like `ResilientDatabase` where the error types are `PolicyError[E]`.
 
 See the [full example](rezilience/shared/src/test/scala/nl/vroste/rezilience/examples/ZLayerIntegrationExample.scala) for more.
 

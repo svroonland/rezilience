@@ -1,7 +1,7 @@
 package nl.vroste.rezilience.examples
 
 import nl.vroste.rezilience.Policy.PolicyError
-import nl.vroste.rezilience.{ CircuitBreaker, RateLimiter }
+import nl.vroste.rezilience.{ Bulkhead, CircuitBreaker, RateLimiter }
 import zio._
 import zio.clock.Clock
 
@@ -66,6 +66,19 @@ object ZLayerIntegrationExample extends zio.App {
 
           override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
             rl(database.newAccount(name))
+        }
+      }
+    }
+
+  val addBulkheadToDatabase: ZLayer[Database with Clock, Nothing, Database] =
+    ZLayer.fromServiceManaged { database: Database.Service =>
+      Bulkhead.make(10).map { bulkhead =>
+        new Database.Service {
+          override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
+            bulkhead(database.transfer(amount, from, to)).mapError(_.toException)
+
+          override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
+            bulkhead(database.newAccount(name)).mapError(_.toException)
         }
       }
     }

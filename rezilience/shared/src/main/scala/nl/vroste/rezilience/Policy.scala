@@ -34,6 +34,12 @@ trait Policy[-E] { self =>
 object Policy {
   sealed trait PolicyError[+E] { self =>
     def toException: Exception = PolicyException(self)
+
+    def fold[O](bulkheadRejection: O, circuitBreakerOpen: O, unwrap: E => O): O = self match {
+      case BulkheadRejection   => bulkheadRejection
+      case CircuitBreakerOpen  => circuitBreakerOpen
+      case WrappedError(error) => unwrap(error)
+    }
   }
 
   case class WrappedError[E](e: E) extends PolicyError[E]

@@ -73,9 +73,19 @@ object CircuitBreaker {
 
   import State._
 
-  sealed trait CircuitBreakerCallError[+E]
+  sealed trait CircuitBreakerCallError[+E] { self =>
+    def toException: Exception = CircuitBreakerException(self)
+
+    def fold[O](circuitBreakerOpen: O, unwrap: E => O): O = self match {
+      case CircuitBreakerOpen  => circuitBreakerOpen
+      case WrappedError(error) => unwrap(error)
+    }
+  }
+
   case object CircuitBreakerOpen       extends CircuitBreakerCallError[Nothing]
   case class WrappedError[E](error: E) extends CircuitBreakerCallError[E]
+
+  case class CircuitBreakerException[E](error: CircuitBreakerCallError[E]) extends Exception("Circuit breaker error")
 
   sealed trait State
 

@@ -39,11 +39,21 @@ trait Bulkhead { self =>
 }
 
 object Bulkhead {
-  sealed trait BulkheadError[+E]
+  sealed trait BulkheadError[+E] { self =>
+    def toException: Exception = BulkheadException(self)
+
+    def fold[O](bulkheadRejection: O, unwrap: E => O): O = self match {
+      case BulkheadRejection   => bulkheadRejection
+      case WrappedError(error) => unwrap(error)
+    }
+  }
+
   final case class WrappedError[E](e: E) extends BulkheadError[E]
   final case object BulkheadRejection    extends BulkheadError[Nothing]
 
   final case class Metrics(inFlight: Int, inQueue: Int)
+
+  case class BulkheadException[E](error: BulkheadError[E]) extends Exception("Bulkhead error")
 
   private final case class State(enqueued: Int, inFlight: Int) {
     val total               = enqueued + inFlight
