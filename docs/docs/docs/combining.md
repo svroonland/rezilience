@@ -28,7 +28,7 @@ Composing policies requires some special care in handling policy errors, behavio
 
 1. Behavior: what is the desired retry behavior when a circuit breaker error is encountered? Should the call be retried or the error passed through to the caller? 
 
-2. Types: because a `Retry` is created with a `Schedule` that expects a certain type `E` of errors as input, a `Retry[E]` cannot be applied on ZIO[R, CircuitBreaker[E], A] effects.
+2. Types: because a `Retry` is created with a `Schedule` that expects a certain type `E` of errors as input, a `Retry[E]` cannot be applied on `ZIO[R, CircuitBreakerError[E], A]` effects.
 
 For these cases, the `Retry` and `CircuitBreaker` policies have a `widen` method that can adapt them to a diferent type of error. For example to adapt a `Retry[Throwable]` to a `Retry[PolicyError[Throwable]]`:
 
