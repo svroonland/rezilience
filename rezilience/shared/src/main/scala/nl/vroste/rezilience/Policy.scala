@@ -29,18 +29,9 @@ trait Policy[-E] { self =>
       override def apply[R, E1 <: E2, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
         that(self(f)).mapError(flattenWrappedError)
     }
-
-//  final def compose[E2 <: E](that: Policy[PolicyError[E2]]): Policy[PolicyError[E2]] = new Policy[PolicyError[E2]] {
-//    override def apply[R, E1 <: PolicyError[E2], A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] = {
-//      var x = self(f)
-//      val y = that.apply(x)
-//    }
-//  }
 }
 
 object Policy {
-//  implicit def toPolicy(rateLimiter: RateLimiter): Policy[E, E] = rateLimiter.toPolicy[E]
-//  implicit def toPolicy[E](retry: Retry[E]): Policy[E, E]          = retry.toPolicy[E]
 
   sealed trait PolicyError[+E]
 
@@ -61,17 +52,20 @@ object Policy {
     bulkhead: Bulkhead = noopBulkhead,
     circuitBreaker: CircuitBreaker[E] = noopCircuitBreaker,
     retry: Retry[E] = noopRetry[E]
-  ): Policy[E]               =
+  ): Policy[E] =
     bulkhead.toPolicy compose
       circuitBreaker.widen[PolicyError[E]] { case WrappedError(e) => e }.toPolicy compose
       rateLimiter.toPolicy compose
       retry.widen[PolicyError[E]] { case WrappedError(e) => e }.toPolicy
 
-  def noopRetry[E]: Retry[E] = new Retry[E] {
+  private class NoopRetry[E] extends Retry[E] {
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] = f
+    override def widen[E2](pf: PartialFunction[E2, E]): Retry[E2]      = new NoopRetry[E2]
   }
 
-  class NoopCircuitBreaker[E] extends CircuitBreaker[E] {
+  def noopRetry[E]: Retry[E] = new NoopRetry[E]
+
+  private class NoopCircuitBreaker[E] extends CircuitBreaker[E] {
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
       f.mapError(CircuitBreaker.WrappedError(_))
     override def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]                      = new NoopCircuitBreaker[E2]
