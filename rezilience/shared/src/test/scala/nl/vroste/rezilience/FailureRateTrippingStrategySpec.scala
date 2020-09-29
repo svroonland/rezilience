@@ -5,7 +5,7 @@ import zio.test.Assertion._
 import zio.test._
 import zio.{ Queue, Schedule, UIO, ZIO }
 import zio.random.Random
-import zio.test.environment.TestClock
+import zio.test.environment.{ testEnvironment, TestClock, TestEnvironment }
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerOpen
 import nl.vroste.rezilience.CircuitBreaker.State
 import zio.test.TestAspect.{ diagnose, nonFlaky, timeout }
@@ -26,6 +26,11 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
       Gen.finiteDuration(min = 100.millis, max = 10.seconds).map(PrintFriendlyDuration)
     }
   }
+
+  // Smaller number of repeats because of using the live clock
+  val env = testEnvironment ++ TestConfig.live(10, 100, 200, 1000)
+
+  override def runner: TestRunner[TestEnvironment, Any] = TestRunner(TestExecutor.default(env))
 
   def spec =
     suite("Failure rate tripping strategy")(
@@ -161,5 +166,5 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
           }
         }
       }
-    ) @@ timeout(30.seconds) @@ diagnose(10.seconds)
+    ) @@ timeout(120.seconds) @@ diagnose(120.seconds)
 }

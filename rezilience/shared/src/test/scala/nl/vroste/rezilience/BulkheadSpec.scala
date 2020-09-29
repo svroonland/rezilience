@@ -1,15 +1,12 @@
 package nl.vroste.rezilience
 
-import zio.test.Assertion._
-import zio.test._
-import zio.Promise
-import zio.Ref
-import zio.duration._
-import zio.ZIO
-import zio.test.environment.{ testEnvironment, TestClock, TestEnvironment }
 import nl.vroste.rezilience.Bulkhead.BulkheadRejection
-import zio.UIO
+import zio.{ Promise, Ref, UIO, ZIO }
+import zio.duration._
+import zio.test.Assertion._
 import zio.test.TestAspect.{ diagnose, nonFlaky, timeout }
+import zio.test._
+import zio.test.environment.TestClock
 
 object BulkheadSpec extends DefaultRunnableSpec {
 
@@ -18,10 +15,6 @@ object BulkheadSpec extends DefaultRunnableSpec {
   case object MyCallError extends Error
 
   case object MyNotFatalError extends Error
-
-  val env = testEnvironment ++ TestConfig.live(100, 100, 200, 1000)
-
-  override def runner: TestRunner[TestEnvironment, Any] = TestRunner(TestExecutor.default(env))
 
   def spec = suite("Bulkhead")(
     testM("executes calls immediately") {
