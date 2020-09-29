@@ -108,10 +108,9 @@ object Bulkhead {
           env         <- ZIO.environment[R]
           action       = task.provide(env).foldM(result.fail, result.succeed).unit raceFirst interrupted.await
           resultValue <- (for {
-                           isEnqueued <- queue.offer((action, enqueued))
-                           _          <- ZIO.fail(BulkheadRejection).when(!isEnqueued)
-                           _          <- enqueued.await
-                           r          <- result.await.mapError(WrappedError(_))
+                           _ <- queue.offer((action, enqueued))
+                           _ <- enqueued.await
+                           r <- result.await.mapError(WrappedError(_))
                          } yield r).onInterrupt(interrupted.succeed(()))
         } yield resultValue
 
