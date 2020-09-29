@@ -95,5 +95,5 @@ object BulkheadSpec extends DefaultRunnableSpec {
         } yield assertCompletes
       }
     }
-  ) @@ nonFlaky @@ timeout(60.seconds) @@ diagnose(60.seconds)
+  ) @@ nonFlaky @@ timeout(120.seconds) @@ diagnose(120.seconds)
 }
