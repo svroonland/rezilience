@@ -1,7 +1,6 @@
 package nl.vroste.rezilience
 
 import nl.vroste.rezilience.Bulkhead._
-import nl.vroste.rezilience.Policy.PolicyError
 import zio._
 import zio.stream.ZStream
 
