@@ -2,6 +2,7 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.Policy.WrappedError
 import zio.duration.durationInt
 import zio.test.Assertion._
+import zio.test.TestAspect.nonFlaky
 import zio.test.environment.TestClock
 import zio.test.{ DefaultRunnableSpec, _ }
 import zio.{ Fiber, Promise, ZIO, ZManaged }
@@ -91,5 +92,5 @@ object PolicySpec extends DefaultRunnableSpec {
         } yield assert(initialStatus)(Assertion.isSubtype[Fiber.Status.Suspended](anything))
       }
     }
-  )
+  ) @@ nonFlaky
 }

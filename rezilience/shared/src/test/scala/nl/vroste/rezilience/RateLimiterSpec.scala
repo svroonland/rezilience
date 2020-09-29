@@ -3,6 +3,7 @@ import zio.{ clock, Promise, ZIO }
 import zio.duration._
 import zio.test._
 import zio.test.Assertion._
+import zio.test.TestAspect.nonFlaky
 import zio.test.environment.TestClock
 
 object RateLimiterSpec extends DefaultRunnableSpec {
@@ -63,5 +64,5 @@ object RateLimiterSpec extends DefaultRunnableSpec {
       }
 
     }
-  )
+  ) @@ nonFlaky
 }

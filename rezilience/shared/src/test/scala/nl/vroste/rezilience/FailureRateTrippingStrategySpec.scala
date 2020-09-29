@@ -8,6 +8,7 @@ import zio.random.Random
 import zio.test.environment.TestClock
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerOpen
 import nl.vroste.rezilience.CircuitBreaker.State
+import zio.test.TestAspect.{ nonFlaky, timeout }
 
 case class PrintFriendlyDuration(duration: Duration) extends AnyVal {
   def +(that: PrintFriendlyDuration) = PrintFriendlyDuration(duration + that.duration)
@@ -34,7 +35,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
             shouldTrip <- strategy.shouldTrip
           } yield assert(shouldTrip)(isFalse)
         }
-      },
+      } @@ nonFlaky,
       testM("does not trip when all calls are successful") {
         checkM(
           Gen.double(0.0, 1.0),                     // Failure threshold
@@ -70,7 +71,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
               r <- cb(UIO(println("Succeeding call that should fail fast"))).run
             } yield assert(r)(fails(equalTo(CircuitBreakerOpen)))
           }
-      }.provideSomeLayer(zio.clock.Clock.live),
+      }.provideSomeLayer(zio.clock.Clock.live) @@ nonFlaky,
       testM("does not trip if the failure rate stays below the threshold") {
         val rate           = 0.7
         val sampleDuration = 400.millis
@@ -91,7 +92,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
               }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(10))
             } yield assertCompletes
           }
-      }.provideSomeLayer(zio.clock.Clock.live),
+      }.provideSomeLayer(zio.clock.Clock.live) @@ nonFlaky,
       testM("does not trip after resetting") {
         val rate           = 0.5
         val sampleDuration = 400.millis
@@ -130,7 +131,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
             _ <- makeCall(ZIO.unit)
           } yield assertCompletes
         }
-      }.provideSomeLayer(zio.clock.Clock.live ++ zio.console.Console.live),
+      }.provideSomeLayer(zio.clock.Clock.live ++ zio.console.Console.live) @@ nonFlaky,
       testM("trips only after the sample duration has expired and all calls fail") {
         val nrSampleBuckets = 10
 
@@ -160,5 +161,5 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
           }
         }
       }
-    ) @@ TestAspect.timeout(3.minute)
+    ) @@ timeout(3.minute)
 }

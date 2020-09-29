@@ -9,6 +9,7 @@ import zio.ZIO
 import zio.test.environment.TestClock
 import nl.vroste.rezilience.Bulkhead.BulkheadRejection
 import zio.UIO
+import zio.test.TestAspect.nonFlaky
 
 object BulkheadSpec extends DefaultRunnableSpec {
 
@@ -90,5 +91,5 @@ object BulkheadSpec extends DefaultRunnableSpec {
         } yield assertCompletes
       }
     }
-  )
+  ) @@ nonFlaky
 }
