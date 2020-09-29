@@ -8,7 +8,7 @@ import zio.random.Random
 import zio.test.environment.TestClock
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerOpen
 import nl.vroste.rezilience.CircuitBreaker.State
-import zio.test.TestAspect.{ nonFlaky, timeout }
+import zio.test.TestAspect.{ diagnose, nonFlaky, timeout }
 
 case class PrintFriendlyDuration(duration: Duration) extends AnyVal {
   def +(that: PrintFriendlyDuration) = PrintFriendlyDuration(duration + that.duration)
@@ -161,5 +161,5 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
           }
         }
       }
-    ) @@ timeout(3.minute)
+    ) @@ timeout(30.seconds) @@ diagnose(10.seconds)
 }

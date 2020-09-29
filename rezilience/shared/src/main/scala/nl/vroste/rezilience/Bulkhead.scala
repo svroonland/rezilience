@@ -43,9 +43,9 @@ trait Bulkhead { self =>
 
 object Bulkhead {
   sealed trait BulkheadError[+E] { self =>
-    def toException: Exception = BulkheadException(self)
+    final def toException: Exception = BulkheadException(self)
 
-    def fold[O](bulkheadRejection: O, unwrap: E => O): O = self match {
+    final def fold[O](bulkheadRejection: O, unwrap: E => O): O = self match {
       case BulkheadRejection   => bulkheadRejection
       case WrappedError(error) => unwrap(error)
     }
@@ -78,7 +78,9 @@ object Bulkhead {
     for {
       // Create a queue with an upper bound, but the actual max queue size enforcing and dropping is done below
       queue             <-
-        ZQueue.bounded[(UIO[Unit], Promise[BulkheadRejection.type, Unit])](maxInFlightCalls + maxQueueing).toManaged_
+        ZQueue
+          .bounded[(UIO[Unit], Promise[BulkheadRejection.type, Unit])](maxQueueing)
+          .toManaged_
       inFlightAndQueued <- Ref.make(State(0, 0)).toManaged_
       _                 <- ZStream
                              .fromQueue(queue)

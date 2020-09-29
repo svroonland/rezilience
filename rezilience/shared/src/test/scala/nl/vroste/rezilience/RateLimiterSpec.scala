@@ -3,7 +3,7 @@ import zio.{ clock, Promise, ZIO }
 import zio.duration._
 import zio.test._
 import zio.test.Assertion._
-import zio.test.TestAspect.nonFlaky
+import zio.test.TestAspect.{ nonFlaky, timeout }
 import zio.test.environment.TestClock
 
 object RateLimiterSpec extends DefaultRunnableSpec {
@@ -56,7 +56,7 @@ object RateLimiterSpec extends DefaultRunnableSpec {
         for {
           latch       <- Promise.make[Nothing, Unit]
           interrupted <- Promise.make[Nothing, Unit]
-          fib         <- rl(latch.succeed(()) *> ZIO.never.onInterrupt(interrupted.succeed(()))).fork
+          fib         <- rl((latch.succeed(()) *> ZIO.never).onInterrupt(interrupted.succeed(()))).fork
           _           <- latch.await
           _           <- fib.interrupt
           _           <- interrupted.await
@@ -64,5 +64,5 @@ object RateLimiterSpec extends DefaultRunnableSpec {
       }
 
     }
-  ) @@ nonFlaky
+  ) @@ nonFlaky @@ timeout(60.seconds)
 }

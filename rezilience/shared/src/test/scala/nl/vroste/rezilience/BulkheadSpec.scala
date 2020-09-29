@@ -6,10 +6,10 @@ import zio.Promise
 import zio.Ref
 import zio.duration._
 import zio.ZIO
-import zio.test.environment.TestClock
+import zio.test.environment.{ testEnvironment, TestClock, TestEnvironment }
 import nl.vroste.rezilience.Bulkhead.BulkheadRejection
 import zio.UIO
-import zio.test.TestAspect.nonFlaky
+import zio.test.TestAspect.{ diagnose, nonFlaky, timeout }
 
 object BulkheadSpec extends DefaultRunnableSpec {
 
@@ -18,6 +18,10 @@ object BulkheadSpec extends DefaultRunnableSpec {
   case object MyCallError extends Error
 
   case object MyNotFatalError extends Error
+
+  val env = testEnvironment ++ TestConfig.live(100, 100, 200, 1000)
+
+  override def runner: TestRunner[TestEnvironment, Any] = TestRunner(TestExecutor.default(env))
 
   def spec = suite("Bulkhead")(
     testM("executes calls immediately") {
@@ -42,14 +46,18 @@ object BulkheadSpec extends DefaultRunnableSpec {
       }
     },
     testM("holds back more calls than the max") {
-      val max = 10
+      val max = 20
       Bulkhead.make(max).use { bulkhead =>
         for {
           callsCompleted   <- Ref.make(0)
-          calls            <- ZIO.foreachPar(1 to max + 2)(_ => bulkhead(callsCompleted.updateAndGet(_ + 1) *> ZIO.never)).fork
+          calls            <-
+            ZIO
+              .foreachPar_(1 to max + 2)(_ => bulkhead(callsCompleted.updateAndGet(_ + 1) *> ZIO.sleep(2.seconds)))
+              .fork
           _                <- TestClock.adjust(1.second)
           nrCallsCompleted <- callsCompleted.get
-          _                <- calls.interrupt
+          _                <- TestClock.adjust(3.second)
+          _                <- calls.join
         } yield assert(nrCallsCompleted)(equalTo(max))
       }
     },
@@ -63,19 +71,22 @@ object BulkheadSpec extends DefaultRunnableSpec {
           maxInFlight   <- Promise.make[Nothing, Unit]
           callsInFlight <- Ref.make(0)
           calls         <- ZIO
-                             .foreachPar(1 to max + queueLimit) { _ =>
+                             .foreachPar_(1 to max + queueLimit) { i =>
                                bulkhead {
-                                 (for {
+                                 for {
+//                                   _               <- UIO(println(s"Executing bulkhead ${i}"))
                                    nrCallsInFlight <- callsInFlight.updateAndGet(_ + 1)
-                                   _               <- maxInFlight.succeed(()).when(nrCallsInFlight == max)
+                                   _               <- maxInFlight.succeed(()).when(nrCallsInFlight >= max)
                                    _               <- p.await
-                                 } yield ())
-                               }.tapError(e => UIO(println(s"Call failed! ${e}"))).either
+                                 } yield ()
+                               }.tapError(e => bulkhead.metrics.flatMap(m => UIO(println(s"Call ${i} failed! ${e}, ${m}"))))
                              }
                              .fork
-          _             <- maxInFlight.await.raceFirst(calls.join)
+          _             <- maxInFlight.await race calls.join
+//          _             <- UIO(println("Making the extraneous call"))
           result        <- bulkhead(ZIO.unit).either
-          _             <- calls.interrupt
+          _             <- p.succeed(())
+          _             <- calls.join
         } yield assert(result)(isLeft(equalTo(BulkheadRejection)))
       }
     },
@@ -84,12 +95,12 @@ object BulkheadSpec extends DefaultRunnableSpec {
         for {
           latch       <- Promise.make[Nothing, Unit]
           interrupted <- Promise.make[Nothing, Unit]
-          fib         <- bulkhead(latch.succeed(()) *> ZIO.never.onInterrupt(interrupted.succeed(()))).fork
+          fib         <- bulkhead((latch.succeed(()) *> ZIO.never).onInterrupt(interrupted.succeed(()))).fork
           _           <- latch.await
           _           <- fib.interrupt
           _           <- interrupted.await
         } yield assertCompletes
       }
     }
-  ) @@ nonFlaky
+  ) @@ nonFlaky @@ timeout(60.seconds) @@ diagnose(60.seconds)
 }
