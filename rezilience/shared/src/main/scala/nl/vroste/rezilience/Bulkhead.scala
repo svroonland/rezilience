@@ -83,12 +83,12 @@ object Bulkhead {
       _                 <- ZStream
                              .fromQueue(queue)
                              .mapConcatM { case (action, enqueued) =>
-                               inFlightAndQueued.get.flatMap { state =>
+                               inFlightAndQueued.modify { state =>
                                  if (state.total < maxInFlightCalls + maxQueueing)
-                                   (inFlightAndQueued.update(_.enqueue) *> enqueued.succeed(())).as(List(action))
+                                   (enqueued.succeed(()).as(List(action)), state.enqueue)
                                  else
-                                   enqueued.fail(BulkheadRejection).as(List.empty)
-                               }
+                                   (enqueued.fail(BulkheadRejection).as(List.empty), state)
+                               }.flatten
                              }
                              .buffer(maxQueueing)
                              .mapMPar(maxInFlightCalls) { task =>
