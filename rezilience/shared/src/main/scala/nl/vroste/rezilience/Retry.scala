@@ -1,37 +1,25 @@
 package nl.vroste.rezilience
 import zio.clock.Clock
 import zio.duration._
-import zio.{ Ref, Schedule, ZIO, ZManaged }
+import zio.{ Schedule, ZIO, ZManaged }
 
 trait Retry[-E] { self =>
   def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A]
 
   /**
    * Transform this policy to apply to larger class of errors
+   *
+   * Only where the partial function is defined will the policy be applied, other errors are not retried
+   *
    * @param pf
    * @tparam E2
    * @return
    */
-  def widen[E2](pf: PartialFunction[E2, E]): Retry[E2] = new Retry[E2] {
-    override def apply[R, E1 <: E2, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] = for {
-      lastError                      <- Ref.make[Option[E1]](None)
-      // We lose access to the E2 type error when we convert it using the partial function, so store it in a ref
-      inner: ZIO[R, E, Either[E1, A]] =
-        f.foldM(
-          e2 =>
-            lastError.set(Some(e2)) *>
-              pf
-                .andThen(ZIO.fail(_))
-                .lift(e2)
-                .getOrElse(ZIO.left(e2)),
-          ZIO.right(_)
-        )
-      result                         <- self.apply(inner).flatMapError(_ => lastError.get).mapError(_.get).absolve
-    } yield result
-  }
+  def widen[E2](pf: PartialFunction[E2, E]): Retry[E2]
 
-  def toPolicy[E2 <: E]: Policy[E2, E2] = new Policy[E2, E2] {
-    override def apply[R, E1 <: E2, A](f: ZIO[R, E1, A]): ZIO[R, E2, A] = self(f)
+  def toPolicy: Policy[E] = new Policy[E] {
+    override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, Policy.PolicyError[E1], A] =
+      self(f).mapError(Policy.WrappedError(_))
   }
 }
 
@@ -63,10 +51,17 @@ object Retry {
   }
 
   def make[E](schedule: Schedule[Any, E, Any]): ZManaged[Clock, Nothing, Retry[E]] =
-    for {
-      clock <- ZManaged.environment[Clock]
-    } yield new Retry[E] {
-      override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] =
-        ZIO.environment[R].flatMap(env => f.provide(env).retry(schedule).provide(clock))
-    }
+    ZManaged.environment[Clock].map(RetryImpl(_, schedule))
+
+  private case class RetryImpl[-E](clock: Clock, schedule: Schedule[Any, E, Any]) extends Retry[E] {
+    override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] =
+      ZIO.environment[R].flatMap(env => f.provide(env).retry(schedule).provide(clock))
+
+    override def widen[E2](pf: PartialFunction[E2, E]): Retry[E2] = RetryImpl[E2](
+      clock,
+      (zio.Schedule.stop ||| schedule).contramap[Any, E2] { e2 =>
+        pf.andThen(Right.apply[E2, E](_)).applyOrElse(e2, Left.apply[E2, E](_))
+      }
+    )
+  }
 }

@@ -27,8 +27,12 @@ trait Bulkhead { self =>
    */
   def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A]
 
-  def toPolicy[E]: Policy[E, BulkheadError[E]] = new Policy[E, BulkheadError[E]] {
-    override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, BulkheadError[E1], A] = self(f)
+  def toPolicy: Policy[Any] = new Policy[Any] {
+    override def apply[R, E1 <: Any, A](f: ZIO[R, E1, A]): ZIO[R, Policy.PolicyError[E1], A] =
+      self(f).mapError {
+        case Bulkhead.BulkheadRejection => Policy.BulkheadRejection
+        case Bulkhead.WrappedError(e)   => Policy.WrappedError(e)
+      }
   }
 
   /**
@@ -38,11 +42,21 @@ trait Bulkhead { self =>
 }
 
 object Bulkhead {
-  sealed trait BulkheadError[+E]
+  sealed trait BulkheadError[+E] { self =>
+    def toException: Exception = BulkheadException(self)
+
+    def fold[O](bulkheadRejection: O, unwrap: E => O): O = self match {
+      case BulkheadRejection   => bulkheadRejection
+      case WrappedError(error) => unwrap(error)
+    }
+  }
+
   final case class WrappedError[E](e: E) extends BulkheadError[E]
   final case object BulkheadRejection    extends BulkheadError[Nothing]
 
   final case class Metrics(inFlight: Int, inQueue: Int)
+
+  case class BulkheadException[E](error: BulkheadError[E]) extends Exception("Bulkhead error")
 
   private final case class State(enqueued: Int, inFlight: Int) {
     val total               = enqueued + inFlight
