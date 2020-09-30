@@ -60,9 +60,9 @@ object Bulkhead {
 
   private final case class State(enqueued: Int, inFlight: Int) {
     val total               = enqueued + inFlight
-    def enqueue: State      = copy(enqueued = enqueued + 1)
-    def startProcess: State = copy(enqueued = enqueued - 1, inFlight + 1)
-    def endProcess: State   = copy(inFlight = inFlight - 1)
+    def enqueue: State      = copy(enqueued + 1)
+    def startProcess: State = copy(enqueued - 1, inFlight + 1)
+    def endProcess: State   = copy(enqueued, inFlight - 1)
 
     override def toString = s"{enqueued=${enqueued},inFlight=${inFlight}}"
   }
@@ -88,8 +88,10 @@ object Bulkhead {
                                inFlightAndQueued.modify { state =>
                                  if (state.total < maxInFlightCalls + maxQueueing)
                                    (enqueued.succeed(()).as(List(action)), state.enqueue)
-                                 else
+                                 else {
+                                   println(state)
                                    (enqueued.fail(BulkheadRejection).as(List.empty), state)
+                                 }
                                }.flatten
                              }
                              .buffer(maxQueueing)
