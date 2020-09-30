@@ -5,9 +5,10 @@ import zio.test.Assertion._
 import zio.test._
 import zio.{ Queue, Schedule, UIO, ZIO }
 import zio.random.Random
-import zio.test.environment.TestClock
+import zio.test.environment.{ testEnvironment, TestClock, TestEnvironment }
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerOpen
 import nl.vroste.rezilience.CircuitBreaker.State
+import zio.test.TestAspect.{ diagnose, nonFlaky, timeout }
 
 case class PrintFriendlyDuration(duration: Duration) extends AnyVal {
   def +(that: PrintFriendlyDuration) = PrintFriendlyDuration(duration + that.duration)
@@ -26,6 +27,11 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
     }
   }
 
+  // Smaller number of repeats because of using the live clock
+  val env = testEnvironment ++ TestConfig.live(10, 100, 200, 1000)
+
+  override def runner: TestRunner[TestEnvironment, Any] = TestRunner(TestExecutor.default(env))
+
   def spec =
     suite("Failure rate tripping strategy")(
       testM("does not trip initially") {
@@ -34,7 +40,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
             shouldTrip <- strategy.shouldTrip
           } yield assert(shouldTrip)(isFalse)
         }
-      },
+      } @@ nonFlaky,
       testM("does not trip when all calls are successful") {
         checkM(
           Gen.double(0.0, 1.0),                     // Failure threshold
@@ -70,7 +76,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
               r <- cb(UIO(println("Succeeding call that should fail fast"))).run
             } yield assert(r)(fails(equalTo(CircuitBreakerOpen)))
           }
-      }.provideSomeLayer(zio.clock.Clock.live),
+      }.provideSomeLayer(zio.clock.Clock.live) @@ nonFlaky,
       testM("does not trip if the failure rate stays below the threshold") {
         val rate           = 0.7
         val sampleDuration = 400.millis
@@ -91,7 +97,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
               }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(10))
             } yield assertCompletes
           }
-      }.provideSomeLayer(zio.clock.Clock.live),
+      }.provideSomeLayer(zio.clock.Clock.live) @@ nonFlaky,
       testM("does not trip after resetting") {
         val rate           = 0.5
         val sampleDuration = 400.millis
@@ -130,7 +136,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
             _ <- makeCall(ZIO.unit)
           } yield assertCompletes
         }
-      }.provideSomeLayer(zio.clock.Clock.live ++ zio.console.Console.live),
+      }.provideSomeLayer(zio.clock.Clock.live ++ zio.console.Console.live) @@ nonFlaky,
       testM("trips only after the sample duration has expired and all calls fail") {
         val nrSampleBuckets = 10
 
@@ -160,5 +166,5 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
           }
         }
       }
-    ) @@ TestAspect.timeout(3.minute)
+    ) @@ timeout(120.seconds) @@ diagnose(120.seconds)
 }

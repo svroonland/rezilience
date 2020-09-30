@@ -4,6 +4,7 @@ import nl.vroste.rezilience.CircuitBreaker.State
 import zio.duration._
 import zio.{ Queue, Schedule, ZIO }
 import zio.test.Assertion._
+import zio.test.TestAspect.nonFlaky
 import zio.test._
 import zio.test.environment.TestClock
 
@@ -125,5 +126,5 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
         } yield assert(s1)(equalTo(State.HalfOpen))
       }
     }
-  )
+  ) @@ nonFlaky
 }

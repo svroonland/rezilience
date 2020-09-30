@@ -43,9 +43,9 @@ trait Bulkhead { self =>
 
 object Bulkhead {
   sealed trait BulkheadError[+E] { self =>
-    def toException: Exception = BulkheadException(self)
+    final def toException: Exception = BulkheadException(self)
 
-    def fold[O](bulkheadRejection: O, unwrap: E => O): O = self match {
+    final def fold[O](bulkheadRejection: O, unwrap: E => O): O = self match {
       case BulkheadRejection   => bulkheadRejection
       case WrappedError(error) => unwrap(error)
     }
@@ -60,9 +60,9 @@ object Bulkhead {
 
   private final case class State(enqueued: Int, inFlight: Int) {
     val total               = enqueued + inFlight
-    def enqueue: State      = copy(enqueued = enqueued + 1)
-    def startProcess: State = copy(enqueued = enqueued - 1, inFlight + 1)
-    def endProcess: State   = copy(inFlight = inFlight - 1)
+    def enqueue: State      = copy(enqueued + 1)
+    def startProcess: State = copy(enqueued - 1, inFlight + 1)
+    def endProcess: State   = copy(enqueued, inFlight - 1)
 
     override def toString = s"{enqueued=${enqueued},inFlight=${inFlight}}"
   }
@@ -78,17 +78,19 @@ object Bulkhead {
     for {
       // Create a queue with an upper bound, but the actual max queue size enforcing and dropping is done below
       queue             <-
-        ZQueue.bounded[(UIO[Unit], Promise[BulkheadRejection.type, Unit])](maxInFlightCalls + maxQueueing).toManaged_
+        ZQueue
+          .bounded[(UIO[Unit], Promise[BulkheadRejection.type, Unit])](maxQueueing)
+          .toManaged_
       inFlightAndQueued <- Ref.make(State(0, 0)).toManaged_
       _                 <- ZStream
                              .fromQueue(queue)
                              .mapConcatM { case (action, enqueued) =>
-                               inFlightAndQueued.get.flatMap { state =>
+                               inFlightAndQueued.modify { state =>
                                  if (state.total < maxInFlightCalls + maxQueueing)
-                                   (inFlightAndQueued.update(_.enqueue) *> enqueued.succeed(())).as(List(action))
+                                   (enqueued.succeed(()).as(List(action)), state.enqueue)
                                  else
-                                   enqueued.fail(BulkheadRejection).as(List.empty)
-                               }
+                                   (enqueued.fail(BulkheadRejection).as(List.empty), state)
+                               }.flatten
                              }
                              .buffer(maxQueueing)
                              .mapMPar(maxInFlightCalls) { task =>
@@ -108,10 +110,9 @@ object Bulkhead {
           env         <- ZIO.environment[R]
           action       = task.provide(env).foldM(result.fail, result.succeed).unit raceFirst interrupted.await
           resultValue <- (for {
-                           isEnqueued <- queue.offer((action, enqueued))
-                           _          <- ZIO.fail(BulkheadRejection).when(!isEnqueued)
-                           _          <- enqueued.await
-                           r          <- result.await.mapError(WrappedError(_))
+                           _ <- queue.offer((action, enqueued))
+                           _ <- enqueued.await
+                           r <- result.await.mapError(WrappedError(_))
                          } yield r).onInterrupt(interrupted.succeed(()))
         } yield resultValue
 
