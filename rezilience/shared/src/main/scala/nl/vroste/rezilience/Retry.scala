@@ -1,6 +1,7 @@
 package nl.vroste.rezilience
 import zio.clock.Clock
 import zio.duration._
+import zio.random.Random
 import zio.{ Schedule, ZIO, ZManaged }
 
 trait Retry[-E] { self =>
@@ -50,16 +51,41 @@ object Retry {
       zio.Schedule.recurWhile(pf.isDefinedAt) && schedule
   }
 
-  def make[E](schedule: Schedule[Any, E, Any]): ZManaged[Clock, Nothing, Retry[E]] =
-    ZManaged.environment[Clock].map(RetryImpl(_, schedule))
+  /**
+   * Create a Retry from a ZIO Schedule
+   * @param schedule
+   * @tparam R
+   * @tparam E
+   * @return
+   */
+  def make[R, E](schedule: Schedule[R, E, Any]): ZManaged[Clock with R, Nothing, Retry[E]] =
+    ZManaged.environment[Clock with R].map(RetryImpl(_, schedule))
 
-  private case class RetryImpl[-E](clock: Clock, schedule: Schedule[Any, E, Any]) extends Retry[E] {
+  /**
+   * Create a Retry policy with exponential backoff
+   *
+   * @param min Minimum retry backoff delay
+   * @param max Maximum retry backoff delay
+   * @param factor Factor with which delays increase
+   * @return
+   */
+  def make(
+    min: Duration = 1.second,
+    max: Duration = 1.minute,
+    factor: Double = 2.0
+  ): ZManaged[Clock with Random, Nothing, Retry[Any]] =
+    ZManaged.environment[Clock].map(RetryImpl(_, Schedule.exponentialBackoff(min, max, factor)))
+
+  private case class RetryImpl[-E, ScheduleEnv](
+    scheduleEnv: Clock with ScheduleEnv,
+    schedule: Schedule[ScheduleEnv, E, Any]
+  ) extends Retry[E] {
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] =
-      ZIO.environment[R].flatMap(env => f.provide(env).retry(schedule).provide(clock))
+      ZIO.environment[R].flatMap(env => f.provide(env).retry(schedule).provide(scheduleEnv))
 
-    override def widen[E2](pf: PartialFunction[E2, E]): Retry[E2] = RetryImpl[E2](
-      clock,
-      (zio.Schedule.stop ||| schedule).contramap[Any, E2] { e2 =>
+    override def widen[E2](pf: PartialFunction[E2, E]): Retry[E2] = RetryImpl[E2, ScheduleEnv](
+      scheduleEnv,
+      (zio.Schedule.stop ||| schedule).contramap[ScheduleEnv, E2] { e2 =>
         pf.andThen(Right.apply[E2, E](_)).applyOrElse(e2, Left.apply[E2, E](_))
       }
     )
