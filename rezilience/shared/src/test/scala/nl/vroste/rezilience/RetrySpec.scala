@@ -11,7 +11,7 @@ object RetrySpec extends DefaultRunnableSpec {
   override def spec = suite("Retry")(
     testM("widen should not retry unmatched errors") {
       Retry
-        .make[Throwable](Retry.Schedule.exponentialBackoff(1.second, 2.seconds))
+        .make(Retry.Schedule.exponentialBackoff(1.second, 2.seconds))
         .map(_.widen(Policy.unwrap[Throwable]))
         .use { retry =>
           for {
