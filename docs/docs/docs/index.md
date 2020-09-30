@@ -7,9 +7,7 @@ permalink: docs/
 # Rezilience
 
 
-`rezilience` is a ZIO-native collection of policies for making asynchronous systems more resilient to failures.
-
-It is inspired by [Polly](https://github.com/App-vNext/Polly), [Resilience4J](https://github.com/resilience4j/resilience4j) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html).
+`rezilience` is a ZIO-native collection of policies for making asynchronous systems more resilient to failures, inspired by [Polly](https://github.com/App-vNext/Polly), [Resilience4J](https://github.com/resilience4j/resilience4j) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html).
 
 It consists of these policies:
 

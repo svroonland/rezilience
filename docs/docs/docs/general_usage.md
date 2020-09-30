@@ -6,9 +6,18 @@ permalink: docs/general_usage/
 
 # General usage
 
-`rezilience` policies are created as `ZManaged` resources. This allows them to run background operations which are cleaned up safely after usage. Since these `ZManaged`s are just descriptions of the policy, they can be passed around to various call sites and `use`d to create many instances.
+`rezilience` policies are created as [`ZManaged`](https://zio.dev/docs/datatypes/datatypes_managed) resources. This allows them to run background operations which are cleaned up safely after usage. Since these `ZManaged`s are just descriptions of the policy, they can be passed around to various call sites and `use`d to create many instances.
 
-All instantiated policies are defined as traits with an `apply` method that takes a ZIO effect as parameter. Therefore a policy can be used as if it were a function taking a ZIO effect, eg:
+All instantiated policies are defined as traits with an `apply` method that takes a ZIO effect as parameter:
+
+```scala
+trait Retry {
+  def apply[R, E, A](f: ZIO[R, E, A]): ZIO[R, E, A]
+}
+
+```
+
+Therefore a policy can be used as if it were a function taking a ZIO effect, eg:
 
 ```scala
 Retry.make(...).use { retry => 
@@ -33,7 +42,9 @@ This `CircuitBreakerError` has two subtypes:
 * `case object CircuitBreakerOpen`: the error when the circuit breaker has tripped and no attempt to make the call has been made
 * `case class WrappedError[E](error: E)`: the error coming from the call
  
-By having this datatype for errors, `rezilience` requires you to be explicit in how you want to handle circuit breaker errors, in line with the rest of ZIO's strategy for typed error handling. At a higher level in your application you may want to inform the user that a system is temporarily not available or execute some  fallback logic. Several conveniences are available for dealing with circuit breaker errors:
+By having this datatype for errors, `rezilience` requires you to be explicit in how you want to handle circuit breaker errors, in line with the rest of ZIO's strategy for typed error handling. At a higher level in your application you may want to inform the user that a system is temporarily not available or execute some  fallback logic. 
+
+Several conveniences are available for dealing with circuit breaker errors:
 
 * `CircuitBreakerError#fold[O](circuitBreakerOpen: O, unwrap: E => O)`  
   Convert a `CircuitBreakerOpen` or a `WrappedError` into an `O`.
@@ -55,7 +66,7 @@ val result1: ZIO[Any, CircuitBreakerError[MyServiceErrorType], Int] =
 
 // Map the CircuitBreakerError back onto an UnknownServiceError
 val result2: ZIO[Any, MyServiceErrorType, Int] = 
-  result1.mapError(policyError => policyError.fold(UnknownServiceError, identity))
+  result1.mapError(policyError => policyError.fold(UnknownServiceError, identity(_)))
 
 // Or turn it into an exception
 val result3: ZIO[Any, Throwable, Int] =
