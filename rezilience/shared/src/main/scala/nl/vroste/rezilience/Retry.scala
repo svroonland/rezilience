@@ -1,7 +1,6 @@
 package nl.vroste.rezilience
 import zio.clock.Clock
 import zio.duration._
-import zio.random.Random
 import zio.{ Schedule, ZIO, ZManaged }
 
 trait Retry[-E] { self =>
@@ -73,7 +72,7 @@ object Retry {
     min: Duration = 1.second,
     max: Duration = 1.minute,
     factor: Double = 2.0
-  ): ZManaged[Clock with Random, Nothing, Retry[Any]] =
+  ): ZManaged[Clock, Nothing, Retry[Any]] =
     ZManaged.environment[Clock].map(RetryImpl(_, Schedule.exponentialBackoff(min, max, factor)))
 
   private case class RetryImpl[-E, ScheduleEnv](
