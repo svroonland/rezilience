@@ -73,7 +73,7 @@ val result3: ZIO[Any, Throwable, Int] =
   result1.mapError(policyError => policyError.toException)
 ```
   
-Similar methods exist on `BulkheadError` and `PolicyError` (see [Bulkhead](./bulkhead) and [Combining Policies](./combining))
+Similar methods exist on `BulkheadError` and `PolicyError` (see [Bulkhead](../bulkhead) and [Combining Policies](../combining_policies))
 
 ## ZLayer integration
 You can apply `rezilience` policies at the level of an individual ZIO effect. But having to wrap all your calls in eg a rate limiter can clutter your code somewhat. When you are using the [ZIO module pattern](https://zio.dev/docs/howto/howto_use_layers) using `ZLayer`, it is also possible to integrate a `rezilience` policy with some service at the `ZLayer` level. In the spirit of aspect oriented programming, the code using your service will not be cluttered with the aspect of rate limiting.
@@ -96,4 +96,4 @@ val env: ZLayer[Clock, Nothing, Database] = (Clock.live ++ databaseLayer) >>> ad
 
 For policies where the result type has a different `E` you will need to map the error back to your own `E`. An option is to have something like a general `case class UnknownServiceError(e: Exception)` in your service error type, to which you can map the policy errors. If that is not possible for some reason, you can also define a new service type like `ResilientDatabase` where the error types are `PolicyError[E]`.
 
-See the [full example](rezilience/shared/src/test/scala/nl/vroste/rezilience/examples/ZLayerIntegrationExample.scala) for more.
+See the [full example](https://github.com/svroonland/rezilience/blob/master/rezilience/shared/src/test/scala/nl/vroste/rezilience/examples/ZLayerIntegrationExample.scala) for more.

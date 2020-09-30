@@ -18,7 +18,7 @@ Make calls to an external system through the CircuitBreaker to safeguard that sy
 
 ## Usage example
 
-```scala mdoc
+```scala mdoc:silent
 import nl.vroste.rezilience.CircuitBreaker._
 import nl.vroste.rezilience._
 import zio._
