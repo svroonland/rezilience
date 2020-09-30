@@ -1,12 +1,11 @@
 package nl.vroste.rezilience
 
-import nl.vroste.rezilience.Bulkhead.BulkheadRejection
 import zio.duration._
 import zio.test.Assertion._
 import zio.test.TestAspect.{ nonFlaky, timeout }
 import zio.test._
 import zio.test.environment.TestClock
-import zio.{ Promise, Ref, UIO, ZIO }
+import zio.{ Promise, Ref, ZIO }
 
 object BulkheadSpec extends DefaultRunnableSpec {
 
@@ -63,23 +62,32 @@ object BulkheadSpec extends DefaultRunnableSpec {
           p             <- Promise.make[Nothing, Unit]
           maxInFlight   <- Promise.make[Nothing, Unit]
           callsInFlight <- Ref.make(0)
+          // Enqueue 10, we expect 10 in flight
           calls         <- ZIO
-                             .foreachPar_(1 to max + queueLimit) { i =>
+                             .foreachPar_(1 to max) { _ =>
                                bulkhead {
                                  for {
-//                                   _               <- UIO(println(s"Executing bulkhead ${i}"))
                                    nrCallsInFlight <- callsInFlight.updateAndGet(_ + 1)
                                    _               <- maxInFlight.succeed(()).when(nrCallsInFlight >= max)
                                    _               <- p.await
                                  } yield ()
-                               }.tapError(e => bulkhead.metrics.flatMap(m => UIO(println(s"Call ${i} failed! ${e}, ${m}"))))
+                               }
                              }
                              .fork
-          _             <- maxInFlight.await race calls.join
-          result        <- bulkhead(ZIO.unit).either
+          _             <- maxInFlight.await raceFirst calls.join
+          // Enqueue 6 more, of which one will fail
+          failure       <- Promise.make[Nothing, Unit]
+          calls2        <- ZIO
+                             .foreachPar(1 to queueLimit + 1)(i =>
+                               bulkhead(ZIO.unit).tapError(_ => failure.succeed(())).orElseFail(i).either
+                             )
+                             .fork
+          // Here it's possible that calls 11 to 15 have not yet been enqueued. So the one below will succeed, but above the last one will fail
+          _             <- failure.await
           _             <- p.succeed(())
           _             <- calls.join
-        } yield assert(result)(isLeft(equalTo(BulkheadRejection)))
+          _             <- calls2.join
+        } yield assertCompletes
       }
     },
     testM("will interrupt the effect when a call is interrupted") {

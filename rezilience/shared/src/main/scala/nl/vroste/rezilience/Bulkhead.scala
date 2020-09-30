@@ -88,10 +88,8 @@ object Bulkhead {
                                inFlightAndQueued.modify { state =>
                                  if (state.total < maxInFlightCalls + maxQueueing)
                                    (enqueued.succeed(()).as(List(action)), state.enqueue)
-                                 else {
-                                   println(state)
+                                 else
                                    (enqueued.fail(BulkheadRejection).as(List.empty), state)
-                                 }
                                }.flatten
                              }
                              .buffer(maxQueueing)
