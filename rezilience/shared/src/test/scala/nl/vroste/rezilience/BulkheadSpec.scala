@@ -82,12 +82,12 @@ object BulkheadSpec extends DefaultRunnableSpec {
                                bulkhead(ZIO.unit).tapError(_ => failure.succeed(())).orElseFail(i).either
                              )
                              .fork
-          // Here it's possible that calls 11 to 15 have not yet been enqueued. So the one below will succeed, but above the last one will fail
+          // We expect one failure
           _             <- failure.await
           _             <- p.succeed(())
           _             <- calls.join
-          _             <- calls2.join
-        } yield assertCompletes
+          results       <- calls2.join
+        } yield assert(results.filter(_.isLeft))(hasSize(equalTo(1)))
       }
     },
     testM("will interrupt the effect when a call is interrupted") {
