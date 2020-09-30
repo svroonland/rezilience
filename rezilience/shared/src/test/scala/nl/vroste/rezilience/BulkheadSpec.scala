@@ -76,7 +76,6 @@ object BulkheadSpec extends DefaultRunnableSpec {
                              }
                              .fork
           _             <- maxInFlight.await race calls.join
-//          _             <- UIO(println("Making the extraneous call"))
           result        <- bulkhead(ZIO.unit).either
           _             <- p.succeed(())
           _             <- calls.join
@@ -95,5 +94,5 @@ object BulkheadSpec extends DefaultRunnableSpec {
         } yield assertCompletes
       }
     }
-  ) @@ nonFlaky @@ timeout(120.seconds) @@ diagnose(120.seconds)
+  ) @@ nonFlaky @@ timeout(120.seconds)
 }
