@@ -1,4 +1,4 @@
-package nl.vroste.rezilience.scaladsl
+package nl.vroste.rezilience.future
 
 import nl.vroste.rezilience.Bulkhead.{ BulkheadException, BulkheadRejection }
 import nl.vroste.rezilience.{ Bulkhead => ZioBulkhead }

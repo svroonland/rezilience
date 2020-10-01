@@ -1,6 +1,6 @@
 # Rezilience
 
-`rezilience` is a ZIO-native collection of policies for making asynchronous systems more resilient to failures.
+`rezilience` is a collection of policies for making asynchronous systems more resilient to failures, built for ZIO and Scala Futures.
 
 It is inspired by [Polly](https://github.com/App-vNext/Polly), [Resilience4J](https://github.com/resilience4j/resilience4j) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html).
 
@@ -23,15 +23,22 @@ It consists of these policies:
 * Discoverable: no syntax extensions or implicit conversions, just plain scala 
 
 ## Documentation
-[Documentation](https://svroonland.github.io/rezilience)
+[Documentation](https://www.vroste.nl/rezilience)
 
 ## Installation
 
 [![Bintray](https://img.shields.io/bintray/v/vroste/maven/rezilience?label=latest)](https://bintray.com/vroste/maven/rezilience/_latestVersion)
 
-Add to your build.sbt:
+Add to your `build.sbt`:
 
 ```scala
 resolvers += Resolver.jcenterRepo
 libraryDependencies += "nl.vroste" %% "rezilience" % "<version>"
+```
+
+or for the Scala Futures interface:
+
+```scala
+resolvers += Resolver.jcenterRepo
+libraryDependencies += "nl.vroste" %% "rezilience-future" % "<version>"
 ```
