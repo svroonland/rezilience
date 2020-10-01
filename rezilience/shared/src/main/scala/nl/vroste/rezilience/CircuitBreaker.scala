@@ -128,7 +128,7 @@ object CircuitBreaker {
    */
   def make[E](
     trippingStrategy: ZManaged[Clock, Nothing, TrippingStrategy],
-    resetPolicy: Schedule[Clock, Any, Any],
+    resetPolicy: Schedule[Clock, Any, Any] = Schedule.exponential(1.second, 2.0),
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
   ): ZManaged[Clock, Nothing, CircuitBreaker[E]] =

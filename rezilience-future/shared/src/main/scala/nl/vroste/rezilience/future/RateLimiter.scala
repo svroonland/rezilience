@@ -6,6 +6,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 import zio._
 import zio.clock.Clock
 import zio.internal.Platform
+import Util._
 
 import scala.concurrent.duration.{ Duration, DurationInt }
 
@@ -42,7 +43,7 @@ object RateLimiter {
    * @return RateLimiter
    */
   def make(max: Long, interval: Duration = 1.second)(implicit ec: ExecutionContext): RateLimiter = {
-    val inner = nl.vroste.rezilience.RateLimiter.make(max, zio.duration.Duration.fromScala(interval))
+    val inner = nl.vroste.rezilience.RateLimiter.make(max, interval)
 
     val layer   = Clock.live >>> inner.toLayer
     val runtime = zio.Runtime.unsafeFromLayer(layer, Platform.fromExecutionContext(ec))
