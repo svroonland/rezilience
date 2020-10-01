@@ -76,4 +76,4 @@ lazy val docs = project
     micrositeDataDirectory := file("docs/src/microsite/data"),
     micrositeFooterText := None
   )
-  .dependsOn(rezilience.jvm)
+  .dependsOn(rezilience.jvm, rezilienceFuture.jvm)
