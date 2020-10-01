@@ -70,7 +70,7 @@ object Bulkhead {
   /**
    * Create a Bulkhead with the given parameters
    *
-   * @param maxInFlightCalls Maxmimum of concurrent executing calls
+   * @param maxInFlightCalls Maximum of concurrent executing calls
    * @param maxQueueing Maximum queueing calls
    * @return
    */

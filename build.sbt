@@ -4,7 +4,7 @@ val allScala  = Seq("2.12.12", mainScala)
 
 lazy val root = project
   .in(file("."))
-  .aggregate(rezilience.js, rezilience.jvm)
+  .aggregate(rezilience.js, rezilience.jvm, rezilienceFuture.js, rezilienceFuture.jvm)
   .settings(
     publish := {},
     publishLocal := {}
@@ -36,6 +36,16 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
 
+lazy val rezilienceFuture = crossProject(JSPlatform, JVMPlatform)
+  .in(file("rezilience-future"))
+  .dependsOn(rezilience)
+  .settings(
+    name := "rezilience-future",
+    resolvers += Resolver.jcenterRepo,
+    scalaVersion := mainScala,
+    crossScalaVersions := allScala
+  )
+
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
@@ -45,6 +55,8 @@ lazy val docs = project
   .enablePlugins(ScalaUnidocPlugin)
   .settings(
     name := "rezilience",
+    scalaVersion := mainScala,
+    crossScalaVersions := allScala,
     description := "ZIO-native utilities for making asynchronous systems more resilient to failures",
     siteSubdirName in ScalaUnidoc := "api",
     addMappingsToSiteDir(mappings in (ScalaUnidoc, packageDoc), siteSubdirName in ScalaUnidoc),
