@@ -1,7 +1,7 @@
 package nl.vroste.rezilience.future
 
 import nl.vroste.rezilience.CircuitBreaker.{ isFailureAny, CircuitBreakerException, CircuitBreakerOpen, State }
-import nl.vroste.rezilience.{ Retry, TrippingStrategy, CircuitBreaker => ZioCircuitBreaker }
+import nl.vroste.rezilience.{ Retry => ZioRetry, TrippingStrategy, CircuitBreaker => ZioCircuitBreaker }
 import Util._
 import zio._
 import zio.clock.Clock
@@ -58,7 +58,7 @@ object CircuitBreaker {
   )(implicit ec: ExecutionContext): CircuitBreaker =
     make(
       TrippingStrategy.failureCount(maxFailures),
-      Retry.Schedules.exponentialBackoff(backoffMin, backoffMax),
+      ZioRetry.Schedules.exponentialBackoff(backoffMin, backoffMax),
       isFailure,
       onStateChange
     )
@@ -90,7 +90,7 @@ object CircuitBreaker {
   )(implicit ec: ExecutionContext): CircuitBreaker =
     make(
       TrippingStrategy.failureRate(failureRateThreshold, sampleDuration, minThroughput, nrSampleBuckets),
-      Retry.Schedules.exponentialBackoff(backoffMin, backoffMax),
+      ZioRetry.Schedules.exponentialBackoff(backoffMin, backoffMax),
       isFailure,
       onStateChange
     )
