@@ -3,6 +3,8 @@ options:
     url: docs/
   - title: General Usage
     url: docs/general_usage
+  - title: Scala Futures
+    url: docs/scala_futures
   - title: Circuit Breaker
     url: docs/circuitbreaker
   - title: Bulkhead

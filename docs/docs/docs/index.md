@@ -7,7 +7,10 @@ permalink: docs/
 # Rezilience
 
 
-`rezilience` is a ZIO-native collection of policies for making asynchronous systems more resilient to failures, inspired by [Polly](https://github.com/App-vNext/Polly), [Resilience4J](https://github.com/resilience4j/resilience4j) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html).
+
+`rezilience` is a collection of policies for making asynchronous systems more resilient to failures, built for ZIO and Scala Futures.
+
+It is inspired by [Polly](https://github.com/App-vNext/Polly), [Resilience4J](https://github.com/resilience4j/resilience4j) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html).
 
 It consists of these policies:
 
@@ -40,6 +43,13 @@ resolvers += Resolver.jcenterRepo
 libraryDependencies += "nl.vroste" %% "rezilience" % "<version>"
 ```
 
+or for the [Scala Futures](../scala_futures) interface:
+
+```scala
+resolvers += Resolver.jcenterRepo
+libraryDependencies += "nl.vroste" %% "rezilience-future" % "<version>"
+```
+
 The latest version is built against ZIO 1.0.1 and is available for Scala 2.12, 2.13 and Scala.JS 1.2.
 
 ## Usage example
@@ -61,4 +71,3 @@ rateLimiter.use { rateLimiter =>
        
 }
 ```
-
