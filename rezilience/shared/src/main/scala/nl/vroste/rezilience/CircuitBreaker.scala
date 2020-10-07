@@ -110,7 +110,7 @@ object CircuitBreaker {
    */
   def withMaxFailures[E](
     maxFailures: Int,
-    resetPolicy: Schedule[Clock, Any, Duration] = Schedule.exponential(1.second, 2.0),
+    resetPolicy: Schedule[Clock, Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
   ): ZManaged[Clock, Nothing, CircuitBreaker[E]] =
@@ -128,7 +128,8 @@ object CircuitBreaker {
    */
   def make[E](
     trippingStrategy: ZManaged[Clock, Nothing, TrippingStrategy],
-    resetPolicy: Schedule[Clock, Any, Any],
+    resetPolicy: Schedule[Clock, Any, Any] =
+      Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
   ): ZManaged[Clock, Nothing, CircuitBreaker[E]] =
@@ -231,4 +232,5 @@ object CircuitBreaker {
   }
 
   private def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
+
 }

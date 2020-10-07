@@ -38,10 +38,14 @@ object TrippingStrategy {
   /**
    * For a CircuitBreaker that fails when the fraction of failures in a sample period exceeds some threshold
    *
+   * The sample interval is divided into a number of buckets, which are rotated periodically (sampleDuration / nrSampleBuckets)
+   * to achieve a moving average of the failure rate.
+   *
    * @param failureRateThreshold The minimum fraction (between 0.0 and 1.0) of calls that must fail within the sample duration
    * for the circuit breaker to trip
    * @param sampleDuration Minimum amount of time to record calls
-   * @param minThroughput Minimum number of calls required to evaluate the actual failure rate.
+   * @param minThroughput Minimum number of calls required within the sample period to evaluate the actual failure rate.
+   * @param nrSampleBuckets Nr of intervals to divide
    */
   def failureRate(
     failureRateThreshold: Double = 0.5,
@@ -64,7 +68,7 @@ object TrippingStrategy {
       _                     <- samplesRef.updateAndGet {
                                  case samples if samples.length < nrSampleBuckets => Bucket.empty +: samples
                                  case samples                                     => Bucket.empty +: samples.init
-                               }.repeat(Schedule.spaced(bucketRotationInterval))
+                               }.repeat(Schedule.spaced(bucketRotationInterval)) // TODO Schedule.fixed when ZIO 1.0.2. is out
                                  .delay(bucketRotationInterval)
                                  .forkManaged
     } yield new TrippingStrategy {
