@@ -1,0 +1,94 @@
+<!DOCTYPE html><html><head><title>rezilience: Retry</title><meta charset="utf-8" /><meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="vroste" /><meta name="description" content="ZIO-native utilities for making asynchronous systems more resilient to failures" /><meta name="og:image" content="/rezilience/img/poster.png" /><meta name="image" property="og:image" content="/rezilience/img/poster.png" /><meta name="og:title" content="rezilience: Retry" /><meta name="title" property="og:title" content="rezilience: Retry" /><meta name="og:site_name" content="rezilience" /><meta name="og:url" content="https://www.vroste.nl/rezilience/" /><meta name="og:type" content="website" /><meta name="og:description" content="ZIO-native utilities for making asynchronous systems more resilient to failures" /><link rel="icon" type="image/png" href="/rezilience/img/favicon.png" /><meta name="twitter:title" content="rezilience: Retry" /><meta name="twitter:image" content="https://www.vroste.nl/rezilience/img/poster.png" /><meta name="twitter:description" content="ZIO-native utilities for making asynchronous systems more resilient to failures" /><meta name="twitter:card" content="summary_large_image" /><meta name="twitter:creator" content="@vroste" /><link rel="icon" type="image/png" sizes="16x16" href="/rezilience/img/favicon16x16.png" /><link rel="icon" type="image/png" sizes="24x24" href="/rezilience/img/favicon24x24.png" /><link rel="icon" type="image/png" sizes="32x32" href="/rezilience/img/favicon32x32.png" /><link rel="icon" type="image/png" sizes="48x48" href="/rezilience/img/favicon48x48.png" /><link rel="icon" type="image/png" sizes="57x57" href="/rezilience/img/favicon57x57.png" /><link rel="icon" type="image/png" sizes="60x60" href="/rezilience/img/favicon60x60.png" /><link rel="icon" type="image/png" sizes="64x64" href="/rezilience/img/favicon64x64.png" /><link rel="icon" type="image/png" sizes="70x70" href="/rezilience/img/favicon70x70.png" /><link rel="icon" type="image/png" sizes="72x72" href="/rezilience/img/favicon72x72.png" /><link rel="icon" type="image/png" sizes="76x76" href="/rezilience/img/favicon76x76.png" /><link rel="icon" type="image/png" sizes="96x96" href="/rezilience/img/favicon96x96.png" /><link rel="icon" type="image/png" sizes="114x114" href="/rezilience/img/favicon114x114.png" /><link rel="icon" type="image/png" sizes="120x120" href="/rezilience/img/favicon120x120.png" /><link rel="icon" type="image/png" sizes="128x128" href="/rezilience/img/favicon128x128.png" /><link rel="icon" type="image/png" sizes="144x144" href="/rezilience/img/favicon144x144.png" /><link rel="icon" type="image/png" sizes="150x150" href="/rezilience/img/favicon150x150.png" /><link rel="icon" type="image/png" sizes="152x152" href="/rezilience/img/favicon152x152.png" /><link rel="icon" type="image/png" sizes="196x196" href="/rezilience/img/favicon196x196.png" /><link rel="icon" type="image/png" sizes="310x310" href="/rezilience/img/favicon310x310.png" /><link rel="icon" type="image/png" sizes="310x150" href="/rezilience/img/favicon310x150.png" /><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" /><link rel="stylesheet" href="/rezilience/highlight/styles/vs.css" /><link rel="stylesheet" href="/rezilience/css/light-style.css" /></head><body class="docs"><div id="wrapper"><div id="sidebar-wrapper"><div id="sidebar-brand"><a href="/rezilience/" class="brand"><div class="brand-wrapper"></div><span>rezilience</span></a><button id="main-toggle" class="sidebar-toggle"><span class="close"></span></button></div><div class="sidebar-nav"> <div class="sidebar-nav-item  "><a href="/rezilience/docs/" title="Getting started" class="">Getting started</a></div> <div class="sidebar-nav-item  "><a href="/rezilience/docs/general_usage" title="General Usage" class="">General Usage</a></div> <div class="sidebar-nav-item  "><a href="/rezilience/docs/circuitbreaker" title="Circuit Breaker" class="">Circuit Breaker</a></div> <div class="sidebar-nav-item  "><a href="/rezilience/docs/bulkhead" title="Bulkhead" class="">Bulkhead</a></div> <div class="sidebar-nav-item  "><a href="/rezilience/docs/ratelimiter" title="Rate Limiter" class="">Rate Limiter</a></div> <div class="sidebar-nav-item active "><a href="/rezilience/docs/retry" title="Retry" class="active">Retry</a></div> <div class="sidebar-nav-item  "><a href="/rezilience/docs/combining_policies" title="Combining Policies" class="">Combining Policies</a></div> <div class="sidebar-nav-item  "><a href="/rezilience/docs/additional_resiliency" title="Additional Resiliency" class="">Additional Resiliency</a></div> <div class="sidebar-nav-item  "><a href="/rezilience/api/nl/vroste/rezilience/" title="API reference" class="">API reference</a></div></div></div><div id="page-content-wrapper"><div class="nav"><div class="container-fluid"><div class="row"><div class="col-lg-12"><div class="action-menu pull-left clearfix"><a href="#menu-toggle" id="menu-toggle"><i class="fa fa-bars" aria-hidden="true"></i></a></div><ul class="pull-right"><li id="gh-eyes-item" class="hidden-xs"><a href="https://github.com/svroonland/rezilience" target="_blank" rel="noopener noreferrer"><i class="fa fa-eye"></i><span>Watchers<span id="eyes" class="label label-default">--</span></span></a></li><li id="gh-stars-item" class="hidden-xs"><a href="https://github.com/svroonland/rezilience" target="_blank" rel="noopener noreferrer"><i class="fa fa-star-o"></i><span>Stars<span id="stars" class="label label-default">--</span></span></a></li></ul></div></div></div></div><div id="content" data-github-owner="svroonland" data-github-repo="rezilience"><div class="content-wrapper"><section><h1 id="retry">Retry</h1>
+
+<p><code class="language-plaintext highlighter-rouge">Retry</code> is a policy that retries effects on failure</p>
+
+<h2 id="common-retry-strategy">Common retry strategy</h2>
+
+<p><code class="language-plaintext highlighter-rouge">Retry</code> implements a common-practice strategy for retrying:</p>
+
+<ul>
+  <li>The first retry is performed immediately. With transient failures this method gives the highest chance of fast success.</li>
+  <li>After that, Retry uses an exponential backoff capped to a maximum duration.</li>
+  <li>Some random jitter is added to prevent spikes of retries from many call sites applying the same retry strategy.</li>
+  <li>An optional maximum number of retries ensures that retrying does not continue forever.</li>
+</ul>
+
+<h2 id="usage-example">Usage example</h2>
+
+<div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="nn">zio._</span>
+<span class="k">import</span> <span class="nn">zio.duration._</span>
+<span class="k">import</span> <span class="nn">zio.clock.Clock</span>
+<span class="k">import</span> <span class="nn">zio.random.Random</span>
+<span class="k">import</span> <span class="nn">nl.vroste.rezilience._</span>
+
+<span class="k">val</span> <span class="nv">myEffect</span><span class="k">:</span> <span class="kt">ZIO</span><span class="o">[</span><span class="kt">Any</span>, <span class="kt">Exception</span>, <span class="kt">Unit</span><span class="o">]</span> <span class="k">=</span> <span class="nv">ZIO</span><span class="o">.</span><span class="py">unit</span>
+
+<span class="k">val</span> <span class="nv">retry</span><span class="k">:</span> <span class="kt">ZManaged</span><span class="o">[</span><span class="kt">Clock</span> <span class="kt">with</span> <span class="kt">Random</span>, <span class="kt">Nothing</span>, <span class="kt">Retry</span><span class="o">[</span><span class="kt">Any</span><span class="o">]]</span> <span class="k">=</span> <span class="nv">Retry</span><span class="o">.</span><span class="py">make</span><span class="o">(</span><span class="n">min</span> <span class="k">=</span> <span class="mf">1.</span><span class="n">second</span><span class="o">,</span> <span class="n">max</span> <span class="k">=</span> <span class="mf">10.</span><span class="n">seconds</span><span class="o">)</span>
+
+<span class="nv">retry</span><span class="o">.</span><span class="py">use</span> <span class="o">{</span> <span class="n">retryPolicy</span> <span class="k">=&gt;</span> 
+  <span class="nf">retryPolicy</span><span class="o">(</span><span class="n">myEffect</span><span class="o">)</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<h2 id="custom-retry-strategy">Custom retry strategy</h2>
+<p>ZIO already has excellent built-in support for retrying effects on failures using a <code class="language-plaintext highlighter-rouge">Schedule</code> and <code class="language-plaintext highlighter-rouge">rezilience</code> is built on top of that. Retry can accept any <code class="language-plaintext highlighter-rouge">ZIO</code> <a href="https://zio.dev/docs/datatypes/datatypes_schedule"><code class="language-plaintext highlighter-rouge">Schedule</code></a>.</p>
+
+<p>Some Schedule building blocks are available in <code class="language-plaintext highlighter-rouge">Retry.Schedules</code>:</p>
+
+<ul>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">Retry.Schedules.common(min: Duration, max: Duration, factor: Double, retryImmediately: Boolean, maxRetries: Option[Int])</code><br />
+The strategy with immediate retry, exponential backoff and jitter as outlined above.</p>
+  </li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">Retry.Schedules.exponentialBackoff(min: Duration, max: Duration, factor: Double = 2.0)</code><br />
+Exponential backoff with a maximum delay and an optional maximum number of recurs. When the maximum delay is reached, subsequent delays are the maximum.</p>
+  </li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">Retry.Schedules.whenCase[Env, In, Out](pf: PartialFunction[In, Any])(schedule: Schedule[Env, In, Out])</code><br />
+Accepts a partial function and a schedule and will apply the schedule only when the input matches partial function. This is useful to retry only on certain types of failures/exceptions.</p>
+  </li>
+</ul>
+
+<h2 id="different-retry-strategies-for-different-errors">Different retry strategies for different errors</h2>
+
+<p>By composing ZIO <code class="language-plaintext highlighter-rouge">Schedule</code>s, you can define different retries for different types of errors:</p>
+
+<div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="nn">java.util.concurrent.TimeoutException</span>
+<span class="k">import</span> <span class="nn">java.net.UnknownHostException</span>
+
+<span class="k">val</span> <span class="nv">isTimeout</span><span class="k">:</span> <span class="kt">PartialFunction</span><span class="o">[</span><span class="kt">Exception</span>, <span class="kt">Any</span><span class="o">]</span> <span class="k">=</span> <span class="o">{</span>
+  <span class="k">case</span> <span class="k">_</span> <span class="k">:</span> <span class="kt">TimeoutException</span> <span class="o">=&gt;</span> 
+<span class="o">}</span>
+
+<span class="k">val</span> <span class="nv">isUnknownHostException</span><span class="k">:</span> <span class="kt">PartialFunction</span><span class="o">[</span><span class="kt">Exception</span>, <span class="kt">Any</span><span class="o">]</span> <span class="k">=</span> <span class="o">{</span>
+  <span class="k">case</span> <span class="k">_</span> <span class="k">:</span> <span class="kt">UnknownHostException</span> <span class="o">=&gt;</span> 
+<span class="o">}</span>
+
+<span class="k">val</span> <span class="nv">retry2</span> <span class="k">=</span> <span class="nv">Retry</span><span class="o">.</span><span class="py">make</span><span class="o">(</span>
+  <span class="nv">Retry</span><span class="o">.</span><span class="py">Schedules</span><span class="o">.</span><span class="py">whenCase</span><span class="o">(</span><span class="n">isTimeout</span><span class="o">)</span> <span class="o">{</span> <span class="nv">Retry</span><span class="o">.</span><span class="py">Schedules</span><span class="o">.</span><span class="py">common</span><span class="o">(</span><span class="n">min</span> <span class="k">=</span> <span class="mf">1.</span><span class="n">second</span><span class="o">,</span> <span class="n">max</span> <span class="k">=</span> <span class="mf">1.</span><span class="n">minute</span><span class="o">)</span> <span class="o">}</span> <span class="o">||</span> 
+    <span class="nv">Retry</span><span class="o">.</span><span class="py">Schedules</span><span class="o">.</span><span class="py">whenCase</span><span class="o">(</span><span class="n">isUnknownHostException</span><span class="o">)</span> <span class="o">{</span> <span class="nv">Retry</span><span class="o">.</span><span class="py">Schedules</span><span class="o">.</span><span class="py">common</span><span class="o">(</span><span class="n">min</span> <span class="k">=</span> <span class="mf">1.d</span><span class="n">ay</span><span class="o">,</span> <span class="n">max</span> <span class="k">=</span> <span class="mf">5.d</span><span class="n">ays</span><span class="o">)</span> <span class="o">}</span>
+<span class="o">)</span>
+
+<span class="nv">retry2</span><span class="o">.</span><span class="py">use</span> <span class="o">{</span> <span class="n">retryPolicy</span> <span class="k">=&gt;</span> 
+  <span class="nf">retryPolicy</span><span class="o">(</span><span class="n">myEffect</span><span class="o">)</span>
+<span class="o">}</span>
+</code></pre></div></div>
+</section></div></div></div></div><script src="/rezilience/highlight/highlight.pack.js"></script><script>
+// For all code blocks, copy the language from the containing div
+// to the inner code tag (where hljs expects it to be)
+const langPrefix = 'language-';
+document.querySelectorAll(`div[class^='${langPrefix}']`).forEach(function(div) {
+  div.classList.forEach(function(cssClass) {
+    if (cssClass.startsWith(langPrefix)) {
+      const lang = cssClass.substring(langPrefix.length);
+      div.querySelectorAll('pre code').forEach(function(code) {
+        code.classList.add(lang);
+      });
+    }
+  });
+});
+
+hljs.configure({languages:['scala','java','bash']});
+hljs.initHighlightingOnLoad();
+      </script><script>console.info('\x57\x65\x62\x73\x69\x74\x65\x20\x62\x75\x69\x6c\x74\x20\x77\x69\x74\x68\x3a\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x5f\x5f\x20\x20\x20\x20\x5f\x5f\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x5f\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x5f\x20\x5f\x5f\x0a\x20\x20\x20\x5f\x5f\x5f\x5f\x5f\x2f\x20\x2f\x5f\x20\x20\x2f\x20\x2f\x5f\x20\x20\x20\x20\x20\x20\x5f\x5f\x5f\x5f\x20\x5f\x5f\x5f\x20\x20\x28\x5f\x29\x5f\x5f\x5f\x5f\x5f\x5f\x5f\x5f\x5f\x5f\x5f\x5f\x5f\x20\x20\x5f\x5f\x5f\x5f\x5f\x28\x5f\x29\x20\x2f\x5f\x5f\x5f\x5f\x20\x20\x5f\x5f\x5f\x5f\x5f\x0a\x20\x20\x2f\x20\x5f\x5f\x5f\x2f\x20\x5f\x5f\x20\x5c\x2f\x20\x5f\x5f\x2f\x5f\x5f\x5f\x5f\x5f\x2f\x20\x5f\x5f\x20\x60\x5f\x5f\x20\x5c\x2f\x20\x2f\x20\x5f\x5f\x5f\x2f\x20\x5f\x5f\x5f\x2f\x20\x5f\x5f\x20\x5c\x2f\x20\x5f\x5f\x5f\x2f\x20\x2f\x20\x5f\x5f\x2f\x20\x5f\x20\x5c\x2f\x20\x5f\x5f\x5f\x2f\x0a\x20\x28\x5f\x5f\x20\x20\x29\x20\x2f\x5f\x2f\x20\x2f\x20\x2f\x5f\x2f\x5f\x5f\x5f\x5f\x5f\x2f\x20\x2f\x20\x2f\x20\x2f\x20\x2f\x20\x2f\x20\x2f\x20\x2f\x5f\x5f\x2f\x20\x2f\x20\x20\x2f\x20\x2f\x5f\x2f\x20\x28\x5f\x5f\x20\x20\x29\x20\x2f\x20\x2f\x5f\x2f\x20\x20\x5f\x5f\x28\x5f\x5f\x20\x20\x29\x0a\x2f\x5f\x5f\x5f\x5f\x2f\x5f\x2e\x5f\x5f\x5f\x2f\x5c\x5f\x5f\x2f\x20\x20\x20\x20\x20\x2f\x5f\x2f\x20\x2f\x5f\x2f\x20\x2f\x5f\x2f\x5f\x2f\x5c\x5f\x5f\x5f\x2f\x5f\x2f\x20\x20\x20\x5c\x5f\x5f\x5f\x5f\x2f\x5f\x5f\x5f\x5f\x2f\x5f\x2f\x5c\x5f\x5f\x2f\x5c\x5f\x5f\x5f\x2f\x5f\x5f\x5f\x5f\x2f\x0a\x0a\x68\x74\x74\x70\x73\x3a\x2f\x2f\x34\x37\x64\x65\x67\x2e\x67\x69\x74\x68\x75\x62\x2e\x69\x6f\x2f\x73\x62\x74\x2d\x6d\x69\x63\x72\x6f\x73\x69\x74\x65\x73')</script><script src="/rezilience/js/docs.js"></script></body></html>
