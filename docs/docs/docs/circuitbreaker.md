@@ -5,9 +5,7 @@ permalink: docs/circuitbreaker/
 ---
 
 # Circuit Breaker
-Make calls to an external system through the CircuitBreaker to safeguard that system against overload. When too many calls have failed, the circuit breaker will trip and calls will fail immediately, giving the external system some time to recover. This also prevents a queue of calls waiting for response from the external system until timeout.
-
-Circuit Breaker is a reactive resilience strategy.
+Circuit Breaker is a reactive resilience strategy to safeguard an external system against overload. It will also prevent queueing up of calls to an already struggling system.
 
 ## Behavior
 A Circuit Breaker starts in the 'closed' state. All calls are passed through in this state. Any failures are counted. When too many failures have occurred, the breaker goes to the 'open' state. Calls made in this state will fail immediately with a `CircuitBreakerOpen` error. 
@@ -94,13 +92,8 @@ You may want to monitor circuit breaker failures and trigger alerts when the cir
 CircuitBreaker.make(
   trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
   onStateChange = (s: State) => ZIO(println(s"State changed to ${s}")).ignore
-).use { cb =>
+).use { circuitBreaker =>
   // Make calls to an external system
-  cb.call(ZIO.unit) // etc
+  circuitBreaker(ZIO.unit) // etc
 }
 ```
-
-## Asynchronous usage
-
-Many implementations of the Circuit Breaker pattern are backed by a thread pool to support asynchronous calls. `rezilience` is based on ZIO, so no 
-
