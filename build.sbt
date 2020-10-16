@@ -14,6 +14,7 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(GitVersioning)
   .settings(
     name := "rezilience",
+    version := "0.1",
     organization := "nl.vroste",
     homepage := Some(url("https://github.com/svroonland/rezilience")),
     licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
@@ -42,10 +43,11 @@ lazy val benchmarks = project
   .settings(
     scalaVersion := mainScala,
     libraryDependencies ++= Seq(
-      "dev.zio"                %%% "zio-streams"             % "1.0.3",
-      "dev.zio"                %%% "zio-test"                % "1.0.3" % "test",
-      "dev.zio"                %%% "zio-test-sbt"            % "1.0.3" % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.2.0"
+      "dev.zio"                %%% "zio-streams"                 % "1.0.3",
+      "dev.zio"                %%% "zio-test"                    % "1.0.3" % "test",
+      "dev.zio"                %%% "zio-test-sbt"                % "1.0.3" % "test",
+      "org.scala-lang.modules" %%% "scala-collection-compat"     % "2.2.0",
+      "io.github.resilience4j"   % "resilience4j-circuitbreaker" % "1.3.1"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )

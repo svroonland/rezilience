@@ -77,18 +77,19 @@ object CircuitBreaker {
   import State._
 
   sealed trait CircuitBreakerCallError[+E] { self =>
-    def toException: Exception = CircuitBreakerException(self)
+    final def toException: Exception = CircuitBreakerException(self)
 
-    def fold[O](circuitBreakerOpen: O, unwrap: E => O): O = self match {
+    final def fold[O](circuitBreakerOpen: O, unwrap: E => O): O = self match {
       case CircuitBreakerOpen  => circuitBreakerOpen
       case WrappedError(error) => unwrap(error)
     }
   }
 
-  case object CircuitBreakerOpen       extends CircuitBreakerCallError[Nothing]
-  case class WrappedError[E](error: E) extends CircuitBreakerCallError[E]
+  final case object CircuitBreakerOpen       extends CircuitBreakerCallError[Nothing]
+  final case class WrappedError[E](error: E) extends CircuitBreakerCallError[E]
 
-  case class CircuitBreakerException[E](error: CircuitBreakerCallError[E]) extends Exception("Circuit breaker error")
+  final case class CircuitBreakerException[E](error: CircuitBreakerCallError[E])
+      extends Exception("Circuit breaker error")
 
   sealed trait State
 
@@ -161,7 +162,7 @@ object CircuitBreaker {
       halfOpenSwitch
     )
 
-  private case class CircuitBreakerImpl[-E](
+  private final case class CircuitBreakerImpl[-E](
     state: Ref[State],
     resetRequests: Queue[Unit],
     strategy: TrippingStrategy,
