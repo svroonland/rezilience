@@ -31,7 +31,7 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
       "dev.zio"                %%% "zio-streams"             % "1.0.3",
       "dev.zio"                %%% "zio-test"                % "1.0.3" % "test",
       "dev.zio"                %%% "zio-test-sbt"            % "1.0.3" % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.2.0"
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.3.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
