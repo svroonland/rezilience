@@ -29,10 +29,7 @@ trait Bulkhead { self =>
 
   def toPolicy: Policy[Any] = new Policy[Any] {
     override def apply[R, E1 <: Any, A](f: ZIO[R, E1, A]): ZIO[R, Policy.PolicyError[E1], A] =
-      self(f).mapError {
-        case Bulkhead.BulkheadRejection => Policy.BulkheadRejection
-        case Bulkhead.WrappedError(e)   => Policy.WrappedError(e)
-      }
+      self(f).mapError(_.fold(Policy.BulkheadRejection, Policy.WrappedError(_)))
   }
 
   /**
