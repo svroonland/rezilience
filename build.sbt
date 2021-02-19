@@ -29,9 +29,9 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
     scalafmtOnCompile := true,
     libraryDependencies ++= Seq(
       "dev.zio"                %%% "zio-streams"             % "1.0.4-2",
-      "dev.zio"                %%% "zio-test"                % "1.0.4" % "test",
-      "dev.zio"                %%% "zio-test-sbt"            % "1.0.4" % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.4.1"
+      "dev.zio"                %%% "zio-test"                % "1.0.4-2" % "test",
+      "dev.zio"                %%% "zio-test-sbt"            % "1.0.4-2" % "test",
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.4.2"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
