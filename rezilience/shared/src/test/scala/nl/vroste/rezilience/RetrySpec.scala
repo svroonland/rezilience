@@ -17,7 +17,7 @@ object RetrySpec extends DefaultRunnableSpec {
           for {
             tries     <- Ref.make(0)
             failure    = ZIO.fail(CircuitBreakerOpen)
-            _         <- retry(tries.update(_ + 1).flatMap(_ => failure).unit).either
+            _         <- retry((tries.update(_ + 1) *> failure).unit).either
             triesMade <- tries.get
           } yield assert(triesMade)(equalTo(1))
         }
