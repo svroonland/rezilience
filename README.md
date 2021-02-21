@@ -36,3 +36,7 @@ Add to your build.sbt:
 resolvers += Resolver.jcenterRepo
 libraryDependencies += "nl.vroste" %% "rezilience" % "<version>"
 ```
+
+## Used by
+
+If you are using this library and find it useful, please consider adding your company or project to the list below!
