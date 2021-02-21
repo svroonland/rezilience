@@ -1,6 +1,6 @@
 package nl.vroste.rezilience
 
-import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, CircuitBreakerOpen, WrappedError }
+import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
 import nl.vroste.rezilience.Policy.PolicyError
 import zio._
 import zio.clock.Clock
@@ -53,10 +53,7 @@ trait CircuitBreaker[-E] {
 
   def toPolicy: Policy[E] = new Policy[E] {
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
-      self(f).mapError {
-        case CircuitBreakerOpen => Policy.CircuitBreakerOpen
-        case WrappedError(e)    => Policy.WrappedError(e)
-      }
+      self(f).mapError(_.fold(Policy.CircuitBreakerOpen, Policy.WrappedError(_)))
   }
 
   /**
