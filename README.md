@@ -10,6 +10,7 @@ It consists of these policies:
 * `Bulkhead`
 * `RateLimiter`
 * `Retry`
+* `Timeout`
 
 ## Features / Design goals
 * Type-safety: all errors that can result from any of the `rezilience` policies are encoded in the method signatures, so no unexpected RuntimeExceptions.

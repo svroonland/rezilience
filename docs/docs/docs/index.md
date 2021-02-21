@@ -17,6 +17,7 @@ It consists of these policies:
 | RateLimiter    | Proactive          | Limit the rate of calls to a system                      |
 | Bulkhead       | Proactive          | Limit the number of in-flight calls to a system          |
 | Retry          | Reactive           | Try again after transient failures                       |
+| Timeout        | ?                  | Stop execution if a call does not complete in time       | 
 
 ## Features / Design goals
 * Type-safety: all errors that can result from any of the `rezilience` policies are encoded in the method signatures, so no unexpected RuntimeExceptions.
