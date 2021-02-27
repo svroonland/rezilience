@@ -1,6 +1,6 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 val mainScala = "2.13.3"
-val allScala  = Seq("2.12.12", mainScala)
+val allScala  = Seq("2.12.13", mainScala)
 
 lazy val root = project
   .in(file("."))
