@@ -92,16 +92,19 @@ object Retry {
      * @param factor Factor with which delays increase
      * @param retryImmediately Retry immediately after the first failure
      * @param maxRetries Maximum number of retries
+     * @param jitterFactor Maximum fraction of the current delay interval that is randomly added or substracted. This
+     *                     helps to spread call attempts in time. To get a 10% jitter for example, use jitterFactor=0.1
      */
     def common(
       min: Duration = 1.second,
       max: Duration = 1.minute,
       factor: Double = 2.0,
       retryImmediately: Boolean = true,
-      maxRetries: Option[Int] = Some(3)
+      maxRetries: Option[Int] = Some(3),
+      jitterFactor: Double = 0.1
     ): Schedule[Any with Random, Any, (Any, Long)] =
       ((if (retryImmediately) zio.Schedule.once else zio.Schedule.stop) andThen
-        exponentialBackoff(min, max, factor).jittered) &&
+        exponentialBackoff(min, max, factor).jittered(jitterFactor, 1.0 - jitterFactor)) &&
         maxRetries.fold(zio.Schedule.forever)(zio.Schedule.recurs)
 
     /**
