@@ -41,6 +41,13 @@ object Policy {
       case CallTimedOut        => timeout
       case WrappedError(error) => unwrap(error)
     }
+
+    override def toString: String = self match {
+      case WrappedError(e)    => e.toString
+      case BulkheadRejection  => "Too many queued calls"
+      case CircuitBreakerOpen => "Too many failed calls"
+      case CallTimedOut       => "Time out"
+    }
   }
 
   case class WrappedError[E](e: E) extends PolicyError[E]
@@ -48,7 +55,7 @@ object Policy {
   case object CircuitBreakerOpen   extends PolicyError[Nothing]
   case object CallTimedOut         extends PolicyError[Nothing]
 
-  case class PolicyException[E](error: PolicyError[E]) extends Exception("Policy error")
+  case class PolicyException[E](error: PolicyError[E]) extends Exception(s"Policy error: ${error.toString}")
 
   def unwrap[E]: PartialFunction[PolicyError[E], E] = { case WrappedError(e) => e }
 
