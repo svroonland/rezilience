@@ -27,3 +27,5 @@ rateLimiter.use { rateLimiter =>
        
 }
 ```
+
+_NOTE: for typical use cases of resource usage protection, limiting the number of concurrent calls/usage is preferable over limiting the rate of calls. See this [excellent talk by Jon Moore](https://www.youtube.com/watch?v=m64SWl9bfvk) on the subject.
