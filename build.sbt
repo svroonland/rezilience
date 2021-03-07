@@ -19,6 +19,7 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
   .in(file("rezilience"))
   .settings(
     name := "rezilience",
+    version := "0.6.0", // TODO remove!
     organization := "nl.vroste",
     homepage := Some(url("https://github.com/svroonland/rezilience")),
     licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
