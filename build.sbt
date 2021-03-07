@@ -2,10 +2,26 @@ import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 val mainScala = "2.13.5"
 val allScala  = Seq("2.12.12", mainScala)
 
-ThisBuild / publishTo := sonatypePublishToBundle.value
+//ThisBuild / publishTo := sonatypePublishToBundle.value
 skip in publish := true
 
-enablePlugins(GitVersioning)
+//enablePlugins(GitVersioning)
+
+inThisBuild(
+  List(
+    organization := "nl.vroste",
+    homepage := Some(url("https://github.com/svroonland/rezilience")),
+    licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+    developers := List(
+      Developer(
+        "svroonland",
+        "Vroste",
+        "info@vroste.nl",
+        url("https://github.com/svroonland")
+      )
+    )
+  )
+)
 
 lazy val root = project
   .in(file("."))
@@ -19,25 +35,14 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
   .in(file("rezilience"))
   .settings(
     name := "rezilience",
-    organization := "nl.vroste",
-    homepage := Some(url("https://github.com/svroonland/rezilience")),
-    licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
     scalaVersion := mainScala,
     crossScalaVersions := allScala,
     parallelExecution in Test := false,
     fork in Test := true,
     fork in run := true,
-    publishMavenStyle := true,
+//    publishMavenStyle := true,
     scmInfo := Some(
       ScmInfo(url("https://github.com/svroonland/rezilience/"), "scm:git:git@github.com:svroonland/rezilience.git")
-    ),
-    developers := List(
-      Developer(
-        "svroonland",
-        "Vroste",
-        "info@vroste.nl",
-        url("https://github.com/svroonland")
-      )
     ),
     scalafmtOnCompile := true,
     libraryDependencies ++= Seq(
