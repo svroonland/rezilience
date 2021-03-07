@@ -118,12 +118,12 @@ workflows:
             tags:
               only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
       - release:
-          filters:
-            branches:
-              only:
-                - master
           requires:
             - test213_jdk8
             - test213_jdk11
             - test212_jdk8
             - test212_jdk11
+          filters:
+            branches:
+              only:
+                - master
