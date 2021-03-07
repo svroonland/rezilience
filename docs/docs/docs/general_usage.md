@@ -33,7 +33,7 @@ Policies can be applied to any type of `ZIO[R, E, A]` effect, although some poli
 | RateLimiter    | `Any`                                               | `ZIO[R, E, A]`                      |
 | Bulkhead       | `Any`                                               | `ZIO[R, BulkheadError[E], A]`       |
 | Retry          | `Any`, or `E` when a `Schedule[Env, E, Out]` is used | `ZIO[R, E, A]`                      |
-| Timeout        | `Any`                                                | `ZIO[R, E, A]`                      |
+| Timeout        | `Any`                                                | `ZIO[R, TimeoutError[E], A]`                      |
 
 ## Mapping errors
 
