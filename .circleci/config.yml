@@ -79,7 +79,11 @@ jobs:
       - run: git fetch --tags
       - restore_cache:
           key: sbt-cache
-      - run: sbt ciReleaseBintray
+      - run: apt install -y gnupg
+      - run: export GPG_TTY=$(tty)
+      - run: echo $PGP_SECRET | base64 --decode | gpg --batch --import
+      - run: echo "credentials += Credentials(\"Sonatype Nexus Repository Manager\", \"oss.sonatype.org\", \"$SONATYPE_USER\", \"$SONATYPE_PASSWORD\")" > ~/.sbt/1.0/sonatype.sbt
+      - run: sbt ci-release
 
 workflows:
   version: 2
@@ -119,8 +123,3 @@ workflows:
             - test213_jdk11
             - test212_jdk8
             - test212_jdk11
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
