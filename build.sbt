@@ -2,11 +2,6 @@ import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 val mainScala = "2.13.5"
 val allScala  = Seq("2.12.12", mainScala)
 
-//ThisBuild / publishTo := sonatypePublishToBundle.value
-skip in publish := true
-
-//enablePlugins(GitVersioning)
-
 inThisBuild(
   List(
     organization := "nl.vroste",
@@ -19,6 +14,9 @@ inThisBuild(
         "info@vroste.nl",
         url("https://github.com/svroonland")
       )
+    ),
+    scmInfo := Some(
+      ScmInfo(url("https://github.com/svroonland/rezilience/"), "scm:git:git@github.com:svroonland/rezilience.git")
     )
   )
 )
@@ -40,10 +38,6 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
     parallelExecution in Test := false,
     fork in Test := true,
     fork in run := true,
-//    publishMavenStyle := true,
-    scmInfo := Some(
-      ScmInfo(url("https://github.com/svroonland/rezilience/"), "scm:git:git@github.com:svroonland/rezilience.git")
-    ),
     scalafmtOnCompile := true,
     libraryDependencies ++= Seq(
       "dev.zio"                %%% "zio-streams"             % "1.0.4-2",
