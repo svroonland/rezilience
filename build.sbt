@@ -2,6 +2,9 @@ import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 val mainScala = "2.13.5"
 val allScala  = Seq("2.12.12", mainScala)
 
+ThisBuild / publishTo := sonatypePublishToBundle.value
+//skip in publish := true
+
 lazy val root = project
   .in(file("."))
   .aggregate(rezilience.js, rezilience.jvm)
@@ -24,8 +27,17 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
     fork in Test := true,
     fork in run := true,
     publishMavenStyle := true,
-    bintrayOrganization := Some("vroste"),
-    bintrayPackageLabels := Seq("zio", "circuit-breaker"),
+    scmInfo := Some(
+      ScmInfo(url("https://github.com/svroonland/rezilience/"), "scm:git:git@github.com:svroonland/rezilience.git")
+    ),
+    developers := List(
+      Developer(
+        "svroonland",
+        "Vroste",
+        "info@vroste.nl",
+        url("https://github.com/svroonland")
+      )
+    ),
     scalafmtOnCompile := true,
     libraryDependencies ++= Seq(
       "dev.zio"                %%% "zio-streams"             % "1.0.4-2",
@@ -45,6 +57,7 @@ lazy val docs = project
   .enablePlugins(ScalaUnidocPlugin)
   .settings(
     name := "rezilience",
+    skip in publish := true,
     description := "ZIO-native utilities for making asynchronous systems more resilient to failures",
     siteSubdirName in ScalaUnidoc := "api",
     addMappingsToSiteDir(mappings in (ScalaUnidoc, packageDoc), siteSubdirName in ScalaUnidoc),
