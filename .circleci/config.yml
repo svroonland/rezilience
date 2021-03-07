@@ -117,9 +117,10 @@ workflows:
           filters:
             tags:
               only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
-      - release:
-          requires:
-            - test213_jdk8
-            - test213_jdk11
-            - test212_jdk8
-            - test212_jdk11
+      - release
+      # TODO enable
+#          requires:
+#            - test213_jdk8
+#            - test213_jdk11
+#            - test212_jdk8
+#            - test212_jdk11
