@@ -3,7 +3,9 @@ val mainScala = "2.13.5"
 val allScala  = Seq("2.12.12", mainScala)
 
 ThisBuild / publishTo := sonatypePublishToBundle.value
-//skip in publish := true
+skip in publish := true
+
+enablePlugins(GitVersioning)
 
 lazy val root = project
   .in(file("."))
@@ -15,7 +17,6 @@ lazy val root = project
 
 lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
   .in(file("rezilience"))
-  .enablePlugins(GitVersioning)
   .settings(
     name := "rezilience",
     organization := "nl.vroste",
