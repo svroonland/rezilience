@@ -11,6 +11,8 @@ options:
     url: docs/ratelimiter
   - title: Retry
     url: docs/retry
+  - title: Timeout
+    url: docs/timeout
   - title: Combining Policies
     url: docs/combining_policies
   - title: Additional Resiliency

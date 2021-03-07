@@ -13,11 +13,11 @@ It consists of these policies:
 
 | Policy         | Reactive/Proactive | Description                                              |
 |----------------|--------------------|----------------------------------------------------------|
-| CircuitBreaker | Reactive           | Temporarily prevent trying calls after too many failures |
-| RateLimiter    | Proactive          | Limit the rate of calls to a system                      |
-| Bulkhead       | Proactive          | Limit the number of in-flight calls to a system          |
-| Retry          | Reactive           | Try again after transient failures                       |
-| Timeout        | Reactive           | Interrupt execution if a call does not complete in time  | 
+| [CircuitBreaker](circuitbreaker) | Reactive           | Temporarily prevent trying calls after too many failures |
+| [RateLimiter](ratelimiter)    | Proactive          | Limit the rate of calls to a system                      |
+| [Bulkhead](bulkhead)       | Proactive          | Limit the number of in-flight calls to a system          |
+| [Retry](retry)          | Reactive           | Try again after transient failures                       |
+| [Timeout](timeout)        | Reactive           | Interrupt execution if a call does not complete in time  | 
 
 ## Features / Design goals
 * Type-safety: all errors that can result from any of the `rezilience` policies are encoded in the method signatures, so no unexpected RuntimeExceptions.

@@ -17,6 +17,8 @@ permalink: docs/retry/
 * Some random jitter is added to prevent spikes of retries from many call sites applying the same retry strategy.
 * An optional maximum number of retries ensures that retrying does not continue forever.
 
+See also https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+
 ## Usage example
 
 ```scala mdoc:silent
