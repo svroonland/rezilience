@@ -49,7 +49,7 @@ object Bulkhead {
   }
 
   final case class WrappedError[E](e: E) extends BulkheadError[E]
-  final case object BulkheadRejection    extends BulkheadError[Nothing]
+  case object BulkheadRejection          extends BulkheadError[Nothing]
 
   final case class Metrics(inFlight: Int, inQueue: Int)
 
