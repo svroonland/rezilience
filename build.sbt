@@ -1,6 +1,15 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
-val mainScala = "2.13.5"
-val allScala  = Seq("2.12.12", mainScala, "3.0.0-RC1")
+val mainScala    = "2.13.5"
+val allScala     = Seq("2.12.12", mainScala)
+val dottyVersion = "3.0.0-RC1"
+
+lazy val commonJvmSettings = Seq(
+  crossScalaVersions := allScala :+ dottyVersion
+)
+
+lazy val commonJsSettings = Seq(
+  crossScalaVersions := allScala
+)
 
 inThisBuild(
   List(
@@ -31,10 +40,11 @@ lazy val root = project
 
 lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
   .in(file("rezilience"))
+  .jvmSettings(commonJvmSettings)
+  .jsSettings(commonJsSettings)
   .settings(
     name := "rezilience",
     scalaVersion := mainScala,
-    crossScalaVersions := allScala,
     parallelExecution in Test := false,
     fork in Test := true,
     fork in run := true,
