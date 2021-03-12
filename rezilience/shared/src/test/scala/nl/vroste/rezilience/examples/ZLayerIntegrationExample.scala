@@ -58,7 +58,7 @@ object ZLayerIntegrationExample extends zio.App {
 
   // A layer that adds a rate limiter to our database
   val addRateLimiterToDatabase: ZLayer[Database with Clock, Nothing, Database] =
-    ZLayer.fromServiceManaged { database: Database.Service =>
+    ZLayer.fromServiceManaged { (database: Database.Service) =>
       RateLimiter.make(10).map { rl =>
         new Database.Service {
           override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
@@ -71,7 +71,7 @@ object ZLayerIntegrationExample extends zio.App {
     }
 
   val addBulkheadToDatabase: ZLayer[Database with Clock, Nothing, Database] =
-    ZLayer.fromServiceManaged { database: Database.Service =>
+    ZLayer.fromServiceManaged { (database: Database.Service) =>
       Bulkhead.make(10).map { bulkhead =>
         new Database.Service {
           override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
@@ -84,7 +84,7 @@ object ZLayerIntegrationExample extends zio.App {
     }
 
   val addCircuitBreakerToDatabase: ZLayer[Database with Clock, Nothing, ResilientDatabase] =
-    ZLayer.fromServiceManaged { database: Database.Service =>
+    ZLayer.fromServiceManaged { (database: Database.Service) =>
       CircuitBreaker
         .withMaxFailures[Throwable](10)
         .map(_.toPolicy)

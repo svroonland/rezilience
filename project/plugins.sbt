@@ -6,6 +6,7 @@ addSbtPlugin("org.portable-scala"        % "sbt-scalajs-crossproject" % "1.0.0")
 addSbtPlugin("io.shiftleft"              % "sbt-ci-release-early"     % "2.0.16")
 addSbtPlugin("com.47deg"                 % "sbt-microsites"           % "1.3.2")
 addSbtPlugin("com.eed3si9n"              % "sbt-unidoc"               % "0.4.3")
+addSbtPlugin("ch.epfl.lamp"              % "sbt-dotty"                % "0.5.3")
 
 addSbtPlugin("com.geirsson"   % "sbt-ci-release" % "1.5.6")
 addSbtPlugin("com.github.sbt" % "sbt-pgp"        % "2.1.2")

@@ -23,7 +23,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
 
   val randomListOfIntervals: Gen[Random, List[PrintFriendlyDuration]] = Gen.int(0, 5).flatMap {
     Gen.listOfN(_) {
-      Gen.finiteDuration(min = 100.millis, max = 10.seconds).map(PrintFriendlyDuration)
+      Gen.finiteDuration(min = 100.millis, max = 10.seconds).map(PrintFriendlyDuration(_))
     }
   }
 
@@ -141,9 +141,9 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
         val nrSampleBuckets = 10
 
         checkM(
-          Gen.double(0.1, 1.0),                                                // Failure threshold
-          Gen.finiteDuration(1.second, 10.minutes).map(PrintFriendlyDuration), // Sample duration
-          Gen.int(1, 10),                                                      // Min throughput
+          Gen.double(0.1, 1.0),                                                   // Failure threshold
+          Gen.finiteDuration(1.second, 10.minutes).map(PrintFriendlyDuration(_)), // Sample duration
+          Gen.int(1, 10),                                                         // Min throughput
           randomListOfIntervals
         ) { case (rate, sampleDuration, minThroughput, callIntervals) =>
           val totalTimes = callIntervals.scan(PrintFriendlyDuration(0.seconds))(_ + _).tail
