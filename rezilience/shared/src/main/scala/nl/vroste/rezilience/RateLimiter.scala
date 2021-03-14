@@ -56,7 +56,7 @@ object RateLimiter {
       p           <- Promise.make[E, A]
       interrupted <- Promise.make[Nothing, Unit]
       env         <- ZIO.environment[R]
-      effect       = task.foldM(p.fail, p.succeed).provide(env) raceFirst interrupted.await
+      effect       = (interrupted.await raceFirst task.foldM(p.fail, p.succeed).provide(env)).unlessM(interrupted.isDone)
       result      <- (q.offer(effect) *> p.await).onInterrupt(interrupted.succeed(()))
     } yield result
   }
