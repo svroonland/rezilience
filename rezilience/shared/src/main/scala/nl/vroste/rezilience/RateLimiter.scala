@@ -23,7 +23,7 @@ trait RateLimiter { self =>
    * the task will not begin execution anymore. However the interrupted call will still need to pass through the rate limiter throttle,
    * so the next queued call will possibly be delayed according to rate limiting parameters.
    *
-   * If the task has already started execution, it will be interrupted in the background.
+   * If the task has already started execution, interruption will be completed when the task is interrupted.
    *
    * @param task Task to execute. When the rate limit is exceeded, the call will be postponed.
    */
@@ -52,6 +52,7 @@ object RateLimiter {
     q <- Queue.unbounded[UIO[Any]].toManaged_
     _ <- ZStream
            .fromQueue(q)
+           // TODO filter out already interrupted stuff?
            .throttleShape(max, interval, max)(_.size.toLong)
            .mapMParUnordered(Int.MaxValue)(identity)
            .runDrain
@@ -61,8 +62,15 @@ object RateLimiter {
       p           <- Promise.make[E, A]
       interrupted <- Promise.make[Nothing, Unit]
       env         <- ZIO.environment[R]
-      effect       = (interrupted.await raceFirst task.foldM(p.fail, p.succeed).provide(env)).unlessM(interrupted.isDone)
-      result      <- (q.offer(effect) *> p.await).onInterrupt(interrupted.succeed(()))
+      started     <- Semaphore.make(1)
+      effect       = started
+                       .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).provide(env))
+                       .unlessM(interrupted.isDone)
+      result      <- (q.offer(effect) *> p.await).onInterrupt {
+                       interrupted.succeed(()) *>
+                         // When task is already executing, this means we have to wait for interruption to complete
+                         started.withPermit(ZIO.unit)
+                     }
     } yield result
   }
 }

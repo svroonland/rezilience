@@ -77,6 +77,20 @@ object RateLimiterSpec extends DefaultRunnableSpec {
         } yield assert(c)(equalTo(0))
       }
     },
+    testM("will wait for interruption to complete of an effect that is already executing") {
+      RateLimiter.make(1, 1.second).use { rl =>
+        for {
+          latch             <- Promise.make[Nothing, Unit]
+          effectInterrupted <- Ref.make(0)
+          fib               <- rl {
+                                 (latch.succeed(()) *> ZIO.never).onInterrupt(effectInterrupted.set(1))
+                               }.fork
+          _                 <- latch.await
+          _                 <- fib.interrupt
+          interruptions     <- effectInterrupted.get
+        } yield assert(interruptions)(equalTo(1))
+      }
+    },
     testM("will make effects wait for interrupted effects to pass through the rate limiter") {
       RateLimiter.make(1, 1.second).use { rl =>
         for {
