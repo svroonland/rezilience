@@ -17,10 +17,15 @@ import zio.clock.Clock
 trait RateLimiter { self =>
 
   /**
-   * Call the system with RateLimiter protection
+   * Execute the task with RateLimiter protection
    *
-   * @param task Task to execute. When the rate limit is exceeded, the call will be postponed. The environment of the
-   *             task i
+   * The effect returned by this method can be safely interrupted. If the task is still waiting in the rate limiter queue,
+   * the task will not begin execution anymore. However the interrupted call will still need to pass through the rate limiter throttle,
+   * so the next queued call will possibly be delayed according to rate limiting parameters.
+   *
+   * If the task has already started execution, it will be interrupted in the background.
+   *
+   * @param task Task to execute. When the rate limit is exceeded, the call will be postponed.
    */
   def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A]
 
