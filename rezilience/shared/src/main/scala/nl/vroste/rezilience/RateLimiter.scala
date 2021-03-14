@@ -58,19 +58,22 @@ object RateLimiter {
            .runDrain
            .forkManaged
   } yield new RateLimiter {
-    override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {
-      p           <- Promise.make[E, A]
-      interrupted <- Promise.make[Nothing, Unit]
-      env         <- ZIO.environment[R]
-      started     <- Semaphore.make(1)
-      effect       = started
-                       .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).provide(env))
-                       .unlessM(interrupted.isDone)
-      result      <- (q.offer(effect) *> p.await).onInterrupt {
-                       interrupted.succeed(()) *>
-                         // When task is already executing, this means we have to wait for interruption to complete
-                         started.withPermit(ZIO.unit)
-                     }
-    } yield result
+    override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] =
+      withInterruptableEffect(task)(q.offer)
   }
+
+  private def withInterruptableEffect[R, E, A](task: ZIO[R, E, A])(f: UIO[Any] => UIO[Any]): ZIO[R, E, A] = for {
+    p           <- Promise.make[E, A]
+    interrupted <- Promise.make[Nothing, Unit]
+    env         <- ZIO.environment[R]
+    started     <- Semaphore.make(1)
+    effect       = started
+                     .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).provide(env))
+                     .unlessM(interrupted.isDone)
+    result      <- (f(effect) *> p.await).onInterrupt {
+                     interrupted.succeed(()) *>
+                       // When task is already executing, this means we have to wait for interruption to complete
+                       started.withPermit(ZIO.unit)
+                   }
+  } yield result
 }
