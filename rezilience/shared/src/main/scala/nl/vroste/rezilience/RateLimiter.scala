@@ -19,11 +19,10 @@ trait RateLimiter { self =>
   /**
    * Execute the task with RateLimiter protection
    *
-   * The effect returned by this method can be safely interrupted. If the task is still waiting in the rate limiter queue,
-   * the task will not begin execution anymore. However the interrupted call will still need to pass through the rate limiter throttle,
-   * so the next queued call will possibly be delayed according to rate limiting parameters.
-   *
-   * If the task has already started execution, interruption will be completed when the task is interrupted.
+   * The effect returned by this method can be interrupted, which is handled as follows:
+   * - If the task is still waiting in the rate limiter queue, it will not start execution.
+   *   It will also not count for the rate limiting or hold back other uninterrupted queued tasks.
+   * - If the task has already started executing, interruption will interrupt the task and will complete when the task's interruption is complete.
    *
    * @param task Task to execute. When the rate limit is exceeded, the call will be postponed.
    */
