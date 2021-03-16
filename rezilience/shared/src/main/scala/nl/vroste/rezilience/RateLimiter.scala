@@ -48,12 +48,12 @@ object RateLimiter {
    * @param interval Interval duration
    * @return RateLimiter
    */
-  def make(max: Long, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] = for {
+  def make(max: Int, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] = for {
     q <- Queue.unbounded[UIO[Any]].toManaged_
     _ <- ZStream
-           .fromQueue(q)
+           .fromQueue(q, maxChunkSize = max)
            // TODO filter out already interrupted stuff?
-           .throttleShape(max, interval, max)(_.size.toLong)
+           .throttleShape(max.toLong, interval, max.toLong)(_.size.toLong)
            .mapMParUnordered(Int.MaxValue)(identity)
            .runDrain
            .forkManaged
