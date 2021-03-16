@@ -49,12 +49,12 @@ object RateLimiter {
    * @return RateLimiter
    */
   def make(max: Int, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] = for {
-    q <- Queue.unbounded[UIO[Any]].toManaged_
+    q <- Queue.unbounded[(Ref[Boolean], UIO[Any])].toManaged_
     _ <- ZStream
            .fromQueue(q, maxChunkSize = max)
-           // TODO filter out already interrupted stuff?
+           .filterM { case (interrupted, effect @ _) => interrupted.get.map(!_) }
            .throttleShape(max.toLong, interval, max.toLong)(_.size.toLong)
-           .mapMParUnordered(Int.MaxValue)(identity)
+           .mapMParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
            .runDrain
            .forkManaged
   } yield new RateLimiter {
@@ -62,18 +62,21 @@ object RateLimiter {
       withInterruptableEffect(task)(q.offer)
   }
 
-  private def withInterruptableEffect[R, E, A](task: ZIO[R, E, A])(f: UIO[Any] => UIO[Any]): ZIO[R, E, A] = for {
-    p           <- Promise.make[E, A]
-    interrupted <- Promise.make[Nothing, Unit]
-    env         <- ZIO.environment[R]
-    started     <- Semaphore.make(1)
-    effect       = started
-                     .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).provide(env))
-                     .unlessM(interrupted.isDone)
-    result      <- (f(effect) *> p.await).onInterrupt {
-                     interrupted.succeed(()) *>
-                       // When task is already executing, this means we have to wait for interruption to complete
-                       started.withPermit(ZIO.unit)
-                   }
+  private def withInterruptableEffect[R, E, A](
+    task: ZIO[R, E, A]
+  )(f: ((Ref[Boolean], UIO[Any])) => UIO[Any]): ZIO[R, E, A] = for {
+    p              <- Promise.make[E, A]
+    interrupted    <- Promise.make[Nothing, Unit]
+    env            <- ZIO.environment[R]
+    started        <- Semaphore.make(1)
+    interruptedRef <- Ref.make(false)
+    effect          = started
+                        .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).provide(env))
+                        .unlessM(interrupted.isDone)
+    result         <- (f((interruptedRef, effect)) *> p.await).onInterrupt {
+                        interrupted.succeed(()) <* interruptedRef.set(true) *>
+                          // When task is already executing, this means we have to wait for interruption to complete
+                          started.withPermit(ZIO.unit)
+                      }
   } yield result
 }
