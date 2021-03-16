@@ -1,5 +1,5 @@
 package nl.vroste.rezilience
-import zio.{ clock, Promise, Ref, ZIO }
+import zio.{ clock, Fiber, Promise, Ref, ZIO }
 import zio.duration._
 import zio.test._
 import zio.test.Assertion._
@@ -104,6 +104,33 @@ object RateLimiterSpec extends DefaultRunnableSpec {
           _                 <- TestClock.adjust(1.second)
           lastExecutionTime <- fib.join
         } yield assert(lastExecutionTime)(equalTo(Instant.ofEpochSecond(2)))
+      }
+    },
+    testM("will not include interrupted effects in the throttling") {
+      val rate = 10
+      RateLimiter.make(rate, 1.second).use { rl =>
+        for {
+          latch    <- Promise.make[Nothing, Unit]
+          latched  <- Ref.make(0)
+          continue <- Promise.make[Nothing, Unit]
+          _        <- ZIO.replicateM(rate) {
+                        rl {
+                          ZIO.whenM(latched.updateAndGet(_ + 1).map(_ == rate))(latch.succeed(())) *>
+                            continue.await
+                        }.fork
+                      }
+          _        <- latch.await
+          // Now we have 10 in progress. Now submit another bunch. We can interrupt these
+          fibers   <- ZIO.replicateM(1000) {
+                        rl {
+                          ZIO.unit
+                        }.fork
+                      }
+          _        <- Fiber.interruptAll(fibers)
+          f1       <- rl(ZIO.unit).fork
+          _        <- TestClock.adjust(1.second) // This ensures that new tokens become available from the bucket
+          _        <- f1.join
+        } yield assertCompletes
       }
     }
   ) @@ timeout(10.seconds) @@ diagnose(10.seconds) @@ nonFlaky
