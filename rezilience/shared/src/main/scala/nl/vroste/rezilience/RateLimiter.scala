@@ -48,19 +48,22 @@ object RateLimiter {
    * @param interval Interval duration
    * @return RateLimiter
    */
-  def make(max: Int, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] = for {
-    q <- Queue.bounded[(Ref[Boolean], UIO[Any])](max * 2).toManaged_
-    _ <- ZStream
-           .fromQueue(q, maxChunkSize = max)
-           .filterM { case (interrupted, effect @ _) => interrupted.get.map(!_) }
-           .throttleShape(max.toLong, interval, max.toLong)(_.size.toLong)
-           .mapMParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
-           .runDrain
-           .forkManaged
-  } yield new RateLimiter {
-    override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] =
-      withInterruptableEffect(task)(q.offer)
-  }
+  def make(max: Int, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] =
+    for {
+      q <- Queue
+             .bounded[(Ref[Boolean], UIO[Any])](zio.internal.RingBuffer.nextPow2(max))
+             .toManaged_ // Power of two because it is a more efficient queue implementation
+      _ <- ZStream
+             .fromQueue(q, maxChunkSize = max)
+             .filterM { case (interrupted, effect @ _) => interrupted.get.map(!_) }
+             .throttleShape(max.toLong, interval, max.toLong)(_.size.toLong)
+             .mapMParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
+             .runDrain
+             .forkManaged
+    } yield new RateLimiter {
+      override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] =
+        withInterruptableEffect(task)(q.offer)
+    }
 
   private def withInterruptableEffect[R, E, A](
     task: ZIO[R, E, A]
