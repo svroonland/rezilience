@@ -49,7 +49,7 @@ object RateLimiter {
    * @return RateLimiter
    */
   def make(max: Int, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] = for {
-    q <- Queue.unbounded[(Ref[Boolean], UIO[Any])].toManaged_
+    q <- Queue.bounded[(Ref[Boolean], UIO[Any])](max * 2).toManaged_
     _ <- ZStream
            .fromQueue(q, maxChunkSize = max)
            .filterM { case (interrupted, effect @ _) => interrupted.get.map(!_) }
@@ -74,7 +74,9 @@ object RateLimiter {
                         .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).provide(env))
                         .unlessM(interrupted.isDone)
     result         <- (f((interruptedRef, effect)) *> p.await).onInterrupt {
-                        interrupted.succeed(()) <* interruptedRef.set(true) *>
+                        interrupted.succeed(()) <*
+                          // When the task is still in the queue before throttling, mark it as interrupted so we can filter it out
+                          interruptedRef.set(true) *>
                           // When task is already executing, this means we have to wait for interruption to complete
                           started.withPermit(ZIO.unit)
                       }
