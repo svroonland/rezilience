@@ -35,12 +35,6 @@ trait RateLimiter { self =>
 }
 
 object RateLimiter extends RateLimiterPlatformSpecificObj {
-  /*
-  Metrics:
-  - how long were tasks enqueued
-  - how many tasks are currently enqueued
-  - what is the utilization of the rate limit
-   */
 
   /**
    * Creates a RateLimiter as Managed resource
@@ -73,9 +67,10 @@ object RateLimiter extends RateLimiterPlatformSpecificObj {
         env            <- ZIO.environment[R]
         started        <- Semaphore.make(1)
         interruptedRef <- Ref.make(false)
-        effect          = started
-                            .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).provide(env))
-                            .unlessM(interrupted.isDone)
+        effect          =
+          started
+            .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).catchAllDefect(p.die).provide(env))
+            .unlessM(interrupted.isDone)
         result         <- (q.offer((interruptedRef, effect)) *> p.await).onInterrupt {
                             interrupted.succeed(()) <*
                               // When the task is still in the queue before throttling, mark it as interrupted so we can filter it out
