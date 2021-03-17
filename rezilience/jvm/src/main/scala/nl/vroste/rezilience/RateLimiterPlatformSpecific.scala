@@ -73,16 +73,18 @@ trait RateLimiterPlatformSpecificObj {
         _           <- onMetrics(lastMetrics.toUserMetrics(interval))
       } yield ()
 
-    def collectMetricsLoop(currentMetrics: Ref[RateLimiterMetricsInternal]) =
-      collectMetrics(currentMetrics)
+    def runCollectMetricsLoop(metrics: Ref[RateLimiterMetricsInternal]) =
+      collectMetrics(metrics)
         .delay(metricsInterval)
         .repeat(Schedule.fixed(metricsInterval))
+        .forkManaged
+        .ensuring(collectMetrics(metrics))
 
     for {
       inner   <- RateLimiter.make(max, interval)
       now     <- clock.instant.toManaged_
       metrics <- Ref.make(RateLimiterMetricsInternal.empty(now)).toManaged_
-      _       <- collectMetricsLoop(metrics).forkManaged.ensuring(collectMetrics(metrics))
+      _       <- runCollectMetricsLoop(metrics)
     } yield new RateLimiter {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = inner.apply(task)
     }
