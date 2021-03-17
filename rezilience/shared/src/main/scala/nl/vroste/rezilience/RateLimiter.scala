@@ -34,7 +34,13 @@ trait RateLimiter { self =>
   }
 }
 
-object RateLimiter {
+object RateLimiter extends RateLimiterPlatformSpecificObj {
+  /*
+  Metrics:
+  - how long were tasks enqueued
+  - how many tasks are currently enqueued
+  - what is the utilization of the rate limit
+   */
 
   /**
    * Creates a RateLimiter as Managed resource
