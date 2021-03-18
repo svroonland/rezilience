@@ -57,10 +57,23 @@ object RateLimiterMetrics {
 
 trait RateLimiterPlatformSpecificObj {
 
+  /**
+   * Create a RateLimiter with metrics
+   *
+   * Metrics are emitted at a regular interval. When the RateLimiter is released, metrics for the
+   * final interval are emitted.
+   *
+   * @param max
+   * @param interval
+   * @param onMetrics
+   * @param metricsInterval
+   * @param latencyHistogramSettings
+   * @return
+   */
   def makeWithMetrics(
-    max: Long,
+    max: Int,
     interval: Duration = 1.second,
-    onMetrics: RateLimiterMetrics => UIO[Unit],
+    onMetrics: RateLimiterMetrics => UIO[Any],
     metricsInterval: Duration = 10.seconds,
     latencyHistogramSettings: HistogramSettings = HistogramSettings(1.milli, 2.minutes)
   ): ZManaged[Clock, Nothing, RateLimiter] = {
@@ -77,8 +90,8 @@ trait RateLimiterPlatformSpecificObj {
 
     def runCollectMetricsLoop(metrics: Ref[RateLimiterMetricsInternal]) =
       collectMetrics(metrics)
-        .delay(metricsInterval)
         .repeat(Schedule.fixed(metricsInterval))
+        .delay(metricsInterval)
         .forkManaged
         .ensuring(collectMetrics(metrics))
 
