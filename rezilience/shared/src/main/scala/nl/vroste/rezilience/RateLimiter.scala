@@ -17,10 +17,14 @@ import zio.clock.Clock
 trait RateLimiter { self =>
 
   /**
-   * Call the system with RateLimiter protection
+   * Execute the task with RateLimiter protection
    *
-   * @param task Task to execute. When the rate limit is exceeded, the call will be postponed. The environment of the
-   *             task i
+   * The effect returned by this method can be interrupted, which is handled as follows:
+   * - If the task is still waiting in the rate limiter queue, it will not start execution.
+   *   It will also not count for the rate limiting or hold back other uninterrupted queued tasks.
+   * - If the task has already started executing, interruption will interrupt the task and will complete when the task's interruption is complete.
+   *
+   * @param task Task to execute. When the rate limit is exceeded, the call will be postponed.
    */
   def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A]
 
@@ -43,21 +47,36 @@ object RateLimiter {
    * @param interval Interval duration
    * @return RateLimiter
    */
-  def make(max: Long, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] = for {
-    q <- Queue.unbounded[UIO[Any]].toManaged_
-    _ <- ZStream
-           .fromQueue(q)
-           .throttleShape(max, interval, max)(_.size.toLong)
-           .mapMParUnordered(Int.MaxValue)(identity)
-           .runDrain
-           .forkManaged
-  } yield new RateLimiter {
-    override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {
-      p           <- Promise.make[E, A]
-      interrupted <- Promise.make[Nothing, Unit]
-      env         <- ZIO.environment[R]
-      effect       = task.foldM(p.fail, p.succeed).provide(env) raceFirst interrupted.await
-      result      <- (q.offer(effect) *> p.await).onInterrupt(interrupted.succeed(()))
-    } yield result
-  }
+  def make(max: Int, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] =
+    for {
+      q <- Queue
+             .bounded[(Ref[Boolean], UIO[Any])](zio.internal.RingBuffer.nextPow2(max))
+             .toManaged_ // Power of two because it is a more efficient queue implementation
+      _ <- ZStream
+             .fromQueue(q, maxChunkSize = max)
+             .filterM { case (interrupted, effect @ _) => interrupted.get.map(!_) }
+             .throttleShape(max.toLong, interval, max.toLong)(_.size.toLong)
+             .mapMParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
+             .runDrain
+             .forkManaged
+    } yield new RateLimiter {
+      override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {
+
+        p              <- Promise.make[E, A]
+        interrupted    <- Promise.make[Nothing, Unit]
+        env            <- ZIO.environment[R]
+        started        <- Semaphore.make(1)
+        interruptedRef <- Ref.make(false)
+        effect          = started
+                            .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).provide(env))
+                            .unlessM(interrupted.isDone)
+        result         <- (q.offer((interruptedRef, effect)) *> p.await).onInterrupt {
+                            interrupted.succeed(()) <*
+                              // When the task is still in the queue before throttling, mark it as interrupted so we can filter it out
+                              interruptedRef.set(true) *>
+                              // When task is already executing, this means we have to wait for interruption to complete
+                              started.withPermit(ZIO.unit)
+                          }
+      } yield result
+    }
 }
