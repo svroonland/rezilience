@@ -34,7 +34,7 @@ trait RateLimiter { self =>
   }
 }
 
-object RateLimiter {
+object RateLimiter extends RateLimiterPlatformSpecificObj {
 
   /**
    * Creates a RateLimiter as Managed resource
@@ -53,7 +53,7 @@ object RateLimiter {
              .bounded[(Ref[Boolean], UIO[Any])](zio.internal.RingBuffer.nextPow2(max))
              .toManaged_ // Power of two because it is a more efficient queue implementation
       _ <- ZStream
-             .fromQueue(q, maxChunkSize = max)
+             .fromQueue(q, 1) // Until https://github.com/zio/zio/issues/4190 is fixed
              .filterM { case (interrupted, effect @ _) => interrupted.get.map(!_) }
              .throttleShape(max.toLong, interval, max.toLong)(_.size.toLong)
              .mapMParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
@@ -67,9 +67,10 @@ object RateLimiter {
         env            <- ZIO.environment[R]
         started        <- Semaphore.make(1)
         interruptedRef <- Ref.make(false)
-        effect          = started
-                            .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).provide(env))
-                            .unlessM(interrupted.isDone)
+        effect          =
+          started
+            .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).catchAllDefect(p.die).provide(env))
+            .unlessM(interrupted.isDone)
         result         <- (q.offer((interruptedRef, effect)) *> p.await).onInterrupt {
                             interrupted.succeed(()) <*
                               // When the task is still in the queue before throttling, mark it as interrupted so we can filter it out
