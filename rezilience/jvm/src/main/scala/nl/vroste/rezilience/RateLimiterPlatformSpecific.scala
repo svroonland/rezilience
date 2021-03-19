@@ -70,7 +70,7 @@ trait RateLimiterPlatformSpecificObj {
    * @param latencyHistogramSettings
    * @return
    */
-  def make(
+  def makeWithMetrics(
     max: Int,
     interval: Duration = 1.second,
     onMetrics: RateLimiterMetrics => UIO[Any],

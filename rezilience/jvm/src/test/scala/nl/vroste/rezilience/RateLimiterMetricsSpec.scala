@@ -12,7 +12,7 @@ object RateLimiterMetricsSpec extends DefaultRunnableSpec {
   override def spec = suite("RateLimiter")(
     suite("preserves RateLimiter behavior")(
       testM("will interrupt the effect when a call is interrupted") {
-        RateLimiterPlatformSpecificObj.make(10, 1.second, _ => UIO.unit).use { rl =>
+        RateLimiterPlatformSpecificObj.makeWithMetrics(10, 1.second, _ => UIO.unit).use { rl =>
           for {
             latch       <- Promise.make[Nothing, Unit]
             interrupted <- Promise.make[Nothing, Unit]
@@ -29,7 +29,7 @@ object RateLimiterMetricsSpec extends DefaultRunnableSpec {
         for {
           metricsRef <- Promise.make[Nothing, RateLimiterMetrics]
           _          <- RateLimiterPlatformSpecificObj
-                          .make(10, 1.second, onMetrics = metricsRef.succeed, metricsInterval = 5.second)
+                          .makeWithMetrics(10, 1.second, onMetrics = metricsRef.succeed, metricsInterval = 5.second)
                           .use { rl =>
                             rl(UIO.unit)
                           }
@@ -42,7 +42,7 @@ object RateLimiterMetricsSpec extends DefaultRunnableSpec {
         for {
           metricsRef <- Ref.make(Vector.empty[RateLimiterMetrics])
           _          <- RateLimiterPlatformSpecificObj
-                          .make(
+                          .makeWithMetrics(
                             10,
                             1.second,
                             onMetrics = m => metricsRef.update(_ :+ m),
@@ -63,7 +63,7 @@ object RateLimiterMetricsSpec extends DefaultRunnableSpec {
         for {
           metricsRef <- Ref.make(RateLimiterMetrics.empty)
           _          <- RateLimiterPlatformSpecificObj
-                          .make(
+                          .makeWithMetrics(
                             10,
                             1.second,
                             onMetrics = m => metricsRef.update(_ + m),
@@ -84,7 +84,7 @@ object RateLimiterMetricsSpec extends DefaultRunnableSpec {
     suite("metrics live")(
       testM("emits metrics") {
         RateLimiterPlatformSpecificObj
-          .make(10, 1.second, onMetrics = metrics => UIO(println(metrics)), metricsInterval = 5.second)
+          .makeWithMetrics(10, 1.second, onMetrics = metrics => UIO(println(metrics)), metricsInterval = 5.second)
           .use { rl =>
             for {
               _ <- rl(clock.instant.flatMap(now => UIO(println(now)))).fork
