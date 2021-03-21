@@ -2,7 +2,7 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.Bulkhead.BulkheadError
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
 import nl.vroste.rezilience.Policy.{ flattenWrappedError, PolicyError }
-import zio.{ UIO, ZIO }
+import zio.ZIO
 
 /**
  * Represents a composition of one or more rezilience policies

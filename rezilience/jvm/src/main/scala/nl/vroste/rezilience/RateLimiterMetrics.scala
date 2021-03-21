@@ -1,7 +1,7 @@
 package nl.vroste.rezilience
 
-import org.HdrHistogram.AbstractHistogram
-import zio.duration.Duration
+import org.HdrHistogram.{ AbstractHistogram, IntCountsHistogram }
+import zio.duration._
 
 final case class RateLimiterMetrics(
   /**
