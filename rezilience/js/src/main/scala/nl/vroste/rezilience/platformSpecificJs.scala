@@ -1,0 +1,4 @@
+package nl.vroste.rezilience
+
+trait RateLimiterPlatformSpecificObj
+trait BulkheadPlatformSpecificObj
