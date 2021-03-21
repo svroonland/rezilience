@@ -37,8 +37,7 @@ final case class RateLimiterMetrics(
       ("tasks started", tasksStarted, ""),
       ("mean latency", latency.getMean.toInt, "ms"),
       ("95% latency", latency.getValueAtPercentile(95).toInt, "ms"),
-      ("min latency", latency.getMinValue.toInt, "ms"),
-      ("mean latency", latency.getMean.toInt, "ms")
+      ("min latency", latency.getMinValue.toInt, "ms")
     ).map { case (name, value, unit) => s"${name}=${value}${if (unit.isEmpty) "" else " " + unit}" }.mkString(", ")
 
   def +(that: RateLimiterMetrics): RateLimiterMetrics = copy(
@@ -75,7 +74,7 @@ trait RateLimiterPlatformSpecificObj {
     interval: Duration = 1.second,
     onMetrics: RateLimiterMetrics => UIO[Any],
     metricsInterval: Duration = 10.seconds,
-    latencyHistogramSettings: HistogramSettings = HistogramSettings(1.milli, 2.minutes)
+    latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings(1.milli, 2.minutes)
   ): ZManaged[Clock, Nothing, RateLimiter] = {
 
     def collectMetrics(currentMetrics: Ref[RateLimiterMetricsInternal]) =
@@ -88,18 +87,11 @@ trait RateLimiterPlatformSpecificObj {
         _           <- onMetrics(lastMetrics.toUserMetrics(interval))
       } yield ()
 
-    def runCollectMetricsLoop(metrics: Ref[RateLimiterMetricsInternal]) =
-      collectMetrics(metrics)
-        .repeat(Schedule.fixed(metricsInterval))
-        .delay(metricsInterval)
-        .forkManaged
-        .ensuring(collectMetrics(metrics))
-
     for {
       inner   <- RateLimiter.make(max, interval)
       now     <- clock.instant.toManaged_
       metrics <- Ref.make(RateLimiterMetricsInternal.empty(now, latencyHistogramSettings)).toManaged_
-      _       <- runCollectMetricsLoop(metrics)
+      _       <- MetricsUtil.runCollectMetricsLoop(metrics, metricsInterval)(collectMetrics)
       env     <- ZManaged.environment[Clock]
     } yield new RateLimiter {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {
@@ -148,7 +140,7 @@ private[rezilience] object RateLimiterPlatformSpecificObj extends RateLimiterPla
   }
 
   object RateLimiterMetricsInternal {
-    def empty(now: Instant, settings: HistogramSettings) =
+    def empty(now: Instant, settings: HistogramSettings[Duration]) =
       RateLimiterMetricsInternal(
         start = now,
         latency = new IntCountsHistogram(settings.min.toMillis, settings.max.toMillis, settings.significantDigits),

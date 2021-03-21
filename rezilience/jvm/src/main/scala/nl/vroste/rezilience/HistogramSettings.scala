@@ -2,4 +2,4 @@ package nl.vroste.rezilience
 
 import zio.duration.Duration
 
-case class HistogramSettings(min: Duration, max: Duration, significantDigits: Int = 2)
+case class HistogramSettings[T](min: T, max: T, significantDigits: Int = 2)
