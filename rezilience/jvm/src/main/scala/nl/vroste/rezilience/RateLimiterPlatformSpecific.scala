@@ -77,20 +77,21 @@ trait RateLimiterPlatformSpecificObj {
     latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings(1.milli, 2.minutes)
   ): ZManaged[Clock, Nothing, RateLimiter] = {
 
+    def makeNewMetrics = clock.instant.map(now => RateLimiterMetricsInternal.empty(now, latencyHistogramSettings))
+
     def collectMetrics(currentMetrics: Ref[RateLimiterMetricsInternal]) =
       for {
-        now         <- clock.instant
-        newMetrics   = RateLimiterMetricsInternal.empty(now, latencyHistogramSettings)
+        newMetrics  <- makeNewMetrics
         lastMetrics <-
           currentMetrics.getAndUpdate(metrics => newMetrics.copy(currentlyEnqueued = metrics.currentlyEnqueued))
-        interval     = java.time.Duration.between(lastMetrics.start, now)
+        interval     = java.time.Duration.between(lastMetrics.start, newMetrics.start)
         _           <- onMetrics(lastMetrics.toUserMetrics(interval))
       } yield ()
 
     for {
       inner   <- RateLimiter.make(max, interval)
       now     <- clock.instant.toManaged_
-      metrics <- Ref.make(RateLimiterMetricsInternal.empty(now, latencyHistogramSettings)).toManaged_
+      metrics <- makeNewMetrics.flatMap(Ref.make).toManaged_
       _       <- MetricsUtil.runCollectMetricsLoop(metrics, metricsInterval)(collectMetrics)
       env     <- ZManaged.environment[Clock]
     } yield new RateLimiter {
