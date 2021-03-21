@@ -31,11 +31,6 @@ trait Bulkhead { self =>
     override def apply[R, E1 <: Any, A](f: ZIO[R, E1, A]): ZIO[R, Policy.PolicyError[E1], A] =
       self(f).mapError(_.fold(Policy.BulkheadRejection, Policy.WrappedError(_)))
   }
-
-  /**
-   * Provides the number of in-flight and queued calls
-   */
-  def metrics: UIO[Metrics]
 }
 
 object Bulkhead {
@@ -50,8 +45,6 @@ object Bulkhead {
 
   final case class WrappedError[E](e: E) extends BulkheadError[E]
   case object BulkheadRejection          extends BulkheadError[Nothing]
-
-  final case class Metrics(inFlight: Int, inQueue: Int)
 
   case class BulkheadException[E](error: BulkheadError[E]) extends Exception("Bulkhead error")
 
@@ -112,7 +105,5 @@ object Bulkhead {
                            r <- result.await.mapError(WrappedError(_))
                          } yield r).onInterrupt(interrupted.succeed(()))
         } yield resultValue
-
-      override def metrics: UIO[Metrics] = (inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued)))
     }
 }

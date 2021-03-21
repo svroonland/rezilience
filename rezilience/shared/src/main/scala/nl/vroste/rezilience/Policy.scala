@@ -1,5 +1,5 @@
 package nl.vroste.rezilience
-import nl.vroste.rezilience.Bulkhead.{ BulkheadError, Metrics }
+import nl.vroste.rezilience.Bulkhead.BulkheadError
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
 import nl.vroste.rezilience.Policy.{ flattenWrappedError, PolicyError }
 import zio.{ UIO, ZIO }
@@ -103,8 +103,6 @@ object Policy {
   val noopBulkhead: Bulkhead = new Bulkhead {
     override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
       task.mapError(Bulkhead.WrappedError(_))
-
-    override def metrics: UIO[Metrics] = UIO.succeed(Metrics.apply(0, 0))
   }
 
   val noopRateLimiter: RateLimiter = new RateLimiter {
