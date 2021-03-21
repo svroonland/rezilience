@@ -102,7 +102,11 @@ object Bulkhead {
           result      <- Promise.make[E, A]
           interrupted <- Promise.make[Nothing, Unit]
           env         <- ZIO.environment[R]
-          action       = task.provide(env).foldM(result.fail, result.succeed).unit raceFirst interrupted.await
+          action       = task
+                           .provide(env)
+                           .foldM(result.fail, result.succeed)
+                           .catchAllDefect(result.die)
+                           .unit raceFirst interrupted.await
           resultValue <- (for {
                            _ <- queue.offer(action)
                            r <- result.await.mapError(WrappedError(_))
