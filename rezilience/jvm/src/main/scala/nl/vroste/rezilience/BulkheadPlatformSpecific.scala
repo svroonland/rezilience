@@ -72,6 +72,15 @@ final case class BulkheadMetrics(
   )
 }
 
+object BulkheadMetrics {
+  private val emptyInFlight = new IntCountsHistogram(1, 10, 2)
+  private val emptyEnqueued = new IntCountsHistogram(1, 10, 2)
+  private val emptyLatency  = new IntCountsHistogram(1, 6000000, 2)
+
+  val empty = BulkheadMetrics(0.seconds, emptyInFlight, emptyEnqueued, emptyLatency, 0, 0)
+
+}
+
 trait BulkheadPlatformSpecificObj {
 
   /**
