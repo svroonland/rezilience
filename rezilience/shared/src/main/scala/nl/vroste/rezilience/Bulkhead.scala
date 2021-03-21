@@ -76,24 +76,15 @@ object Bulkhead {
       // Create a queue with an upper bound, but the actual max queue size enforcing and dropping is done below
       queue             <-
         ZQueue
-          .bounded[(UIO[Unit], Promise[BulkheadRejection.type, Unit])](maxQueueing)
+          .bounded[UIO[Unit]](maxQueueing)
           .toManaged_
       inFlightAndQueued <- Ref.make(State(0, 0)).toManaged_
+      onStart            = inFlightAndQueued.update(_.startProcess)
+      onEnd              = inFlightAndQueued.update(_.endProcess)
       _                 <- ZStream
                              .fromQueue(queue)
-                             .mapConcatM { case (action, enqueued) =>
-                               inFlightAndQueued.modify { state =>
-                                 if (state.total < maxInFlightCalls + maxQueueing)
-                                   (enqueued.succeed(()).as(List(action)), state.enqueue)
-                                 else
-                                   (enqueued.fail(BulkheadRejection).as(List.empty), state)
-                               }.flatten
-                             }
-                             .buffer(maxQueueing)
                              .mapMPar(maxInFlightCalls) { task =>
-                               inFlightAndQueued
-                                 .update(_.startProcess)
-                                 .bracket_(inFlightAndQueued.update(_.endProcess), task)
+                               onStart.bracket_(onEnd, task)
                              }
                              .runDrain
                              .fork
@@ -101,14 +92,19 @@ object Bulkhead {
     } yield new Bulkhead {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
+          // Atomically enqueue if there's still enough room, otherwise fail with BulkheadRejection
+          _           <- inFlightAndQueued.modify { state =>
+                           if (state.total < maxInFlightCalls + maxQueueing)
+                             (ZIO.unit, state.enqueue)
+                           else
+                             (ZIO.fail(BulkheadRejection), state)
+                         }.flatten
           result      <- Promise.make[E, A]
           interrupted <- Promise.make[Nothing, Unit]
-          enqueued    <- Promise.make[BulkheadRejection.type, Unit]
           env         <- ZIO.environment[R]
           action       = task.provide(env).foldM(result.fail, result.succeed).unit raceFirst interrupted.await
           resultValue <- (for {
-                           _ <- queue.offer((action, enqueued))
-                           _ <- enqueued.await
+                           _ <- queue.offer(action)
                            r <- result.await.mapError(WrappedError(_))
                          } yield r).onInterrupt(interrupted.succeed(()))
         } yield resultValue
