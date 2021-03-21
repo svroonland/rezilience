@@ -44,7 +44,6 @@ trait RateLimiterPlatformSpecificObj {
 
     for {
       inner   <- RateLimiter.make(max, interval)
-      now     <- clock.instant.toManaged_
       metrics <- makeNewMetrics.flatMap(Ref.make).toManaged_
       _       <- MetricsUtil.runCollectMetricsLoop(metrics, metricsInterval)(collectMetrics)
       env     <- ZManaged.environment[Clock]
