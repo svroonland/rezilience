@@ -73,11 +73,7 @@ object Bulkhead {
    */
   def make(maxInFlightCalls: Int, maxQueueing: Int = 32): ZManaged[Any, Nothing, Bulkhead] =
     for {
-      // Create a queue with an upper bound, but the actual max queue size enforcing and dropping is done below
-      queue             <-
-        ZQueue
-          .bounded[UIO[Unit]](maxQueueing)
-          .toManaged_
+      queue             <- ZQueue.bounded[UIO[Unit]](maxQueueing).toManaged_
       inFlightAndQueued <- Ref.make(State(0, 0)).toManaged_
       onStart            = inFlightAndQueued.update(_.startProcess)
       onEnd              = inFlightAndQueued.update(_.endProcess)
@@ -93,25 +89,19 @@ object Bulkhead {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
           // Atomically enqueue if there's still enough room, otherwise fail with BulkheadRejection
-          _           <- inFlightAndQueued.modify { state =>
-                           if (state.total < maxInFlightCalls + maxQueueing)
-                             (ZIO.unit, state.enqueue)
-                           else
-                             (ZIO.fail(BulkheadRejection), state)
-                         }.flatten
-          result      <- Promise.make[E, A]
-          interrupted <- Promise.make[Nothing, Unit]
-          env         <- ZIO.environment[R]
-          action       = task
-                           .provide(env)
-                           .foldM(result.fail, result.succeed)
-                           .catchAllDefect(result.die)
-                           .unit raceFirst interrupted.await
-          resultValue <- (for {
-                           _ <- queue.offer(action)
-                           r <- result.await.mapError(WrappedError(_))
-                         } yield r).onInterrupt(interrupted.succeed(()))
-        } yield resultValue
+          _      <- inFlightAndQueued.modify { state =>
+                      if (state.total < maxInFlightCalls + maxQueueing)
+                        (ZIO.unit, state.enqueue)
+                      else
+                        (ZIO.fail(BulkheadRejection), state)
+                    }.flatten
+          start  <- Promise.make[Nothing, Unit]
+          done   <- Promise.make[Nothing, Unit]
+          action  = start.succeed(()) *> done.await
+          result <- ZManaged.make(queue.offer(action) *> start.await)(_ => done.succeed(())).use_ {
+                      task.mapError(WrappedError(_))
+                    }
+        } yield result
 
       override def metrics: UIO[Metrics] = (inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued)))
     }
