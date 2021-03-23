@@ -65,10 +65,9 @@ object RateLimiter extends RateLimiterPlatformSpecificObj {
         done           <- Promise.make[Nothing, Unit]
         interruptedRef <- Ref.make(false)
         action          = start.succeed(()) *> done.await
-        result         <-
-          ZManaged
-            .makeInterruptible_(q.offer((interruptedRef, action)))(interruptedRef.set(true) *> done.succeed(()))
-            .use_(start.await *> task)
+        result         <- ZManaged
+                            .makeInterruptible_(q.offer((interruptedRef, action)))(interruptedRef.set(true) *> done.succeed(()))
+                            .use_(start.await *> task)
       } yield result
     }
 }
