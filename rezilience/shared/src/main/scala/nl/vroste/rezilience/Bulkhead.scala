@@ -89,18 +89,18 @@ object Bulkhead {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
           // Atomically enqueue if there's still enough room, otherwise fail with BulkheadRejection
-          _      <- inFlightAndQueued.modify { state =>
-                      if (state.total < maxInFlightCalls + maxQueueing)
-                        (ZIO.unit, state.enqueue)
-                      else
-                        (ZIO.fail(BulkheadRejection), state)
-                    }.flatten
           start  <- Promise.make[Nothing, Unit]
           done   <- Promise.make[Nothing, Unit]
           action  = start.succeed(()) *> done.await
-          result <- ZManaged.make(queue.offer(action) *> start.await)(_ => done.succeed(())).use_ {
-                      task.mapError(WrappedError(_))
-                    }
+          // Atomically enqueue and update queue state if there's still enough room, otherwise fail with BulkheadRejection
+          _      <-
+            inFlightAndQueued.modify { state =>
+              if (state.total < maxInFlightCalls + maxQueueing)
+                (queue.offer(action), state.enqueue)
+              else
+                (ZIO.fail(BulkheadRejection), state)
+            }.flatten.uninterruptible
+          result <- start.await.bracket_(done.succeed(()), task.mapError(WrappedError(_)))
         } yield result
 
       override def metrics: UIO[Metrics] = (inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued)))
