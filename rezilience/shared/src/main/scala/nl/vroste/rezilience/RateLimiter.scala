@@ -61,23 +61,13 @@ object RateLimiter extends RateLimiterPlatformSpecificObj {
              .forkManaged
     } yield new RateLimiter {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {
-
-        p              <- Promise.make[E, A]
-        interrupted    <- Promise.make[Nothing, Unit]
-        env            <- ZIO.environment[R]
-        started        <- Semaphore.make(1)
+        start          <- Promise.make[Nothing, Unit]
+        done           <- Promise.make[Nothing, Unit]
         interruptedRef <- Ref.make(false)
-        effect          =
-          started
-            .withPermit(interrupted.await raceFirst task.foldM(p.fail, p.succeed).catchAllDefect(p.die).provide(env))
-            .unlessM(interrupted.isDone)
-        result         <- (q.offer((interruptedRef, effect)) *> p.await).onInterrupt {
-                            interrupted.succeed(()) <*
-                              // When the task is still in the queue before throttling, mark it as interrupted so we can filter it out
-                              interruptedRef.set(true) *>
-                              // When task is already executing, this means we have to wait for interruption to complete
-                              started.withPermit(ZIO.unit)
-                          }
+        action          = start.succeed(()) *> done.await
+        result         <- ZManaged
+                            .makeInterruptible_(q.offer((interruptedRef, action)))(interruptedRef.set(true) *> done.succeed(()))
+                            .use_(start.await *> task)
       } yield result
     }
 }
