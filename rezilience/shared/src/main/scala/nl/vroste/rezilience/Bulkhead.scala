@@ -73,7 +73,9 @@ object Bulkhead {
    */
   def make(maxInFlightCalls: Int, maxQueueing: Int = 32): ZManaged[Any, Nothing, Bulkhead] =
     for {
-      queue             <- ZQueue.bounded[UIO[Unit]](maxQueueing).toManaged_
+      queue             <- ZQueue
+                             .bounded[UIO[Unit]](zio.internal.RingBuffer.nextPow2(maxQueueing))
+                             .toManaged_ // Power of two because it is a more efficient queue implementation
       inFlightAndQueued <- Ref.make(State(0, 0)).toManaged_
       onStart            = inFlightAndQueued.update(_.startProcess)
       onEnd              = inFlightAndQueued.update(_.endProcess)
@@ -88,7 +90,6 @@ object Bulkhead {
     } yield new Bulkhead {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
-          // Atomically enqueue if there's still enough room, otherwise fail with BulkheadRejection
           start        <- Promise.make[Nothing, Unit]
           done         <- Promise.make[Nothing, Unit]
           action        = start.succeed(()) *> done.await
