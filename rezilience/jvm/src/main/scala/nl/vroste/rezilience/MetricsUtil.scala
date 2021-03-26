@@ -4,7 +4,7 @@ import zio.clock.Clock
 import zio.duration.Duration
 import zio.{ Fiber, Ref, Schedule, ZIO, ZManaged }
 
-object MetricsUtil {
+private[rezilience] object MetricsUtil {
   def runCollectMetricsLoop[T, R](metrics: Ref[T], interval: Duration)(
     emitAndResetMetrics: Ref[T] => ZIO[R, Nothing, Unit]
   ): ZManaged[Clock with R, Nothing, Fiber.Runtime[Nothing, Long]] =
