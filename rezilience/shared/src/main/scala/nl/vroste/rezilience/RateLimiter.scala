@@ -61,13 +61,16 @@ object RateLimiter extends RateLimiterPlatformSpecificObj {
              .forkManaged
     } yield new RateLimiter {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {
-        start          <- Promise.make[Nothing, Unit]
-        done           <- Promise.make[Nothing, Unit]
-        interruptedRef <- Ref.make(false)
-        action          = start.succeed(()) *> done.await
-        result         <- ZManaged
-                            .makeInterruptible_(q.offer((interruptedRef, action)))(interruptedRef.set(true) *> done.succeed(()))
-                            .use_(start.await *> task)
+        start                  <- Promise.make[Nothing, Unit]
+        done                   <- Promise.make[Nothing, Unit]
+        interruptedRef         <- Ref.make(false)
+        action                  = start.succeed(()) *> done.await
+        onInterruptOrCompletion = interruptedRef.set(true) *> done.succeed(())
+        result                 <- ZManaged
+                                    .makeInterruptible_(q.offer((interruptedRef, action)).onInterrupt(onInterruptOrCompletion))(
+                                      onInterruptOrCompletion
+                                    )
+                                    .use_(start.await *> task)
       } yield result
     }
 }
