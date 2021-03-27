@@ -9,20 +9,20 @@ import zio.duration.{ durationInt, Duration }
 import java.time.Instant
 
 final case class RateLimiterMetrics(
-  /**
+  /*
    * Interval in which these metrics were collected
    */
   interval: Duration,
-  /**
+  /*
    * Times that tasks were queued by the RateLimiter before starting execution
    */
   latency: AbstractHistogram,
-  /**
+  /*
    * Number of tasks that were enqueued in this metrics interval
    */
   tasksEnqueued: Long,
-  /**
-   *  Number of tasks that are currently enqueued
+  /*
+   * Number of tasks that are currently enqueued
    */
   currentlyEnqueued: Long
 ) {
