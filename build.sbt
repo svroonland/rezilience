@@ -1,5 +1,5 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
-val mainScala    = "2.13.5"
+val mainScala    = "2.13.3"
 val allScala     = Seq("2.12.12", mainScala)
 val dottyVersion = "3.0.0-RC1"
 
@@ -65,7 +65,7 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
   )
 
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
-addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
+addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck docs/makeMdoc")
 
 lazy val docs = project
   .enablePlugins(MicrositesPlugin)
@@ -91,6 +91,12 @@ lazy val docs = project
     micrositeGithubRepo := "rezilience",
     micrositeGitterChannel := false,
     micrositeDataDirectory := file("docs/src/microsite/data"),
-    micrositeFooterText := None
+    micrositeFooterText := None,
+    libraryDependencies ++= Seq(
+      "dev.zio"                %%% "zio-streams"             % "1.0.5",
+      "dev.zio"                %%% "zio-test"                % "1.0.5" % "test",
+      "dev.zio"                %%% "zio-test-sbt"            % "1.0.5" % "test",
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.4.2"
+    )
   )
   .dependsOn(rezilience.jvm)
