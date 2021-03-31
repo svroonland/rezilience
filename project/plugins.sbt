@@ -4,7 +4,7 @@ addSbtPlugin("com.eed3si9n"              % "sbt-assembly"             % "0.15.0"
 addSbtPlugin("org.scala-js"              % "sbt-scalajs"              % "1.5.0")
 addSbtPlugin("org.portable-scala"        % "sbt-scalajs-crossproject" % "1.0.0")
 addSbtPlugin("io.shiftleft"              % "sbt-ci-release-early"     % "2.0.16")
-addSbtPlugin("com.47deg"                 % "sbt-microsites"           % "1.3.2")
+addSbtPlugin("com.47deg"                 % "sbt-microsites"           % "1.3.3")
 addSbtPlugin("com.eed3si9n"              % "sbt-unidoc"               % "0.4.3")
 addSbtPlugin("ch.epfl.lamp"              % "sbt-dotty"                % "0.5.4")
 
