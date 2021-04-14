@@ -2,7 +2,7 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.Bulkhead.{ BulkheadError, Metrics }
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
 import nl.vroste.rezilience.Policy.{ flattenWrappedError, PolicyError }
-import zio.{ UIO, ZIO }
+import zio.{ UIO, ZIO, ZManaged }
 
 /**
  * Represents a composition of one or more rezilience policies
@@ -117,4 +117,19 @@ object Policy {
     case BulkheadRejection  => BulkheadRejection
     case CallTimedOut       => CallTimedOut
   }
+
+  trait SwitchablePolicy[R0, E0, E] extends Policy[E] {
+    def replacePolicy(newPolicy: ZManaged[R0, E0, Policy[E]]): Unit
+  }
+
+  def makeSwitchable[R0, E0, E](initial: ZManaged[R0, E0, Policy[E]]): ZManaged[R0, E0, SwitchablePolicy[R0, E0, E]] =
+    for {
+      ref <- ManagedRef.make(initial)
+    } yield new SwitchablePolicy[R0, E0, E] {
+      override def replacePolicy(newPolicy: ZManaged[R0, E0, Policy[E]]): Unit =
+        ref.setAndGet(newPolicy)
+
+      override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
+        ref.get.flatMap(_.apply(f))
+    }
 }
