@@ -7,7 +7,7 @@ import zio.{ Ref, UIO, ZIO, ZManaged }
  */
 private[rezilience] trait ManagedRef[R, E, A] {
   def get: UIO[A]
-  def setAndGet(value: ZManaged[R, E, A]): ZIO[Any, E, A]
+  def setAndGet(value: ZManaged[R, E, A]): ZIO[R, E, A]
 }
 
 private[rezilience] object ManagedRef {
@@ -15,9 +15,8 @@ private[rezilience] object ManagedRef {
     for {
       switch <- ZManaged.switchable[R, E, A]
       ref    <- switch(value).flatMap(Ref.make).toManaged_
-      env    <- ZManaged.environment[R]
     } yield new ManagedRef[R, E, A] {
-      override def get: UIO[A]                                         = ref.get
-      override def setAndGet(value: ZManaged[R, E, A]): ZIO[Any, E, A] = switch(value).tap(ref.set).provide(env)
+      override def get: UIO[A]                                       = ref.get
+      override def setAndGet(value: ZManaged[R, E, A]): ZIO[R, E, A] = switch(value).tap(ref.set)
     }
 }
