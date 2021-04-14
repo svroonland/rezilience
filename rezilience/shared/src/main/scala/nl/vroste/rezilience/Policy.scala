@@ -119,14 +119,14 @@ object Policy {
   }
 
   trait SwitchablePolicy[R0, E0, E] extends Policy[E] {
-    def replacePolicy(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Policy[E]]
+    def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Policy[E]]
   }
 
   def makeSwitchable[R0, E0, E](initial: ZManaged[R0, E0, Policy[E]]): ZManaged[R0, E0, SwitchablePolicy[R0, E0, E]] =
     for {
       ref <- ManagedRef.make(initial)
     } yield new SwitchablePolicy[R0, E0, E] {
-      override def replacePolicy(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Policy[E]] =
+      override def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Policy[E]] =
         ref.setAndGet(newPolicy)
 
       override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
