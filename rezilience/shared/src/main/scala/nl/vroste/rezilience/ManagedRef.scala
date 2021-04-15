@@ -17,6 +17,7 @@ private[rezilience] object ManagedRef {
       ref    <- switch(value).flatMap(Ref.make).toManaged_
     } yield new ManagedRef[R, E, A] {
       override def get: UIO[A]                                       = ref.get
+      // TODO this is not atomic, so not concurrent-safe
       override def setAndGet(value: ZManaged[R, E, A]): ZIO[R, E, A] = switch(value).tap(ref.set)
     }
 }

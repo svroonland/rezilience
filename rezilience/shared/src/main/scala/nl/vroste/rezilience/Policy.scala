@@ -126,6 +126,9 @@ object Policy {
     for {
       ref <- ManagedRef.make(initial)
     } yield new SwitchablePolicy[R0, E0, E] {
+      // What do we do with in-progress calls.. Can't wait for them, since that would block policy usage while draining
+      // Ideally you'd like to finish the in-progress ones with the old policy and simultaneously switch to the new one,
+      // although for rate limiting that would give you double rates in the transition period..
       override def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Policy[E]] =
         ref.setAndGet(newPolicy)
 
