@@ -2,10 +2,10 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.Policy.WrappedError
 import zio.duration.durationInt
 import zio.test.Assertion._
-//import zio.test.TestAspect.{ nonFlaky, timeout }
+import zio.test.TestAspect.{ nonFlaky, timeout }
 import zio.test.environment.TestClock
 import zio.test.{ DefaultRunnableSpec, _ }
-import zio.{ Fiber, Promise, Ref, UIO, ZIO, ZManaged }
+import zio.{ Fiber, Promise, Ref, ZIO, ZManaged }
 
 object PolicySpec extends DefaultRunnableSpec {
   sealed trait Error
@@ -124,34 +124,25 @@ object PolicySpec extends DefaultRunnableSpec {
         def waitForLatch = for {
           latch   <- Promise.make[Nothing, Unit]
           started <- Promise.make[Nothing, Unit]
-          effect   = (nr: Int) =>
-                       UIO(println(s"start wait for latch ${nr}")) *>
-                         started.succeed(()) *>
-                         latch.await *>
-                         UIO(println(s"Effectie done ${nr}"))
+          effect   = started.succeed(()) *> latch.await
         } yield (effect, started, latch)
 
         policy.use { callWithPolicy =>
           for {
             (e, started, latch) <- waitForLatch
-            fib                 <- callWithPolicy(e(1)).fork
+            fib                 <- callWithPolicy(e).fork
             _                   <- started.await
-            fib2                <- callWithPolicy(e(2)).fork // How do we ensure that this one is enqueued..?
+            fib2                <- callWithPolicy(e).fork // How do we ensure that this one is enqueued..?
             _                   <- TestClock.adjust(0.seconds)
-            _                    = println("Switching policy")
             _                   <- callWithPolicy.switch(ZManaged.succeed(Policy.noop))
-            _                    = println("Succeeding latch")
             _                   <- latch.succeed(())
-            _                    = println("Joining fiber")
             _                   <- fib.join
-            _                    = println("Joining fiber 2")
             _                   <- fib2.join
-            _                    = println("Fiber joined\n")
-            _                   <- callWithPolicy(e(3))
+            _                   <- callWithPolicy(e)
           } yield assertCompletes
         }
 
       }
     )
-  ) // @@ nonFlaky @@ timeout(30.seconds)
+  ) @@ nonFlaky @@ timeout(60.seconds)
 }

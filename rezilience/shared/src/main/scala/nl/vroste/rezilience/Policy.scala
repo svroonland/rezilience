@@ -120,33 +120,50 @@ object Policy {
   }
 
   trait SwitchablePolicy[R0, E0, E] extends Policy[E] {
+
+    /**
+     * Switches the policy to the new policy
+     *
+     * After completion of this effect, calls will be executed with the new policy. Calls in flight before that moment
+     * will be completed with the old policy. The old policy will be released after those in-flight calls are completed.
+     */
     def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Unit]
   }
 
+  /**
+   * Creates a policy that can be replaced safely at runtime
+   *
+   * @param initial
+   * @tparam R0
+   * @tparam E0
+   * @tparam E
+   * @return
+   */
   def makeSwitchable[R0, E0, E](initial: ZManaged[R0, E0, Policy[E]]): ZManaged[R0, E0, SwitchablePolicy[R0, E0, E]] =
     for {
-      policyQueue <- Queue.bounded[ZManaged[R0, E0, Policy[E]]](1).toManaged_
+      policyQueue <- Queue.bounded[UIO[ZManaged[R0, E0, Policy[E]]]](1).toManaged_
       actionQueue <- Queue.unbounded[Policy[E] => UIO[Unit]].toManaged_
-      _           <- policyQueue.offer(initial).toManaged_
+      _           <- policyQueue.offer(UIO(initial)).toManaged_
       policies     = ZStream
                        .fromQueue(policyQueue)
-                       .flatMap { policy =>
-                         ZStream.unwrapManaged(policy.map(ZStream.succeed(_)))
+                       .flatMapParSwitch(1) { getPolicy =>
+                         ZStream.managed(ZManaged.unwrap(getPolicy)).flatMap { policyInstance =>
+                           ZStream
+                             .fromQueue(actionQueue)
+                             .mapM(action => action(policyInstance))
+                         }
                        }
-      actions      = ZStream.fromQueue(actionQueue)
-      _           <- policies
-                       .cross(actions)
-                       .mapM { case (policy, action) =>
-                         action(policy)
-                       } // I hope that as long as this one is in progress, the policy is not yet released
-                       .runDrain
-                       .forkManaged
+      _           <- policies.runDrain.forkManaged
     } yield new SwitchablePolicy[R0, E0, E] {
       // What do we do with in-progress calls.. Can't wait for them, since that would block policy usage while draining
       // Ideally you'd like to finish the in-progress ones with the old policy and simultaneously switch to the new one,
       // although for rate limiting that would give you double rates in the transition period..
       override def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Unit] =
-        policyQueue.offer(newPolicy).unit
+        for {
+          policyInstalled <- Promise.make[Nothing, Unit]
+          _               <- policyQueue.offer(policyInstalled.succeed(()) as newPolicy).unit
+          _               <- policyInstalled.await
+        } yield ()
 
       override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] = for {
         policyForAction <- Promise.make[Nothing, Policy[E]]

@@ -73,7 +73,6 @@ object Bulkhead {
    */
   def make(maxInFlightCalls: Int, maxQueueing: Int = 32): ZManaged[Any, Nothing, Bulkhead] =
     for {
-      _                 <- ZManaged.finalizer(UIO(println("Bulkhead finalized")))
       queue             <- ZQueue
                              .bounded[UIO[Unit]](zio.internal.RingBuffer.nextPow2(maxQueueing))
                              .toManaged_ // Power of two because it is a more efficient queue implementation
@@ -88,14 +87,12 @@ object Bulkhead {
                              .runDrain
                              .fork
                              .toManaged_
-      _                 <- ZManaged.finalizer(UIO(println("Bulkhead finalized 2")))
     } yield new Bulkhead {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
           start                  <- Promise.make[Nothing, Unit]
           done                   <- Promise.make[Nothing, Unit]
           action                  = start.succeed(()) *> done.await
-          _                       = println("hereie")
           // Atomically enqueue and update queue state if there's still enough room, otherwise fail with BulkheadRejection
           enqueueAction           =
             inFlightAndQueued.modify { state =>
@@ -109,7 +106,6 @@ object Bulkhead {
           result                 <- ZManaged
                                       .makeInterruptible_(enqueueAction.onInterrupt(onInterruptOrCompletion))(onInterruptOrCompletion)
                                       .use_(start.await *> task.mapError(WrappedError(_)))
-          _                       = println("After bulkhead action")
         } yield result
 
       override def metrics: UIO[Metrics] = (inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued)))
