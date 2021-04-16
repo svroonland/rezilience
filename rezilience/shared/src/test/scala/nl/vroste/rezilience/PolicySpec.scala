@@ -121,22 +121,22 @@ object PolicySpec extends DefaultRunnableSpec {
 
         val policy = Policy.makeSwitchable(initialPolicy)
 
-        val waitForLatch = for {
+        def waitForLatch = for {
           latch   <- Promise.make[Nothing, Unit]
           started <- Promise.make[Nothing, Unit]
-          effect   =
-            UIO(println("start wait for latch")) *>
-              started.succeed(()) *>
-              latch.await *>
-              UIO(println("Effectie done"))
+          effect   = (nr: Int) =>
+                       UIO(println(s"start wait for latch ${nr}")) *>
+                         started.succeed(()) *>
+                         latch.await *>
+                         UIO(println(s"Effectie done ${nr}"))
         } yield (effect, started, latch)
 
         policy.use { callWithPolicy =>
           for {
             (e, started, latch) <- waitForLatch
-            fib                 <- callWithPolicy(e).fork
+            fib                 <- callWithPolicy(e(1)).fork
             _                   <- started.await
-            fib2                <- callWithPolicy(e).fork // How do we ensure that this one is enqueued..?
+            fib2                <- callWithPolicy(e(2)).fork // How do we ensure that this one is enqueued..?
             _                   <- TestClock.adjust(0.seconds)
             _                    = println("Switching policy")
             _                   <- callWithPolicy.switch(ZManaged.succeed(Policy.noop))
@@ -147,7 +147,7 @@ object PolicySpec extends DefaultRunnableSpec {
             _                    = println("Joining fiber 2")
             _                   <- fib2.join
             _                    = println("Fiber joined\n")
-            _                   <- callWithPolicy(e)
+            _                   <- callWithPolicy(e(3))
           } yield assertCompletes
         }
 

@@ -2,7 +2,8 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.Bulkhead.{ BulkheadError, Metrics }
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
 import nl.vroste.rezilience.Policy.{ flattenWrappedError, PolicyError }
-import zio.{ UIO, ZIO, ZManaged }
+import zio.stream.ZStream
+import zio.{ Promise, Queue, UIO, ZIO, ZManaged }
 
 /**
  * Represents a composition of one or more rezilience policies
@@ -119,20 +120,45 @@ object Policy {
   }
 
   trait SwitchablePolicy[R0, E0, E] extends Policy[E] {
-    def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Policy[E]]
+    def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Unit]
   }
 
   def makeSwitchable[R0, E0, E](initial: ZManaged[R0, E0, Policy[E]]): ZManaged[R0, E0, SwitchablePolicy[R0, E0, E]] =
     for {
-      ref <- ManagedRef.make(initial)
+      policyQueue <- Queue.bounded[ZManaged[R0, E0, Policy[E]]](1).toManaged_
+      actionQueue <- Queue.unbounded[Policy[E] => UIO[Unit]].toManaged_
+      _           <- policyQueue.offer(initial).toManaged_
+      policies     = ZStream
+                       .fromQueue(policyQueue)
+                       .flatMap { policy =>
+                         ZStream.unwrapManaged(policy.map(ZStream.succeed(_)))
+                       }
+      actions      = ZStream.fromQueue(actionQueue)
+      _           <- policies
+                       .cross(actions)
+                       .mapM { case (policy, action) =>
+                         action(policy)
+                       } // I hope that as long as this one is in progress, the policy is not yet released
+                       .runDrain
+                       .forkManaged
     } yield new SwitchablePolicy[R0, E0, E] {
       // What do we do with in-progress calls.. Can't wait for them, since that would block policy usage while draining
       // Ideally you'd like to finish the in-progress ones with the old policy and simultaneously switch to the new one,
       // although for rate limiting that would give you double rates in the transition period..
-      override def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Policy[E]] =
-        ref.setAndGet(newPolicy)
+      override def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Unit] =
+        policyQueue.offer(newPolicy).unit
 
-      override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
-        ref.get.flatMap(_.apply(f))
+      override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] = for {
+        policyForAction <- Promise.make[Nothing, Policy[E]]
+        done            <- Promise.make[Nothing, Unit]
+
+        action = (policy: Policy[E]) => policyForAction.succeed(policy) *> done.await
+
+        onInterruptOrCompletion = done.succeed(())
+        result                 <-
+          ZManaged
+            .makeInterruptible_(actionQueue.offer(action).onInterrupt(onInterruptOrCompletion))(onInterruptOrCompletion)
+            .use_(policyForAction.await.flatMap(policy => policy.apply(f)))
+      } yield result
     }
 }
