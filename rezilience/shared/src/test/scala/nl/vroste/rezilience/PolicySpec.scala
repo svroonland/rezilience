@@ -5,7 +5,7 @@ import zio.test.Assertion._
 import zio.test.TestAspect.{ nonFlaky, timeout }
 import zio.test.environment.TestClock
 import zio.test.{ DefaultRunnableSpec, _ }
-import zio.{ Fiber, Promise, Ref, ZIO, ZManaged }
+import zio.{ Fiber, Promise, ZIO, ZManaged }
 
 object PolicySpec extends DefaultRunnableSpec {
   sealed trait Error
@@ -91,58 +91,6 @@ object PolicySpec extends DefaultRunnableSpec {
           _             <- fib.join
         } yield assert(initialStatus)(isSubtype[Fiber.Status.Suspended](anything))
       }
-    },
-    suite("switchable")(
-      testM("uses the new policy after switching") {
-
-        val initialPolicy = Retry.make().map(_.toPolicy)
-
-        val policy = Policy.makeSwitchable(initialPolicy)
-
-        val failFirstTime: ZIO[Any, Nothing, ZIO[Any, Unit, Unit]] = for {
-          ref   <- Ref.make(0)
-          effect = ref.getAndUpdate(_ + 1).flatMap(count => ZIO.fail(()).when(count < 1))
-        } yield effect
-
-        policy.use { callWithPolicy =>
-          for {
-            e      <- failFirstTime
-            _      <- callWithPolicy(e) // Should succeed
-            _      <- callWithPolicy.switch(ZManaged.succeed(Policy.noop))
-            e2     <- failFirstTime
-            result <- callWithPolicy(e2).run // Should fail
-          } yield assert(result)(fails(equalTo(WrappedError(()))))
-        }
-
-      },
-      testM("can switch while being used") {
-
-        val initialPolicy = Bulkhead.make(1).map(_.toPolicy)
-
-        val policy = Policy.makeSwitchable(initialPolicy)
-
-        def waitForLatch = for {
-          latch   <- Promise.make[Nothing, Unit]
-          started <- Promise.make[Nothing, Unit]
-          effect   = started.succeed(()) *> latch.await
-        } yield (effect, started, latch)
-
-        policy.use { callWithPolicy =>
-          for {
-            (e, started, latch) <- waitForLatch
-            fib                 <- callWithPolicy(e).fork
-            _                   <- started.await
-            fib2                <- callWithPolicy(e).fork // How do we ensure that this one is enqueued..?
-            _                   <- TestClock.adjust(0.seconds)
-            _                   <- callWithPolicy.switch(ZManaged.succeed(Policy.noop))
-            _                   <- latch.succeed(())
-            _                   <- fib.join
-            _                   <- fib2.join
-            _                   <- callWithPolicy(e)
-          } yield assertCompletes
-        }
-
-      }
-    )
+    }
   ) @@ nonFlaky @@ timeout(60.seconds)
 }
