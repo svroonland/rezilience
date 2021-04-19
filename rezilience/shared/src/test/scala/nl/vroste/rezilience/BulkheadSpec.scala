@@ -2,7 +2,7 @@ package nl.vroste.rezilience
 
 import zio.duration._
 import zio.test.Assertion._
-import zio.test.TestAspect.{ nonFlaky, timeout }
+import zio.test.TestAspect.{ nonFlaky, timed, timeout }
 import zio.test._
 import zio.test.environment.TestClock
 import zio.{ Promise, Ref, ZIO }
@@ -102,5 +102,5 @@ object BulkheadSpec extends DefaultRunnableSpec {
         } yield assertCompletes
       }
     }
-  ) @@ nonFlaky @@ timeout(120.seconds)
+  ) @@ nonFlaky @@ timeout(120.seconds) @@ timed
 }

@@ -3,8 +3,7 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.Policy.WrappedError
 import zio.duration.durationInt
 import zio.test.Assertion.{ equalTo, fails }
-import zio.test.TestAspect.{ nonFlaky, timeout }
-import zio.test.environment.TestClock
+import zio.test.TestAspect.{ nonFlaky, timed, timeout }
 import zio.test._
 import zio.{ Promise, Ref, ZIO, ZManaged }
 
@@ -48,17 +47,15 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
           (e, started, latch) <- waitForLatch
           fib                 <- callWithPolicy(e).fork
           _                   <- started.await
-          fib2                <- callWithPolicy(e).fork // How do we ensure that this one is enqueued..?
-          _                   <- TestClock.adjust(0.seconds)
-          awaitSwitch         <- callWithPolicy.switch(ZManaged.succeed(Policy.noop))
+          fib2                <- callWithPolicy(e).fork
+          _                   <- callWithPolicy.switch(ZManaged.succeed(Policy.noop))
           _                   <- callWithPolicy(ZIO.unit) // Should return immediately with the new noop policy
           _                   <- latch.succeed(())
           _                   <- fib.join
           _                   <- fib2.join
-          _                   <- awaitSwitch
         } yield assertCompletes
       }
 
     }
-  ) @@ timeout(60.seconds) @@ nonFlaky
+  ) @@ timed @@ timeout(60.seconds) @@ nonFlaky
 }
