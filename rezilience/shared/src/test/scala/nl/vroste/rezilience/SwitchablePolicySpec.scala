@@ -32,7 +32,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
       }
 
     },
-    testM("can switch while being used") {
+    testM("does not wait for in-flight calls to finish when switching") {
       val initialPolicy = Bulkhead.make(1).map(_.toPolicy)
 
       val policy = SwitchablePolicy.make(initialPolicy)
@@ -50,14 +50,15 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
           _                   <- started.await
           fib2                <- callWithPolicy(e).fork // How do we ensure that this one is enqueued..?
           _                   <- TestClock.adjust(0.seconds)
-          _                   <- callWithPolicy.switch(ZManaged.succeed(Policy.noop))
+          awaitSwitch         <- callWithPolicy.switch(ZManaged.succeed(Policy.noop))
+          _                   <- callWithPolicy(ZIO.unit) // Should return immediately with the new noop policy
           _                   <- latch.succeed(())
           _                   <- fib.join
           _                   <- fib2.join
-          _                   <- callWithPolicy(e)
+          _                   <- awaitSwitch
         } yield assertCompletes
       }
 
     }
-  ) @@ nonFlaky @@ timeout(60.seconds)
+  ) @@ timeout(60.seconds) @@ nonFlaky
 }

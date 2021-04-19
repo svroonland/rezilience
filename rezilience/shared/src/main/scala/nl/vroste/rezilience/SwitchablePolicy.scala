@@ -1,8 +1,8 @@
 package nl.vroste.rezilience
 
 import nl.vroste.rezilience.Policy.PolicyError
-import zio.stream.ZStream
-import zio.{ Promise, Queue, UIO, ZIO, ZManaged }
+import zio.stm.{ STM, TRef }
+import zio.{ Exit, IO, Promise, UIO, ZIO, ZManaged }
 
 /**
  * A Policy that can be replaced safely at runtime
@@ -12,10 +12,13 @@ trait SwitchablePolicy[R0, E0, E] extends Policy[E] {
   /**
    * Switches the policy to the new policy
    *
-   * After completion of this effect, calls will be executed with the new policy. Calls in flight before that moment
-   * will be completed with the old policy. The old policy will be released after those in-flight calls are completed.
+   * After completion of this effect, new calls will be executed with the new policy. Calls in flight before that moment
+   * will be completed with the old policy.
+   *
+   * The old policy will be released after those in-flight calls are completed.
+   * The inner UIO signals completion of release of the old policy.
    */
-  def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Unit]
+  def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, UIO[Unit]]
 }
 
 object SwitchablePolicy {
@@ -23,43 +26,72 @@ object SwitchablePolicy {
   /**
    * Creates a Policy that can be replaced safely at runtime
    */
-  def make[R0, E0, E](initial: ZManaged[R0, E0, Policy[E]]): ZManaged[R0, E0, SwitchablePolicy[R0, E0, E]] =
+  def make[R0, E0, E](initial: ZManaged[R0, E0, Policy[E]]): ZManaged[R0, E0, SwitchablePolicy[R0, E0, E]] = {
+    def makeInUsePolicyState(
+      scope: ZManaged.Scope,
+      newPolicy: ZManaged[R0, E0, Policy[E]]
+    ): ZIO[R0, E0, InUsePolicyState[E]] = for {
+      r                  <- scope.apply(newPolicy)
+      (finalizer, policy) = r
+      newDone            <- Promise.make[Nothing, Unit]
+      newInUse           <- TRef.make(0L).commit
+      newShutdownBegan   <- TRef.make(false).commit
+    } yield InUsePolicyState[E](policy, finalizer, newInUse, newShutdownBegan, newDone)
+
     for {
-      policyQueue <- Queue.bounded[UIO[ZManaged[R0, E0, Policy[E]]]](1).toManaged_
-      actionQueue <- Queue.unbounded[Policy[E] => UIO[Unit]].toManaged_
-      _           <- policyQueue.offer(UIO(initial)).toManaged_
-      policies     = ZStream
-                       .fromQueue(policyQueue)
-                       .flatMapParSwitch(1) { getPolicy =>
-                         ZStream.managed(ZManaged.unwrap(getPolicy)).flatMap { policyInstance =>
-                           ZStream
-                             .fromQueue(actionQueue)
-                             .mapM(action => action(policyInstance))
-                         }
-                       }
-      _           <- policies.runDrain.forkManaged
+      scope         <- ZManaged.scope
+      policyState   <- makeInUsePolicyState(scope, initial).toManaged_
+      currentPolicy <- STM.atomically(TRef.make(policyState)).toManaged_
     } yield new SwitchablePolicy[R0, E0, E] {
-      // What do we do with in-progress calls.. Can't wait for them, since that would block policy usage while draining
-      // Ideally you'd like to finish the in-progress ones with the old policy and simultaneously switch to the new one,
-      // although for rate limiting that would give you double rates in the transition period..
-      override def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, Unit] =
+      override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
+        ZManaged.make(beginCallWithPolicy)(endCallWithPolicy).map(_.policy).use { policy =>
+          policy.apply(f)
+        }
+
+      override def switch(newPolicy: ZManaged[R0, E0, Policy[E]]): ZIO[R0, E0, UIO[Unit]] =
         for {
-          policyInstalled <- Promise.make[Nothing, Unit]
-          _               <- policyQueue.offer(policyInstalled.succeed(()) as newPolicy).unit
-          _               <- policyInstalled.await
-        } yield ()
+          newPolicyState     <- makeInUsePolicyState(scope, newPolicy)
+          // Atomically switch the policy and mark the old one as shutting down
+          currentPolicyState <- STM.atomically {
+                                  for {
+                                    oldState <- currentPolicy.get
+                                    _        <- oldState.shuttingDown.set(true)
+                                    _        <- currentPolicy.set(newPolicyState)
+                                  } yield oldState
+                                }
+          // From this point on, new policy calls will use the new policy
+          // TODO should this be uninterruptible anywhere..?
+          complete           <-
+            (currentPolicyState.shutdownComplete.await *> currentPolicyState.finalizer.apply(Exit.unit)).unit.fork
+        } yield complete.join
 
-      override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] = for {
-        policyForAction <- Promise.make[Nothing, Policy[E]]
-        done            <- Promise.make[Nothing, Unit]
+      private def beginCallWithPolicy: IO[Nothing, InUsePolicyState[E]] = STM.atomically {
+        for {
+          currentState <- currentPolicy.get
+          _            <- currentState.inUse.update(_ + 1)
+        } yield currentState
+      }
 
-        action = (policy: Policy[E]) => policyForAction.succeed(policy) *> done.await
+      private def endCallWithPolicy(currentState: InUsePolicyState[E]): IO[Nothing, Unit] =
+        STM.atomically {
+          for {
+            newInUse      <- currentState.inUse.updateAndGet(_ - 1)
+            shutdownBegan <- currentState.shuttingDown.get
+            done           = shutdownBegan && (newInUse == 0)
+          } yield done
+        }.flatMap { done =>
+          ZIO.when(done)(currentState.shutdownComplete.succeed(()))
+        }
 
-        onInterruptOrCompletion = done.succeed(())
-        result                 <-
-          ZManaged
-            .makeInterruptible_(actionQueue.offer(action).onInterrupt(onInterruptOrCompletion))(onInterruptOrCompletion)
-            .use_(policyForAction.await.flatMap(policy => policy.apply(f)))
-      } yield result
     }
+  }
+
+  private case class InUsePolicyState[E](
+    policy: Policy[E],
+    finalizer: ZManaged.Finalizer,
+    inUse: TRef[Long],
+    shuttingDown: TRef[Boolean],
+    shutdownComplete: Promise[Nothing, Unit]
+  )
+
 }
