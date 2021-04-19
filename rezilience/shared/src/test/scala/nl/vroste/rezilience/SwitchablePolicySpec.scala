@@ -58,4 +58,6 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
 
     }
   ) @@ timed @@ timeout(60.seconds) @@ nonFlaky
+
+  // TODO add tests for edge-case behavior, eg interruption
 }

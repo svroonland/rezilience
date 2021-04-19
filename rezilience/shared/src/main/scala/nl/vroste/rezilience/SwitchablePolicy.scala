@@ -31,11 +31,11 @@ object SwitchablePolicy {
       scope: ZManaged.Scope,
       newPolicy: ZManaged[R0, E0, Policy[E]]
     ): ZIO[R0, E0, InUsePolicyState[E]] = for {
-      r                  <- scope.apply(newPolicy)
-      (finalizer, policy) = r
       newDone            <- Promise.make[Nothing, Unit]
       newInUse           <- TRef.make(0L).commit
       newShutdownBegan   <- TRef.make(false).commit
+      r                  <- scope.apply(newPolicy)
+      (finalizer, policy) = r
     } yield InUsePolicyState[E](policy, finalizer, newInUse, newShutdownBegan, newDone)
 
     for {
@@ -58,12 +58,15 @@ object SwitchablePolicy {
                                     _        <- oldState.shuttingDown.set(true)
                                     _        <- currentPolicy.set(newPolicyState)
                                   } yield oldState
-                                }
+                                }.onInterrupt(newPolicyState.finalizer.apply(Exit.unit))
           // From this point on, new policy calls will use the new policy
-          // TODO should this be uninterruptible anywhere..?
+          // Use a promise to decouple the 'await' effect from the fiber running the finalizer
+          policyReleased     <- Promise.make[Nothing, Unit]
           complete           <-
-            (currentPolicyState.shutdownComplete.await *> currentPolicyState.finalizer.apply(Exit.unit)).unit.fork
-        } yield complete.join
+            (currentPolicyState.shutdownComplete.await *> currentPolicyState.finalizer
+              .apply(Exit.unit)
+              .to(policyReleased)).unit.fork
+        } yield policyReleased.await
 
       private def beginCallWithPolicy: IO[Nothing, InUsePolicyState[E]] = STM.atomically {
         for {
