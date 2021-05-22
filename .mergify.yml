@@ -8,6 +8,7 @@ pull_request_rules:
       - "status-success=ci/circleci: test213_jdk8"
       - "status-success=ci/circleci: test212_jdk11"
       - "status-success=ci/circleci: test212_jdk8"
+      - "status-success=ci/circleci: test_dotty_jdk11"
     actions:
       merge:
         method: squash
