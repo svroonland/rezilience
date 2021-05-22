@@ -85,6 +85,20 @@ jobs:
             - "~/.ivy2/cache"
             - "~/.sbt"
             - "~/.m2"
+  test300_jdk11:
+    docker:
+      - image: hseeberger/scala-sbt:11.0.10_1.5.2_3.0.0
+    steps:
+      - checkout
+      - restore_cache:
+          key: sbt-cache
+      - run: sbt ++3.0.0! compile rezilienceJVM/test
+      - save_cache:
+          key: sbt-cache
+          paths:
+            - "~/.ivy2/cache"
+            - "~/.sbt"
+            - "~/.m2"
   release:
     docker:
       - image: hseeberger/scala-sbt:11.0.10_1.4.7_2.13.6
