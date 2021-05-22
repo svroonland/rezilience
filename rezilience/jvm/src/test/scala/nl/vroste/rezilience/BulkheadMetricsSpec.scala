@@ -7,15 +7,15 @@ import zio.test._
 import zio.test.environment.TestClock
 import zio.{ Promise, Ref, UIO, ZIO }
 
-object RateLimiterMetricsSpec extends DefaultRunnableSpec {
-  override def spec = suite("RateLimiter")(
-    suite("preserves RateLimiter behavior")(
+object BulkheadMetricsSpec extends DefaultRunnableSpec {
+  override def spec = suite("Bulkhead")(
+    suite("preserves Bulkhead behavior")(
       testM("will interrupt the effect when a call is interrupted") {
-        RateLimiterPlatformSpecificObj.makeWithMetrics(10, 1.second, _ => UIO.unit).use { rl =>
+        BulkheadPlatformSpecificObj.makeWithMetrics(10, 5, _ => UIO.unit).use { bulkhead =>
           for {
             latch       <- Promise.make[Nothing, Unit]
             interrupted <- Promise.make[Nothing, Unit]
-            fib         <- rl((latch.succeed(()) *> ZIO.never).onInterrupt(interrupted.succeed(()))).fork
+            fib         <- bulkhead((latch.succeed(()) *> ZIO.never).onInterrupt(interrupted.succeed(()))).fork
             _           <- latch.await
             _           <- fib.interrupt
             _           <- interrupted.await
@@ -26,24 +26,26 @@ object RateLimiterMetricsSpec extends DefaultRunnableSpec {
     suite("metrics")(
       testM("emits metrics after use") {
         for {
-          metricsRef <- Promise.make[Nothing, RateLimiterMetrics]
-          _          <- RateLimiterPlatformSpecificObj
-                          .makeWithMetrics(10, 1.second, onMetrics = metricsRef.succeed, metricsInterval = 5.second)
+          metricsRef <- Promise.make[Nothing, BulkheadMetrics]
+          fib        <- BulkheadPlatformSpecificObj
+                          .makeWithMetrics(10, 5, onMetrics = metricsRef.succeed, metricsInterval = 5.second)
                           .use { rl =>
-                            rl(UIO.unit)
+                            rl(ZIO.sleep(4.seconds))
                           }
+                          .fork
+          _          <- TestClock.adjust(4.seconds)
+          _          <- fib.join
           metrics    <- metricsRef.await
 
-        } yield assert(metrics)(hasField("tasksStarted", _.tasksStarted, equalTo(1L))) &&
-          assert(metrics)(hasField("tasksEnqueued", _.tasksEnqueued, equalTo(1L)))
+        } yield assert(metrics)(hasField("maxInFlight", _.inFlight.getMaxValue, equalTo(1L)))
       },
       testM("emits metrics at the interval") {
         for {
-          metricsRef <- Ref.make(Vector.empty[RateLimiterMetrics])
-          _          <- RateLimiterPlatformSpecificObj
+          metricsRef <- Ref.make(Vector.empty[BulkheadMetrics])
+          _          <- BulkheadPlatformSpecificObj
                           .makeWithMetrics(
                             10,
-                            1.second,
+                            5,
                             onMetrics = m => metricsRef.update(_ :+ m),
                             metricsInterval = 1.second
                           )
@@ -60,11 +62,11 @@ object RateLimiterMetricsSpec extends DefaultRunnableSpec {
       },
       testM("can sum metrics") {
         for {
-          metricsRef <- Ref.make(RateLimiterMetrics.empty)
-          _          <- RateLimiterPlatformSpecificObj
+          metricsRef <- Ref.make(BulkheadMetrics.empty)
+          _          <- BulkheadPlatformSpecificObj
                           .makeWithMetrics(
                             10,
-                            1.second,
+                            5,
                             onMetrics = m => metricsRef.update(_ + m),
                             metricsInterval = 1.second
                           )
