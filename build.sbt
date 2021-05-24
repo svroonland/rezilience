@@ -40,13 +40,7 @@ lazy val root = project
 
 lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
   .in(file("rezilience"))
-  .jvmSettings(
-    commonJvmSettings ++ Seq(
-      libraryDependencies ++= Seq(
-        "org.hdrhistogram" % "HdrHistogram" % "2.1.12"
-      )
-    )
-  )
+  .jvmSettings(commonJvmSettings)
   .jsSettings(commonJsSettings)
   .settings(
     name := "rezilience",
