@@ -34,7 +34,7 @@ trait RateLimiter { self =>
   }
 }
 
-object RateLimiter {
+object RateLimiter extends RateLimiterPlatformSpecificObj {
 
   /**
    * Creates a RateLimiter as Managed resource
@@ -53,7 +53,7 @@ object RateLimiter {
              .bounded[(Ref[Boolean], UIO[Any])](zio.internal.RingBuffer.nextPow2(max))
              .toManaged_ // Power of two because it is a more efficient queue implementation
       _ <- ZStream
-             .fromQueue(q, maxChunkSize = max)
+             .fromQueue(q, 1) // Until https://github.com/zio/zio/issues/4190 is fixed
              .filterM { case (interrupted, effect @ _) => interrupted.get.map(!_) }
              .throttleShape(max.toLong, interval, max.toLong)(_.size.toLong)
              .mapMParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
