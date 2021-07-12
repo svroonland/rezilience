@@ -80,7 +80,7 @@ object Bulkhead {
       onStart            = inFlightAndQueued.update(_.startProcess)
       onEnd              = inFlightAndQueued.update(_.endProcess)
       _                 <- ZStream
-                             .fromQueue(queue)
+                             .fromQueueWithShutdown(queue)
                              .mapMPar(maxInFlightCalls) { task =>
                                onStart.bracket_(onEnd, task)
                              }
