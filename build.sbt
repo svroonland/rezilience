@@ -50,9 +50,9 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
     fork in run := true,
     scalafmtOnCompile := true,
     libraryDependencies ++= Seq(
-      "dev.zio"                %%% "zio-streams"             % "1.0.9",
-      "dev.zio"                %%% "zio-test"                % "1.0.9" % "test",
-      "dev.zio"                %%% "zio-test-sbt"            % "1.0.9" % "test",
+      "dev.zio"                %%% "zio-streams"             % "1.0.10",
+      "dev.zio"                %%% "zio-test"                % "1.0.10" % "test",
+      "dev.zio"                %%% "zio-test-sbt"            % "1.0.10" % "test",
       "org.scala-lang.modules" %%% "scala-collection-compat" % "2.5.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
