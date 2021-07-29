@@ -3,7 +3,6 @@ package nl.vroste.rezilience.examples
 import nl.vroste.rezilience.Policy.PolicyError
 import nl.vroste.rezilience.{ Bulkhead, CircuitBreaker, RateLimiter }
 import zio._
-import zio.clock.Clock
 
 /**
  * Example of how to integrate a rate limiter to an entire Service using ZLayer
@@ -57,50 +56,62 @@ object ZLayerIntegrationExample extends zio.App {
   }
 
   // A layer that adds a rate limiter to our database
-  val addRateLimiterToDatabase: ZLayer[Database with Clock, Nothing, Database] =
-    ZLayer.fromServiceManaged { (database: Database.Service) =>
-      RateLimiter.make(10).map { rl =>
-        new Database.Service {
-          override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
-            rl(database.transfer(amount, from, to))
-
-          override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
-            rl(database.newAccount(name))
-        }
-      }
-    }
-
-  val addBulkheadToDatabase: ZLayer[Database with Clock, Nothing, Database] =
-    ZLayer.fromServiceManaged { (database: Database.Service) =>
-      Bulkhead.make(10).map { bulkhead =>
-        new Database.Service {
-          override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
-            bulkhead(database.transfer(amount, from, to)).mapError(_.toException)
-
-          override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
-            bulkhead(database.newAccount(name)).mapError(_.toException)
-        }
-      }
-    }
-
-  val addCircuitBreakerToDatabase: ZLayer[Database with Clock, Nothing, ResilientDatabase] =
-    ZLayer.fromServiceManaged { (database: Database.Service) =>
-      CircuitBreaker
-        .withMaxFailures[Throwable](10)
-        .map(_.toPolicy)
-        .map { rl =>
-          new ResilientDatabase.Service {
-            override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, PolicyError[Throwable], Unit] =
+  val addRateLimiterToDatabase: ZLayer[Database with Has[Clock], Nothing, Database] =
+    ZManaged
+      .service[Database.Service]
+      .flatMap { (database: Database.Service) =>
+        RateLimiter.make(10).map { rl =>
+          new Database.Service {
+            override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
               rl(database.transfer(amount, from, to))
 
-            override def newAccount(name: Account): ZIO[Any, PolicyError[Throwable], Unit] =
+            override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
               rl(database.newAccount(name))
           }
         }
-    }
+      }
+      .toLayer
+
+  val addBulkheadToDatabase: ZLayer[Database with Clock, Nothing, Database] =
+    ZManaged
+      .service[Database.Service]
+      .flatMap { (database: Database.Service) =>
+        Bulkhead
+          .make(10)
+          .map { bulkhead =>
+            new Database.Service {
+              override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
+                bulkhead(database.transfer(amount, from, to)).mapError(_.toException)
+
+              override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
+                bulkhead(database.newAccount(name)).mapError(_.toException)
+            }
+          }
+      }
+      .toLayer
+
+  val addCircuitBreakerToDatabase: ZLayer[Database with Has[Clock], Nothing, ResilientDatabase] =
+    ZManaged
+      .service[Database.Service]
+      .flatMap { (database: Database.Service) =>
+        CircuitBreaker
+          .withMaxFailures[Throwable](10)
+          .map(_.toPolicy)
+          .map { rl =>
+            new ResilientDatabase.Service {
+              override def transfer(amount: Amount, from: Account, to: Account)
+                : ZIO[Any, PolicyError[Throwable], Unit] =
+                rl(database.transfer(amount, from, to))
+
+              override def newAccount(name: Account): ZIO[Any, PolicyError[Throwable], Unit] =
+                rl(database.newAccount(name))
+            }
+          }
+      }
+      .toLayer
 
   // The complete environment of our application
-  val env: ZLayer[Clock, Nothing, ResilientDatabase] =
+  val env: ZLayer[Has[Clock], Nothing, ResilientDatabase] =
     (Clock.live ++ databaseLayer) >+> addRateLimiterToDatabase >>> addCircuitBreakerToDatabase
 
   // Run our program against the Database service being unconcerned with the rate limiter

@@ -1,10 +1,8 @@
 package nl.vroste.rezilience
 
-import zio.duration._
 import zio.test.Assertion._
 import zio.test._
-import zio.{ Queue, Schedule, UIO, ZIO }
-import zio.random.Random
+import zio._
 import zio.test.environment.{ testEnvironment, TestClock, TestEnvironment }
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerOpen
 import nl.vroste.rezilience.CircuitBreaker.State
@@ -21,7 +19,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
   case object MyCallError     extends Error
   case object MyNotFatalError extends Error
 
-  val randomListOfIntervals: Gen[Random, List[PrintFriendlyDuration]] = Gen.int(0, 5).flatMap {
+  val randomListOfIntervals: Gen[Has[Random], List[PrintFriendlyDuration]] = Gen.int(0, 5).flatMap {
     Gen.listOfN(_) {
       Gen.finiteDuration(min = 100.millis, max = 10.seconds).map(PrintFriendlyDuration(_))
     }
@@ -34,14 +32,14 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
 
   def spec =
     suite("Failure rate tripping strategy")(
-      testM("does not trip initially") {
+      test("does not trip initially") {
         TrippingStrategy.failureRate().use { strategy =>
           for {
             shouldTrip <- strategy.shouldTrip
           } yield assert(shouldTrip)(isFalse)
         }
       } @@ nonFlaky,
-      testM("does not trip when all calls are successful") {
+      test("does not trip when all calls are successful") {
         checkM(
           Gen.double(0.0, 1.0),                     // Failure threshold
           Gen.finiteDuration(1.second, 10.minutes), // Sample duration
@@ -57,7 +55,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
           }
         }
       },
-      testM("only trips after the sample period") {
+      test("only trips after the sample period") {
         val rate           = 0.5
         val sampleDuration = 400.millis
         val minThroughput  = 5
@@ -73,11 +71,11 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
               }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(3))
               // Next call should fail
               _ <- ZIO.sleep(50.millis)
-              r <- cb(UIO(println("Succeeding call that should fail fast"))).run
+              r <- cb(UIO(println("Succeeding call that should fail fast"))).exit
             } yield assert(r)(fails(equalTo(CircuitBreakerOpen)))
           }
-      }.provideSomeLayer(zio.clock.Clock.live) @@ nonFlaky,
-      testM("does not trip if the failure rate stays below the threshold") {
+      }.provideSomeLayer(Clock.live) @@ nonFlaky,
+      test("does not trip if the failure rate stays below the threshold") {
         val rate           = 0.7
         val sampleDuration = 400.millis
         val minThroughput  = 5
@@ -87,7 +85,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
           .make[String](
             strategy,
             Schedule.fixed(5.seconds),
-            onStateChange = state => ZIO.effectTotal(println(s"CB state changed to ${state}"))
+            onStateChange = state => ZIO.succeed(println(s"CB state changed to ${state}"))
           )
           .use { cb =>
             for {
@@ -97,8 +95,8 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
               }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(10))
             } yield assertCompletes
           }
-      }.provideSomeLayer(zio.clock.Clock.live) @@ nonFlaky,
-      testM("does not trip after resetting") {
+      }.provideSomeLayer(Clock.live) @@ nonFlaky,
+      test("does not trip after resetting") {
         val rate           = 0.5
         val sampleDuration = 400.millis
         val minThroughput  = 5
@@ -106,7 +104,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
         val strategy = TrippingStrategy.failureRate(rate, sampleDuration, minThroughput, nrSampleBuckets = 10)
 
         (for {
-          stateChanges <- Queue.unbounded[State].toManaged_
+          stateChanges <- Queue.unbounded[State].toManaged
           cb           <- CircuitBreaker
                             .make[String](strategy, Schedule.fixed(1.seconds), onStateChange = stateChanges.offer(_).ignore)
         } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
@@ -136,8 +134,8 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
             _ <- makeCall(ZIO.unit)
           } yield assertCompletes
         }
-      }.provideSomeLayer(zio.clock.Clock.live ++ zio.console.Console.live) @@ nonFlaky,
-      testM("trips only after the sample duration has expired and all calls fail") {
+      }.provideSomeLayer(Clock.live ++ Console.live) @@ nonFlaky,
+      test("trips only after the sample duration has expired and all calls fail") {
         val nrSampleBuckets = 10
 
         checkM(

@@ -1,8 +1,6 @@
 package nl.vroste.rezilience
-import zio.duration.{ durationInt, Duration }
 import zio.stream.ZStream
-import zio._
-import zio.clock.Clock
+import zio.{ Clock, Duration, durationInt, _ }
 
 /**
  * Limits the number of calls to a resource to a maximum amount in some interval
@@ -47,16 +45,16 @@ object RateLimiter {
    * @param interval Interval duration
    * @return RateLimiter
    */
-  def make(max: Int, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] =
+  def make(max: Int, interval: Duration = 1.second): ZManaged[Has[Clock], Nothing, RateLimiter] =
     for {
       q <- Queue
              .bounded[(Ref[Boolean], UIO[Any])](zio.internal.RingBuffer.nextPow2(max))
-             .toManaged_ // Power of two because it is a more efficient queue implementation
+             .toManaged // Power of two because it is a more efficient queue implementation
       _ <- ZStream
              .fromQueue(q, maxChunkSize = max)
-             .filterM { case (interrupted, effect @ _) => interrupted.get.map(!_) }
+             .filterZIO { case (interrupted, effect @ _) => interrupted.get.map(!_) }
              .throttleShape(max.toLong, interval, max.toLong)(_.size.toLong)
-             .mapMParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
+             .mapZIOParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
              .runDrain
              .forkManaged
     } yield new RateLimiter {
@@ -70,7 +68,7 @@ object RateLimiter {
                                     .makeInterruptible_(q.offer((interruptedRef, action)).onInterrupt(onInterruptOrCompletion))(
                                       onInterruptOrCompletion
                                     )
-                                    .use_(start.await *> task)
+                                    .useDiscard(start.await *> task)
       } yield result
     }
 }

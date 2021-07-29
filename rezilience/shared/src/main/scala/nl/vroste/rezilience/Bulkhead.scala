@@ -75,18 +75,18 @@ object Bulkhead {
     for {
       queue             <- ZQueue
                              .bounded[UIO[Unit]](zio.internal.RingBuffer.nextPow2(maxQueueing))
-                             .toManaged_ // Power of two because it is a more efficient queue implementation
-      inFlightAndQueued <- Ref.make(State(0, 0)).toManaged_
+                             .toManaged // Power of two because it is a more efficient queue implementation
+      inFlightAndQueued <- Ref.make(State(0, 0)).toManaged
       onStart            = inFlightAndQueued.update(_.startProcess)
       onEnd              = inFlightAndQueued.update(_.endProcess)
       _                 <- ZStream
                              .fromQueue(queue)
-                             .mapMPar(maxInFlightCalls) { task =>
-                               onStart.bracket_(onEnd, task)
+                             .mapZIOPar(maxInFlightCalls) { task =>
+                               onStart.acquireRelease(onEnd, task)
                              }
                              .runDrain
                              .fork
-                             .toManaged_
+                             .toManaged
     } yield new Bulkhead {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
@@ -105,9 +105,9 @@ object Bulkhead {
           onInterruptOrCompletion = done.succeed(())
           result                 <- ZManaged
                                       .makeInterruptible_(enqueueAction.onInterrupt(onInterruptOrCompletion))(onInterruptOrCompletion)
-                                      .use_(start.await *> task.mapError(WrappedError(_)))
+                                      .useDiscard(start.await *> task.mapError(WrappedError(_)))
         } yield result
 
-      override def metrics: UIO[Metrics] = (inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued)))
+      override def metrics: UIO[Metrics] = inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued))
     }
 }

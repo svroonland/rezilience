@@ -1,11 +1,10 @@
 package nl.vroste.rezilience
 
-import zio.duration._
 import zio.test.Assertion._
 import zio.test.TestAspect.{ nonFlaky, timeout }
 import zio.test._
 import zio.test.environment.TestClock
-import zio.{ Promise, Ref, ZIO }
+import zio.{ durationInt, Promise, Ref, ZIO }
 
 object BulkheadSpec extends DefaultRunnableSpec {
 
@@ -16,7 +15,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
   case object MyNotFatalError extends Error
 
   def spec = suite("Bulkhead")(
-    testM("executes calls immediately") {
+    test("executes calls immediately") {
       Bulkhead.make(10).use { bulkhead =>
         for {
           p <- Promise.make[Nothing, Unit]
@@ -25,7 +24,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
         } yield assertCompletes
       }
     },
-    testM("executes up to the max nr of calls immediately") {
+    test("executes up to the max nr of calls immediately") {
       val max = 10
       Bulkhead.make(max).use { bulkhead =>
         for {
@@ -37,14 +36,16 @@ object BulkheadSpec extends DefaultRunnableSpec {
         } yield assert(results)(hasSameElements((1 to max).toList))
       }
     },
-    testM("holds back more calls than the max") {
+    test("holds back more calls than the max") {
       val max = 20
       Bulkhead.make(max).use { bulkhead =>
         for {
           callsCompleted   <- Ref.make(0)
           calls            <-
             ZIO
-              .foreachPar_(1 to max + 2)(_ => bulkhead(callsCompleted.updateAndGet(_ + 1) *> ZIO.sleep(2.seconds)))
+              .foreachParDiscard(1 to max + 2)(_ =>
+                bulkhead(callsCompleted.updateAndGet(_ + 1) *> ZIO.sleep(2.seconds))
+              )
               .fork
           _                <- TestClock.adjust(1.second)
           nrCallsCompleted <- callsCompleted.get
@@ -53,7 +54,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
         } yield assert(nrCallsCompleted)(equalTo(max))
       }
     },
-    testM("queues up to the queue limit and then reject calls") {
+    test("queues up to the queue limit and then reject calls") {
       val max        = 10
       val queueLimit = 5
 
@@ -64,7 +65,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
           callsInFlight <- Ref.make(0)
           // Enqueue 10, we expect 10 in flight
           calls         <- ZIO
-                             .foreachPar_(1 to max) { _ =>
+                             .foreachParDiscard(1 to max) { _ =>
                                bulkhead {
                                  for {
                                    nrCallsInFlight <- callsInFlight.updateAndGet(_ + 1)
@@ -90,7 +91,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
         } yield assert(results.filter(_.isLeft))(hasSize(equalTo(1)))
       }
     },
-    testM("will interrupt the effect when a call is interrupted") {
+    test("will interrupt the effect when a call is interrupted") {
       Bulkhead.make(10).use { bulkhead =>
         for {
           latch       <- Promise.make[Nothing, Unit]

@@ -1,6 +1,5 @@
 package nl.vroste.rezilience
-import zio.{ clock, Fiber, Promise, Ref, ZIO }
-import zio.duration._
+import zio._
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect.{ diagnose, nonFlaky, timeout }
@@ -10,29 +9,29 @@ import java.time.Instant
 
 object RateLimiterSpec extends DefaultRunnableSpec {
   override def spec = suite("RateLimiter")(
-    testM("execute up to max calls immediately") {
+    test("execute up to max calls immediately") {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
-          now   <- clock.instant
-          times <- ZIO.foreach((1 to 10).toList)(_ => rl(clock.instant))
+          now   <- Clock.instant
+          times <- ZIO.foreach((1 to 10).toList)(_ => rl(Clock.instant))
         } yield assert(times)(forall(equalTo(now)))
       }
     },
-    testM("succeed with the result of the call") {
+    test("succeed with the result of the call") {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
           result <- rl(ZIO.succeed(3))
         } yield assert(result)(equalTo(3))
       }
     },
-    testM("fail with the result of a failed call") {
+    test("fail with the result of a failed call") {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
           result <- rl(ZIO.fail(None)).either
         } yield assert(result)(isLeft(isNone))
       }
     },
-    testM("continue after a failed call") {
+    test("continue after a failed call") {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
           _ <- rl(ZIO.fail(None)).either
@@ -40,20 +39,20 @@ object RateLimiterSpec extends DefaultRunnableSpec {
         } yield assertCompletes
       }
     },
-    testM("holds back up calls after the max") {
+    test("holds back up calls after the max") {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
-          now   <- clock.instant
-          fib   <- ZIO.foreach((1 to 20).toList)(_ => rl(clock.instant)).fork
+          now   <- Clock.instant
+          fib   <- ZIO.foreach((1 to 20).toList)(_ => rl(Clock.instant)).fork
           _     <- TestClock.adjust(1.second)
-          later <- clock.instant
+          later <- Clock.instant
           times <- fib.join
         } yield assert(times.take(10))(forall(equalTo(now))) && assert(times.drop(10))(
           forall(isGreaterThan(now) && isLessThanEqualTo(later))
         )
       }
     },
-    testM("will interrupt the effect when a call is interrupted") {
+    test("will interrupt the effect when a call is interrupted") {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
           latch       <- Promise.make[Nothing, Unit]
@@ -65,7 +64,7 @@ object RateLimiterSpec extends DefaultRunnableSpec {
         } yield assertCompletes
       }
     },
-    testM("will not start execution of an effect when it is interrupted before getting its turn to execute") {
+    test("will not start execution of an effect when it is interrupted before getting its turn to execute") {
       RateLimiter.make(1, 1.second).use { rl =>
         for {
           count        <- Ref.make(0)
@@ -77,7 +76,7 @@ object RateLimiterSpec extends DefaultRunnableSpec {
         } yield assert(c)(equalTo(0))
       }
     },
-    testM("will wait for interruption to complete of an effect that is already executing") {
+    test("will wait for interruption to complete of an effect that is already executing") {
       RateLimiter.make(1, 1.second).use { rl =>
         for {
           latch             <- Promise.make[Nothing, Unit]
@@ -91,7 +90,7 @@ object RateLimiterSpec extends DefaultRunnableSpec {
         } yield assert(interruptions)(equalTo(1))
       }
     },
-    testM("will make effects wait for interrupted effects to pass through the rate limiter") {
+    test("will make effects wait for interrupted effects to pass through the rate limiter") {
       RateLimiter.make(1, 1.second).use { rl =>
         for {
           _  <- rl(ZIO.unit) // Execute one
@@ -100,28 +99,28 @@ object RateLimiterSpec extends DefaultRunnableSpec {
           _  <- f1.interrupt
 
           // This one will have to wait 1 seconds
-          fib               <- rl(clock.instant).fork
+          fib               <- rl(Clock.instant).fork
           _                 <- TestClock.adjust(1.second)
           lastExecutionTime <- fib.join
         } yield assert(lastExecutionTime)(equalTo(Instant.ofEpochSecond(2)))
       }
     },
-    testM("will not include interrupted effects in the throttling") {
+    test("will not include interrupted effects in the throttling") {
       val rate = 10
       RateLimiter.make(rate, 1.second).use { rl =>
         for {
           latch    <- Promise.make[Nothing, Unit]
           latched  <- Ref.make(0)
           continue <- Promise.make[Nothing, Unit]
-          _        <- ZIO.replicateM(rate) {
+          _        <- ZIO.replicateZIO(rate) {
                         rl {
-                          ZIO.whenM(latched.updateAndGet(_ + 1).map(_ == rate))(latch.succeed(())) *>
+                          ZIO.whenZIO(latched.updateAndGet(_ + 1).map(_ == rate))(latch.succeed(())) *>
                             continue.await
                         }.fork
                       }
           _        <- latch.await
           // Now we have 10 in progress. Now submit another bunch. We can interrupt these
-          fibers   <- ZIO.replicateM(1000) {
+          fibers   <- ZIO.replicateZIO(1000) {
                         rl {
                           ZIO.unit
                         }.fork

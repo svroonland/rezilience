@@ -3,8 +3,6 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
 import nl.vroste.rezilience.Policy.PolicyError
 import zio._
-import zio.clock.Clock
-import zio.duration._
 import zio.stream.ZStream
 
 /**
@@ -107,10 +105,10 @@ object CircuitBreaker {
    */
   def withMaxFailures[E](
     maxFailures: Int,
-    resetPolicy: Schedule[Clock, Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
+    resetPolicy: Schedule[Has[Clock], Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
-  ): ZManaged[Clock, Nothing, CircuitBreaker[E]] =
+  ): ZManaged[Has[Clock], Nothing, CircuitBreaker[E]] =
     make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, onStateChange)
 
   /**
@@ -124,21 +122,21 @@ object CircuitBreaker {
    * @return
    */
   def make[E](
-    trippingStrategy: ZManaged[Clock, Nothing, TrippingStrategy],
-    resetPolicy: Schedule[Clock, Any, Any] =
+    trippingStrategy: ZManaged[Has[Clock], Nothing, TrippingStrategy],
+    resetPolicy: Schedule[Has[Clock], Any, Any] =
       Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
-  ): ZManaged[Clock, Nothing, CircuitBreaker[E]] =
+  ): ZManaged[Has[Clock], Nothing, CircuitBreaker[E]] =
     for {
       strategy       <- trippingStrategy
-      state          <- Ref.make[State](Closed).toManaged_
-      halfOpenSwitch <- Ref.make[Boolean](true).toManaged_
-      schedule       <- resetPolicy.driver.toManaged_
-      resetRequests  <- ZQueue.bounded[Unit](1).toManaged_
+      state          <- Ref.make[State](Closed).toManaged
+      halfOpenSwitch <- Ref.make[Boolean](true).toManaged
+      schedule       <- resetPolicy.driver.toManaged
+      resetRequests  <- ZQueue.bounded[Unit](1).toManaged
       _              <- ZStream
                           .fromQueue(resetRequests)
-                          .mapM { _ =>
+                          .mapZIO { _ =>
                             for {
                               _ <- schedule.next(()) // TODO handle schedule completion?
                               _ <- halfOpenSwitch.set(true)
@@ -163,7 +161,7 @@ object CircuitBreaker {
     resetRequests: Queue[Unit],
     strategy: TrippingStrategy,
     onStateChange: State => UIO[Unit],
-    schedule: Schedule.Driver[Clock, Any, Any],
+    schedule: Schedule.Driver[Has[Clock], Any, Any],
     isFailure: PartialFunction[E, Boolean],
     halfOpenSwitch: Ref[Boolean]
   ) extends CircuitBreaker[E] {
@@ -186,7 +184,7 @@ object CircuitBreaker {
                             // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
                             def onFail =
                               (strategy.onFailure *>
-                                ZIO.whenM(state.get.flatMap(s => strategy.shouldTrip.map(_ && (s == Closed)))) {
+                                ZIO.whenZIO(state.get.flatMap(s => strategy.shouldTrip.map(_ && (s == Closed)))) {
                                   changeToOpen
                                 }).uninterruptible
 

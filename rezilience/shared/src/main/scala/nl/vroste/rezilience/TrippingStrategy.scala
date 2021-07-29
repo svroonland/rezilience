@@ -1,7 +1,5 @@
 package nl.vroste.rezilience
 
-import zio.clock.Clock
-import zio.duration._
 import zio._
 
 /**
@@ -26,7 +24,7 @@ object TrippingStrategy {
    * @return
    */
   def failureCount(maxFailures: Int): ZManaged[Any, Nothing, TrippingStrategy] =
-    Ref.make[Int](0).toManaged_.map { nrFailedCalls =>
+    Ref.make[Int](0).toManaged.map { nrFailedCalls =>
       new TrippingStrategy {
         override def onSuccess: UIO[Unit]     = nrFailedCalls.set(0)
         override def onFailure: UIO[Unit]     = nrFailedCalls.update(_ + 1)
@@ -52,7 +50,7 @@ object TrippingStrategy {
     sampleDuration: Duration = 1.minute,
     minThroughput: Int = 10,
     nrSampleBuckets: Int = 10
-  ): ZManaged[Clock, Nothing, TrippingStrategy] = {
+  ): ZManaged[Has[Clock], Nothing, TrippingStrategy] = {
     require(
       failureRateThreshold > 0.0 && failureRateThreshold < 1.0,
       "failureRateThreshold must be between 0 (exclusive) and 1"
@@ -61,7 +59,7 @@ object TrippingStrategy {
     require(minThroughput > 0, "minThroughput must be larger than 0")
 
     for {
-      samplesRef <- Ref.make(List(Bucket.empty)).toManaged_
+      samplesRef <- Ref.make(List(Bucket.empty)).toManaged
 
       // Rotate the buckets periodically
       bucketRotationInterval = sampleDuration * (1.0 / nrSampleBuckets)
