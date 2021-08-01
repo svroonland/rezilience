@@ -77,7 +77,7 @@ object SwitchablePolicy {
     scope: ZManaged.Scope,
     currentPolicy: TRef[PolicyState[E]],
     newPolicy: ZManaged[R0, E0, Policy[E]]
-  ) =
+  ): ZIO[R0, E0, ZIO[Any, Nothing, Unit]] =
     for {
       newPolicyState     <- makeInUsePolicyState(scope, newPolicy, awaitReady = UIO.unit)
       // Atomically switch the policy and mark the old one as shutting down
@@ -101,24 +101,27 @@ object SwitchablePolicy {
     scope: ZManaged.Scope,
     currentPolicy: TRef[PolicyState[E]],
     newPolicy: ZManaged[R0, E0, Policy[E]]
-  ) =
+  ): ZIO[R0, E0, ZIO[Any, Nothing, Unit]] =
     for {
-      markAsReady        <- Promise.make[Nothing, Unit]
-      newPolicyState     <- makeInUsePolicyState(scope, newPolicy, markAsReady.await)
+      markAsReady                   <- Promise.make[Nothing, Unit]
+      newPolicyState                <- makeInUsePolicyState(scope, newPolicy, markAsReady.await)
       // Atomically switch the policy and mark the old one as shutting down
-      currentPolicyState <- STM.atomically {
-                              for {
-                                oldState <- currentPolicy.get
-                                _        <- oldState.shuttingDown.set(true)
-                              } yield oldState
-                            }.onInterrupt(newPolicyState.finalizer.apply(Exit.unit))
+      switchResult                  <- STM.atomically {
+                                         for {
+                                           oldState <- currentPolicy.get
+                                           _        <- oldState.shuttingDown.set(true)
+                                           inFlight <- oldState.inFlightCalls.get
+                                           _        <- currentPolicy.set(newPolicyState)
+                                         } yield (oldState, inFlight)
+                                       }.onInterrupt(newPolicyState.finalizer.apply(Exit.unit))
+      (currentPolicyState, inFlight) = switchResult
       // From this point on, new policy calls will use the new policy but they have to
       // wait for the old policy's calls to have finished
       // Use a promise to decouple the 'await' effect from the fiber running the finalizer
-      policyReleased     <- Promise.make[Nothing, Any]
-      _                  <-
-        (currentPolicyState.shutdownComplete.await *>
-          markAsReady.completeWith(UIO.unit) *>
+      policyReleased                <- Promise.make[Nothing, Any]
+      _                             <-
+        (currentPolicyState.shutdownComplete.await.unless(inFlight == 0) *>
+          markAsReady.succeed(()) *>
           currentPolicyState.finalizer.apply(Exit.unit).to(policyReleased)).fork
     } yield policyReleased.await.unit
 
