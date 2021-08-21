@@ -27,6 +27,8 @@ It consists of these policies:
 ## Documentation
 [Documentation](https://svroonland.github.io/rezilience)
 
+Further questions? Look for the `#rezilience` channel on the ZIO Discord: https://discord.gg/2ccFBr4
+
 ## Installation
 
 [![Sonatype Nexus (Releases)](https://img.shields.io/maven-central/v/nl.vroste/rezilience_2.13)](https://repo1.maven.org/maven2/nl/vroste/rezilience_2.13/) [![Sonatype Nexus (Snapshots)](https://img.shields.io/nexus/s/nl.vroste/rezilience_2.13?server=https%3A%2F%2Foss.sonatype.org)](https://oss.sonatype.org/content/repositories/snapshots/nl/vroste/rezilience_2.13/)
