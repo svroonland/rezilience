@@ -35,10 +35,17 @@ final case class RateLimiterMetrics(
       ("min latency", latency.getMinValue.toInt, "ms")
     ).map { case (name, value, unit) => s"${name}=${value}${if (unit.isEmpty) "" else " " + unit}" }.mkString(", ")
 
+  /**
+   * Combines the metrics and their histograms
+   *
+   * currentlyEnqueued is taken from the `that` parameter, so be sure to use this
+   * method as `oldMetrics + latestMetrics`.
+   */
   def +(that: RateLimiterMetrics): RateLimiterMetrics = copy(
     interval = interval plus that.interval,
     latency = mergeHistograms(latency, that.latency),
-    tasksEnqueued = tasksEnqueued + that.tasksEnqueued
+    tasksEnqueued = tasksEnqueued + that.tasksEnqueued,
+    currentlyEnqueued = that.currentlyEnqueued
   )
 }
 

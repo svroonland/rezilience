@@ -1,12 +1,8 @@
 package nl.vroste.rezilience
 
-import nl.vroste.rezilience.RateLimiterPlatformSpecificObj.RateLimiterMetricsInternal
-import org.HdrHistogram.{ AbstractHistogram, IntCountsHistogram }
 import zio.clock.Clock
 import zio.duration.{ durationInt, Duration }
 import zio.{ clock, Ref, UIO, ZIO, ZManaged }
-
-import java.time.Instant
 
 trait RateLimiterPlatformSpecificObj {
 
@@ -31,7 +27,7 @@ trait RateLimiterPlatformSpecificObj {
     latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings(1.milli, 2.minutes)
   ): ZManaged[Clock, Nothing, RateLimiter] = {
 
-    def makeNewMetrics = clock.instant.map(now => RateLimiterMetricsInternal.empty(now, latencyHistogramSettings))
+    def makeNewMetrics = clock.instant.map(RateLimiterMetricsInternal.empty)
 
     def collectMetrics(currentMetrics: Ref[RateLimiterMetricsInternal]) =
       for {
@@ -39,7 +35,7 @@ trait RateLimiterPlatformSpecificObj {
         lastMetrics <-
           currentMetrics.getAndUpdate(metrics => newMetrics.copy(currentlyEnqueued = metrics.currentlyEnqueued))
         interval     = java.time.Duration.between(lastMetrics.start, newMetrics.start)
-        _           <- onMetrics(lastMetrics.toUserMetrics(interval))
+        _           <- onMetrics(lastMetrics.toUserMetrics(interval, latencyHistogramSettings))
       } yield ()
 
     for {
@@ -70,37 +66,4 @@ trait RateLimiterPlatformSpecificObj {
   }
 }
 
-private[rezilience] object RateLimiterPlatformSpecificObj extends RateLimiterPlatformSpecificObj {
-  final case class RateLimiterMetricsInternal(
-    start: Instant,
-    latency: AbstractHistogram,
-    tasksEnqueued: Long,
-    currentlyEnqueued: Long
-  ) {
-    import HistogramUtil._
-
-    def toUserMetrics(interval: Duration): RateLimiterMetrics =
-      RateLimiterMetrics(interval, latency, tasksEnqueued, currentlyEnqueued)
-
-    def taskStarted(latencySample: Duration): RateLimiterMetricsInternal = copy(
-      latency = addToHistogram(latency, Seq(Math.max(0, latencySample.toMillis))),
-      currentlyEnqueued = currentlyEnqueued - 1
-    )
-
-    def taskInterrupted = copy(currentlyEnqueued = currentlyEnqueued - 1)
-
-    def enqueueTask: RateLimiterMetricsInternal =
-      copy(tasksEnqueued = tasksEnqueued + 1, currentlyEnqueued = currentlyEnqueued + 1)
-  }
-
-  object RateLimiterMetricsInternal {
-    def empty(now: Instant, settings: HistogramSettings[Duration]) =
-      RateLimiterMetricsInternal(
-        start = now,
-        latency = new IntCountsHistogram(settings.min.toMillis, settings.max.toMillis, settings.significantDigits),
-        tasksEnqueued = 0,
-        currentlyEnqueued = 0
-      )
-  }
-
-}
+private[rezilience] object RateLimiterPlatformSpecificObj extends RateLimiterPlatformSpecificObj
