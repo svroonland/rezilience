@@ -58,12 +58,19 @@ final case class BulkheadMetrics(
       ("max latency", latency.getMaxValue.toInt, "ms")
     ).map { case (name, value, unit) => s"${name}=${value}${if (unit.isEmpty) "" else " " + unit}" }.mkString(", ")
 
-  // TODO add start time to metrics so we can pick which one is the latest for currentlyInFlight..?
+  /**
+   * Combines the metrics and their histograms
+   *
+   * currentlyEnqueued and currentlyInFlight are taken from the `that` parameter, so be sure to use this
+   * method as `oldMetrics + latestMetrics`.
+   */
   def +(that: BulkheadMetrics): BulkheadMetrics = copy(
     interval = interval plus that.interval,
     latency = mergeHistograms(latency, that.latency),
     inFlight = mergeHistograms(inFlight, that.inFlight),
-    enqueued = mergeHistograms(enqueued, that.enqueued)
+    enqueued = mergeHistograms(enqueued, that.enqueued),
+    currentlyEnqueued = that.currentlyEnqueued,
+    currentlyInFlight = that.currentlyInFlight
   )
 }
 
