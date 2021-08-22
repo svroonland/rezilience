@@ -6,6 +6,7 @@ import zio._
 import zio.clock.Clock
 import zio.console.putStrLn
 import zio.duration._
+import zio.stream.ZStream
 
 object CircuitBreakerExample {
   // We use Throwable as error type in this example
@@ -17,10 +18,13 @@ object CircuitBreakerExample {
       resetPolicy = Schedule.exponential(1.second)
     )
     .tap(cb =>
-      cb.stateChanges
-        .mapM(stateChange => ZIO(println(s"State changed from ${stateChange.from} to ${stateChange.to}")))
-        .runDrain
-        .forkManaged
+      cb.stateChanges.flatMap(
+        ZStream
+          .fromQueue(_)
+          .mapM(stateChange => ZIO(println(s"State changed from ${stateChange.from} to ${stateChange.to}")))
+          .runDrain
+          .forkManaged
+      )
     )
 
   circuitBreaker.use { cb =>

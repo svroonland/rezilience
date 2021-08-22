@@ -2,11 +2,11 @@ package nl.vroste.rezilience
 
 import nl.vroste.rezilience.CircuitBreaker.State
 import zio.duration._
-import zio.{ Queue, Schedule, ZIO }
+import zio.stream.ZStream
 import zio.test.Assertion._
-import zio.test.TestAspect.nonFlaky
 import zio.test._
 import zio.test.environment.TestClock
+import zio.{ Queue, Schedule, ZIO }
 
 object CircuitBreakerSpec extends DefaultRunnableSpec {
   sealed trait Error
@@ -48,14 +48,20 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     },
     testM("reset to closed state after reset timeout") {
       (for {
-        stateChanges <- Queue.unbounded[State].toManaged_
-        cb           <- CircuitBreaker.withMaxFailures(10, Schedule.exponential(1.second))
-        _            <- cb.stateChanges.map(_.to).tap(stateChanges.offer(_).ignore).runDrain.forkManaged
+        stateChanges      <- Queue.unbounded[State].toManaged_
+        cb                <- CircuitBreaker.withMaxFailures(10, Schedule.exponential(1.second))
+        stateChangesQueue <- cb.stateChanges
+        _                 <- ZStream
+                               .fromQueue(stateChangesQueue)
+                               .map(_.to)
+                               .tap(stateChanges.offer)
+                               .runDrain
+                               .forkManaged
       } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
         for {
           _ <- ZIO.foreach_(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
           _ <- stateChanges.take
-          _ <- TestClock.adjust(3.second)
+          _ <- TestClock.adjust(2.second)
           _ <- stateChanges.take
           _ <- cb(ZIO.unit)
         } yield assertCompletes
@@ -63,9 +69,15 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     },
     testM("retry exponentially") {
       (for {
-        stateChanges <- Queue.unbounded[State].toManaged_
-        cb           <- CircuitBreaker.withMaxFailures(3, Schedule.exponential(base = 1.second, factor = 2.0))
-        _            <- cb.stateChanges.map(_.to).tap(stateChanges.offer(_).ignore).runDrain.forkManaged
+        stateChanges      <- Queue.unbounded[State].toManaged_
+        cb                <- CircuitBreaker.withMaxFailures(3, Schedule.exponential(base = 1.second, factor = 2.0))
+        stateChangesQueue <- cb.stateChanges
+        _                 <- ZStream
+                               .fromQueue(stateChangesQueue)
+                               .map(_.to)
+                               .tap(stateChanges.offer)
+                               .runDrain
+                               .forkManaged
       } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
         for {
           _  <- ZIO.foreach_(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
@@ -89,9 +101,15 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     },
     testM("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
       (for {
-        stateChanges <- Queue.unbounded[State].toManaged_
-        cb           <- CircuitBreaker.withMaxFailures(3, Schedule.exponential(base = 1.second, factor = 2.0))
-        _            <- cb.stateChanges.map(_.to).tap(stateChanges.offer(_).ignore).runDrain.forkManaged
+        stateChanges      <- Queue.unbounded[State].toManaged_
+        cb                <- CircuitBreaker.withMaxFailures(3, Schedule.exponential(base = 1.second, factor = 2.0))
+        stateChangesQueue <- cb.stateChanges
+        _                 <- ZStream
+                               .fromQueue(stateChangesQueue)
+                               .map(_.to)
+                               .tap(stateChanges.offer)
+                               .runDrain
+                               .forkManaged
       } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
         for {
           _ <- ZIO.foreach_(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
@@ -117,5 +135,5 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
         } yield assert(s1)(equalTo(State.HalfOpen))
       }
     }
-  ) @@ nonFlaky
+  ) @@ TestAspect.timeout(30.seconds) @@ TestAspect.nonFlaky
 }

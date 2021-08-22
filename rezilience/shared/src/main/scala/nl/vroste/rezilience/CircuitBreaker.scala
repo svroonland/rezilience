@@ -75,7 +75,7 @@ trait CircuitBreaker[-E] {
    *
    * Is backed by a zio.Hub, so each execution of the stream will get its own stream of state changes
    */
-  val stateChanges: zio.stream.Stream[Nothing, StateChange]
+  val stateChanges: Managed[Nothing, Dequeue[StateChange]]
 }
 
 object CircuitBreaker {
@@ -144,7 +144,7 @@ object CircuitBreaker {
       halfOpenSwitch <- Ref.make[Boolean](true).toManaged_
       schedule       <- resetPolicy.driver.toManaged_
       resetRequests  <- ZQueue.bounded[Unit](1).toManaged_
-      stateChanges   <- ZHub.bounded[StateChange](1).toManaged(_.shutdown)
+      stateChanges   <- ZHub.sliding[StateChange](32).toManaged(_.shutdown)
       _              <- ZStream
                           .fromQueue(resetRequests)
                           .mapM { _ =>
@@ -190,12 +190,14 @@ object CircuitBreaker {
       } yield ()
 
     for {
-      metrics <- makeNewMetrics(State.Closed).flatMap(Ref.make).toManaged_
-      _       <- MetricsUtil.runCollectMetricsLoop(metrics, metricsInterval)(collectMetrics)
-      _       <- cb.stateChanges
-                   .tap(stateChange => metrics.update(_.stateChanged(stateChange.to, stateChange.at)))
-                   .runDrain
-                   .forkManaged
+      metrics      <- makeNewMetrics(State.Closed).flatMap(Ref.make).toManaged_
+      _            <- MetricsUtil.runCollectMetricsLoop(metrics, metricsInterval)(collectMetrics)
+      stateChanges <- cb.stateChanges
+      _            <- ZStream
+                        .fromQueue(stateChanges)
+                        .tap(stateChange => metrics.update(_.stateChanged(stateChange.to, stateChange.at)))
+                        .runDrain
+                        .forkManaged
     } yield CircuitBreakerWithMetricsImpl(cb, metrics)
   }
 
@@ -283,8 +285,7 @@ object CircuitBreaker {
     /**
      * Stream of Circuit Breaker state changes
      */
-    override val stateChanges: stream.Stream[Nothing, StateChange] =
-      ZStream.unwrapManaged(stateChangesHub.subscribe.map(ZStream.fromQueue(_)))
+    override val stateChanges: Managed[Nothing, Dequeue[StateChange]] = stateChangesHub.subscribe
   }
 
   private[rezilience] def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
@@ -304,7 +305,7 @@ object CircuitBreaker {
     override def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]                      =
       CircuitBreakerWithMetricsImpl(cb.widen[E2](pf), metrics)
 
-    override val stateChanges: stream.Stream[Nothing, StateChange] = cb.stateChanges
+    override val stateChanges = cb.stateChanges
   }
 
   final case class Metrics(

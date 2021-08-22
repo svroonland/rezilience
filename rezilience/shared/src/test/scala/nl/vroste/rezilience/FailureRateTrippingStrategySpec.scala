@@ -8,6 +8,7 @@ import zio.random.Random
 import zio.test.environment.{ testEnvironment, TestClock, TestEnvironment }
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerOpen
 import nl.vroste.rezilience.CircuitBreaker.State
+import zio.stream.ZStream
 import zio.test.TestAspect.{ diagnose, nonFlaky, timeout }
 
 case class PrintFriendlyDuration(duration: Duration) extends AnyVal {
@@ -105,9 +106,15 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
         val strategy = TrippingStrategy.failureRate(rate, sampleDuration, minThroughput, nrSampleBuckets = 10)
 
         (for {
-          stateChanges <- Queue.unbounded[State].toManaged_
-          cb           <- CircuitBreaker.make[String](strategy, Schedule.fixed(1.seconds))
-          _            <- cb.stateChanges.map(_.to).tap(stateChanges.offer(_).ignore).runDrain.forkManaged
+          stateChanges      <- Queue.unbounded[State].toManaged_
+          cb                <- CircuitBreaker.make[String](strategy, Schedule.fixed(1.seconds))
+          stateChangesQueue <- cb.stateChanges
+          _                 <- ZStream
+                                 .fromQueue(stateChangesQueue)
+                                 .map(_.to)
+                                 .tap(stateChanges.offer)
+                                 .runDrain
+                                 .forkManaged
         } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
           def expectState(s: State)                = stateChanges.take.filterOrDieMessage(_ == s)(s"Expected state ${s}")
           def makeCall[R, A](f: ZIO[R, String, A]) = cb(f)
