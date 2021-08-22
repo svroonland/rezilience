@@ -2,10 +2,12 @@ package nl.vroste.rezilience
 
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
 import nl.vroste.rezilience.Policy.PolicyError
-import zio._
 import zio.clock.Clock
 import zio.duration._
 import zio.stream.ZStream
+import zio.{ clock, _ }
+
+import java.time.Instant
 
 /**
  * CircuitBreaker protects external resources against overload under failure
@@ -70,6 +72,8 @@ trait CircuitBreaker[-E] {
 }
 
 object CircuitBreaker {
+
+  case class StateChange(from: State, to: State, at: Instant)
 
   import State._
 
@@ -158,7 +162,55 @@ object CircuitBreaker {
       halfOpenSwitch
     )
 
-  private case class CircuitBreakerImpl[-E](
+  def makeWithMetrics[E, R1](
+    trippingStrategy: ZManaged[Clock, Nothing, TrippingStrategy],
+    resetPolicy: Schedule[Clock, Any, Any] =
+      Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
+    isFailure: PartialFunction[E, Boolean] = CircuitBreaker.isFailureAny[E],
+    onStateChange: State => UIO[Unit] = _ => ZIO.unit,
+    onMetrics: CircuitBreakerMetrics => URIO[R1, Any],
+    metricsInterval: Duration = 10.seconds
+  ): ZManaged[Clock with R1, Nothing, CircuitBreaker[E]] = {
+
+    def makeNewMetrics(currentState: State) =
+      for {
+        now <- clock.instant
+      } yield CircuitBreakerMetricsInternal.empty(now, currentState)
+
+    def collectMetrics(currentMetrics: Ref[CircuitBreakerMetricsInternal]) =
+      for {
+        currentState <- currentMetrics.get
+        newMetrics   <- makeNewMetrics(currentState.currentState)
+        lastMetrics  <- currentMetrics.getAndSet(newMetrics)
+        interval      = java.time.Duration.between(lastMetrics.start, newMetrics.start)
+        _            <- onMetrics(lastMetrics.toUserMetrics(interval))
+      } yield ()
+
+    for {
+      metrics <- makeNewMetrics(State.Closed).flatMap(Ref.make).toManaged_
+      _       <- MetricsUtil.runCollectMetricsLoop(metrics, metricsInterval)(collectMetrics)
+      clock   <- ZManaged.service[Clock.Service]
+      cb      <- CircuitBreaker.make(
+                   trippingStrategy,
+                   resetPolicy,
+                   isFailure,
+                   onStateChange = state =>
+                     clock.instant.flatMap(now => metrics.update(_.stateChanged(state, now))) *> onStateChange(state)
+                 )
+    } yield new CircuitBreaker[E] {
+      override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] = for {
+        result <- cb.apply(f)
+                    .tap(_ => metrics.update(_.callSucceeded))
+                    .tapError {
+                      case CircuitBreaker.CircuitBreakerOpen => metrics.update(_.callRejected)
+                      case CircuitBreaker.WrappedError(_)    => metrics.update(_.callFailed)
+                    }
+      } yield result
+      override def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]                      = ???
+    }
+  }
+
+  private[rezilience] case class CircuitBreakerImpl[-E](
     state: Ref[State],
     resetRequests: Queue[Unit],
     strategy: TrippingStrategy,
@@ -228,6 +280,71 @@ object CircuitBreaker {
     )
   }
 
-  private def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
+  private[rezilience] def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
+
+  final case class CircuitBreakerMetrics(
+    /**
+     * Interval in which these metrics were collected
+     */
+    interval: Duration,
+    /**
+     * Number of calls that failed in the interval
+     */
+    failedCalls: Long,
+    /**
+     * Number of calls that succeeded in the interval
+     */
+    succeededCalls: Long,
+    /**
+     * Number of calls that were rejected in the interval
+     */
+    rejectedCalls: Long,
+    /**
+     * All state changes made in the metrics interval
+     */
+    stateChanges: Chunk[StateChange], // TODO should be ordered?
+
+    /**
+     * Time of the last reset to the Closed state
+     */
+    lastResetTime: Option[Instant]
+  ) {
+    def successRate: Double =
+      if (failedCalls + succeededCalls > 0) failedCalls * 1.0 / (succeededCalls + failedCalls * 1.0) else 0.0
+
+    def numberOfResets: Int = stateChanges.count(_.to == State.Closed)
+
+    override def toString: String                             =
+      Seq(
+        ("interval", interval.getSeconds, "s"),
+        ("succeeded calls", succeededCalls, ""),
+        ("failed calls", failedCalls, ""),
+        ("success rate", successRate * 100.0, "%"),
+        ("number of state changes", stateChanges.size, ""),
+        ("last reset time", lastResetTime.getOrElse("n/a"), "")
+      ).map { case (name, value, unit) => s"${name}=${value}${if (unit.isEmpty) "" else " " + unit}" }.mkString(", ")
+
+    /**
+     * Combines the metrics and their histograms
+     */
+    def +(that: CircuitBreakerMetrics): CircuitBreakerMetrics = copy(
+      interval = interval plus that.interval,
+      failedCalls = failedCalls + that.failedCalls,
+      succeededCalls = succeededCalls + that.succeededCalls,
+      rejectedCalls = rejectedCalls + that.rejectedCalls,
+      stateChanges = stateChanges ++ that.stateChanges,
+      lastResetTime = (lastResetTime, that.lastResetTime) match {
+        case (Some(t1), Some(t2)) if t2 isAfter t1 => Some(t2)
+        case (Some(t1), Some(t2)) if t1 isAfter t2 => Some(t1)
+        case (Some(t1), None)                      => Some(t1)
+        case (None, Some(t2))                      => Some(t2)
+        case _                                     => None
+      }
+    )
+  }
+
+  object CircuitBreakerMetrics {
+    val empty = CircuitBreakerMetrics(0.seconds, 0, 0, 0, Chunk.empty, None)
+  }
 
 }
