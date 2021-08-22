@@ -86,8 +86,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
         CircuitBreaker
           .make[String](
             strategy,
-            Schedule.fixed(5.seconds),
-            onStateChange = state => ZIO.effectTotal(println(s"CB state changed to ${state}"))
+            Schedule.fixed(5.seconds)
           )
           .use { cb =>
             for {
@@ -107,8 +106,8 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
 
         (for {
           stateChanges <- Queue.unbounded[State].toManaged_
-          cb           <- CircuitBreaker
-                            .make[String](strategy, Schedule.fixed(1.seconds), onStateChange = stateChanges.offer(_).ignore)
+          cb           <- CircuitBreaker.make[String](strategy, Schedule.fixed(1.seconds))
+          _            <- cb.stateChanges.map(_.to).tap(stateChanges.offer(_).ignore).runDrain.forkManaged
         } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
           def expectState(s: State)                = stateChanges.take.filterOrDieMessage(_ == s)(s"Expected state ${s}")
           def makeCall[R, A](f: ZIO[R, String, A]) = cb(f)

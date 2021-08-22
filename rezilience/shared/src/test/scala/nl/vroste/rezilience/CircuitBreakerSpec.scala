@@ -49,11 +49,8 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     testM("reset to closed state after reset timeout") {
       (for {
         stateChanges <- Queue.unbounded[State].toManaged_
-        cb           <- CircuitBreaker.withMaxFailures(
-                          10,
-                          Schedule.exponential(1.second),
-                          onStateChange = stateChanges.offer(_).ignore
-                        )
+        cb           <- CircuitBreaker.withMaxFailures(10, Schedule.exponential(1.second))
+        _            <- cb.stateChanges.map(_.to).tap(stateChanges.offer(_).ignore).runDrain.forkManaged
       } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
         for {
           _ <- ZIO.foreach_(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
@@ -67,11 +64,8 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     testM("retry exponentially") {
       (for {
         stateChanges <- Queue.unbounded[State].toManaged_
-        cb           <- CircuitBreaker.withMaxFailures(
-                          3,
-                          Schedule.exponential(base = 1.second, factor = 2.0),
-                          onStateChange = stateChanges.offer(_).ignore
-                        )
+        cb           <- CircuitBreaker.withMaxFailures(3, Schedule.exponential(base = 1.second, factor = 2.0))
+        _            <- cb.stateChanges.map(_.to).tap(stateChanges.offer(_).ignore).runDrain.forkManaged
       } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
         for {
           _  <- ZIO.foreach_(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
@@ -96,11 +90,8 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     testM("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
       (for {
         stateChanges <- Queue.unbounded[State].toManaged_
-        cb           <- CircuitBreaker.withMaxFailures(
-                          3,
-                          Schedule.exponential(base = 1.second, factor = 2.0),
-                          onStateChange = stateChanges.offer(_).ignore
-                        )
+        cb           <- CircuitBreaker.withMaxFailures(3, Schedule.exponential(base = 1.second, factor = 2.0))
+        _            <- cb.stateChanges.map(_.to).tap(stateChanges.offer(_).ignore).runDrain.forkManaged
       } yield (stateChanges, cb)).use { case (stateChanges, cb) =>
         for {
           _ <- ZIO.foreach_(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)

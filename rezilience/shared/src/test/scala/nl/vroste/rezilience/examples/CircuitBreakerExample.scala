@@ -11,11 +11,17 @@ object CircuitBreakerExample {
   // We use Throwable as error type in this example
   def callExternalSystem(someInput: String): ZIO[Any, Throwable, Int] = ZIO.succeed(someInput.length)
 
-  val circuitBreaker: ZManaged[Clock, Nothing, CircuitBreaker[Any]] = CircuitBreaker.make(
-    trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
-    resetPolicy = Schedule.exponential(1.second),
-    onStateChange = (s: State) => ZIO(println(s"State changed to ${s}")).ignore
-  )
+  val circuitBreaker: ZManaged[Clock, Nothing, CircuitBreaker[Any]] = CircuitBreaker
+    .make(
+      trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
+      resetPolicy = Schedule.exponential(1.second)
+    )
+    .tap(cb =>
+      cb.stateChanges
+        .mapM(stateChange => ZIO(println(s"State changed from ${stateChange.from} to ${stateChange.to}")))
+        .runDrain
+        .forkManaged
+    )
 
   circuitBreaker.use { cb =>
     val result: ZIO[Any, CircuitBreakerCallError[Throwable], Int] = cb(callExternalSystem("some input"))
