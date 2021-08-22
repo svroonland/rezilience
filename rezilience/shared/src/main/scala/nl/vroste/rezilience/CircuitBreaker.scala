@@ -72,6 +72,8 @@ trait CircuitBreaker[-E] {
 
   /**
    * Stream of Circuit Breaker state changes
+   *
+   * Is backed by a zio.Hub, so each execution of the stream will get its own stream of state changes
    */
   val stateChanges: zio.stream.Stream[Nothing, StateChange]
 }
@@ -168,11 +170,8 @@ object CircuitBreaker {
     )
 
   def makeWithMetrics[E, R1](
-    trippingStrategy: ZManaged[Clock, Nothing, TrippingStrategy],
-    resetPolicy: Schedule[Clock, Any, Any] =
-      Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
-    isFailure: PartialFunction[E, Boolean] = CircuitBreaker.isFailureAny[E],
-    onMetrics: CircuitBreakerMetrics => URIO[R1, Any],
+    cb: CircuitBreaker[E],
+    onMetrics: Metrics => URIO[R1, Any],
     metricsInterval: Duration = 10.seconds
   ): ZManaged[Clock with R1, Nothing, CircuitBreaker[E]] = {
 
@@ -193,28 +192,11 @@ object CircuitBreaker {
     for {
       metrics <- makeNewMetrics(State.Closed).flatMap(Ref.make).toManaged_
       _       <- MetricsUtil.runCollectMetricsLoop(metrics, metricsInterval)(collectMetrics)
-      cb      <- CircuitBreaker.make(
-                   trippingStrategy,
-                   resetPolicy,
-                   isFailure
-                 )
       _       <- cb.stateChanges
                    .tap(stateChange => metrics.update(_.stateChanged(stateChange.to, stateChange.at)))
                    .runDrain
                    .forkManaged
-    } yield new CircuitBreaker[E] {
-      override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] = for {
-        result <- cb.apply(f)
-                    .tap(_ => metrics.update(_.callSucceeded))
-                    .tapError {
-                      case CircuitBreaker.CircuitBreakerOpen => metrics.update(_.callRejected)
-                      case CircuitBreaker.WrappedError(_)    => metrics.update(_.callFailed)
-                    }
-      } yield result
-      override def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]                      = ???
-
-      override val stateChanges: stream.Stream[Nothing, StateChange] = cb.stateChanges
-    }
+    } yield CircuitBreakerWithMetricsImpl(cb, metrics)
   }
 
   private[rezilience] case class CircuitBreakerImpl[-E](
@@ -307,7 +289,25 @@ object CircuitBreaker {
 
   private[rezilience] def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
 
-  final case class CircuitBreakerMetrics(
+  private[rezilience] case class CircuitBreakerWithMetricsImpl[-E](
+    cb: CircuitBreaker[E],
+    metrics: Ref[CircuitBreakerMetricsInternal]
+  ) extends CircuitBreaker[E] {
+    override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] = for {
+      result <- cb.apply(f)
+                  .tap(_ => metrics.update(_.callSucceeded))
+                  .tapError {
+                    case CircuitBreaker.CircuitBreakerOpen => metrics.update(_.callRejected)
+                    case CircuitBreaker.WrappedError(_)    => metrics.update(_.callFailed)
+                  }
+    } yield result
+    override def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]                      =
+      CircuitBreakerWithMetricsImpl(cb.widen[E2](pf), metrics)
+
+    override val stateChanges: stream.Stream[Nothing, StateChange] = cb.stateChanges
+  }
+
+  final case class Metrics(
     /**
      * Interval in which these metrics were collected
      */
@@ -339,7 +339,7 @@ object CircuitBreaker {
 
     def numberOfResets: Int = stateChanges.count(_.to == State.Closed)
 
-    override def toString: String                             =
+    override def toString: String =
       Seq(
         ("interval", interval.getSeconds, "s"),
         ("succeeded calls", succeededCalls, ""),
@@ -352,7 +352,7 @@ object CircuitBreaker {
     /**
      * Combines the metrics and their histograms
      */
-    def +(that: CircuitBreakerMetrics): CircuitBreakerMetrics = copy(
+    def +(that: Metrics): Metrics = copy(
       interval = interval plus that.interval,
       failedCalls = failedCalls + that.failedCalls,
       succeededCalls = succeededCalls + that.succeededCalls,
@@ -368,8 +368,8 @@ object CircuitBreaker {
     )
   }
 
-  object CircuitBreakerMetrics {
-    val empty = CircuitBreakerMetrics(0.seconds, 0, 0, 0, Chunk.empty, None)
+  object Metrics {
+    val empty = Metrics(0.seconds, 0, 0, 0, Chunk.empty, None)
   }
 
 }
