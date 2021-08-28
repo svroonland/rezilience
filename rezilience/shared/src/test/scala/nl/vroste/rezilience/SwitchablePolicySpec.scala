@@ -16,11 +16,6 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
 
         val policy = SwitchablePolicy.make(initialPolicy)
 
-        val failFirstTime: ZIO[Any, Nothing, ZIO[Any, Unit, Unit]] = for {
-          ref   <- Ref.make(0)
-          effect = ref.getAndUpdate(_ + 1).flatMap(count => ZIO.fail(()).when(count < 1))
-        } yield effect
-
         policy.use { callWithPolicy =>
           for {
             e      <- failFirstTime
@@ -36,12 +31,6 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
 
         val policy = SwitchablePolicy.make(initialPolicy)
 
-        def waitForLatch = for {
-          latch   <- Promise.make[Nothing, Unit]
-          started <- Promise.make[Nothing, Unit]
-          effect   = started.succeed(()) *> latch.await
-        } yield (effect, started, latch)
-
         policy.use { callWithPolicy =>
           for {
             (e, started, latch) <- waitForLatch
@@ -56,6 +45,25 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
           } yield assertCompletes
         }
 
+      },
+      testM("in-flight calls can be interrupted while switching") {
+        val initialPolicy = Bulkhead.make(1).map(_.toPolicy)
+
+        val policy = SwitchablePolicy.make(initialPolicy)
+
+        policy.use { callWithPolicy =>
+          for {
+            (e, started, _)   <- waitForLatch
+            fib               <- callWithPolicy(e).fork
+            _                 <- started.await
+            fib2              <- callWithPolicy(e).fork
+            oldPolicyReleased <- callWithPolicy.switch(ZManaged.succeed(Policy.noop))
+            _                 <- fib.interrupt
+            _                 <- fib2.interrupt
+            _                 <- oldPolicyReleased
+            _                 <- callWithPolicy(ZIO.unit) // Should return immediately with the new noop policy
+          } yield assertCompletes
+        }
       }
     ),
     suite("finish in flight mode")(
@@ -86,12 +94,6 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
 
         val policy = SwitchablePolicy.make(initialPolicy)
 
-        def waitForLatch = for {
-          latch   <- Promise.make[Nothing, Unit]
-          started <- Promise.make[Nothing, Unit]
-          effect   = started.succeed(()) *> latch.await
-        } yield (effect, started, latch)
-
         policy.use { callWithPolicy =>
           for {
             (e, started, latch)        <- waitForLatch
@@ -110,10 +112,42 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
             _                          <- fib2.join
           } yield assertCompletes
         }
+      },
+      testM("in-flight calls can be interrupted while switching") {
+        val initialPolicy = Bulkhead.make(1).map(_.toPolicy)
 
+        val policy = SwitchablePolicy.make(initialPolicy)
+
+        policy.use { callWithPolicy =>
+          for {
+            (e, started, latch)        <- waitForLatch
+            fib                        <- callWithPolicy(e).fork
+            _                          <- started.await
+            fib2                       <- callWithPolicy(e).fork
+            released                   <- callWithPolicy.switch(ZManaged.succeed(Policy.noop), SwitchablePolicy.Mode.FinishInFlight)
+            callWithNewPolicySucceeded <- Promise.make[Nothing, Unit]
+            fib3                       <- callWithPolicy(callWithNewPolicySucceeded.succeed(())).fork // Should wait until the latch
+            _                          <- fib.interrupt
+            _                          <- fib2.interrupt
+            _                          <- released
+            _                          <- latch.succeed(())
+            _                          <- fib3.join
+          } yield assertCompletes
+        }
       }
     )
   ) @@ timed @@ timeout(60.seconds) @@ nonFlaky
+
+  val waitForLatch: ZIO[Any, Nothing, (ZIO[Any, Nothing, Unit], Promise[Nothing, Unit], Promise[Nothing, Unit])] = for {
+    latch   <- Promise.make[Nothing, Unit]
+    started <- Promise.make[Nothing, Unit]
+    effect   = started.succeed(()) *> latch.await
+  } yield (effect, started, latch)
+
+  val failFirstTime: ZIO[Any, Nothing, ZIO[Any, Unit, Unit]] = for {
+    ref   <- Ref.make(0)
+    effect = ref.getAndUpdate(_ + 1).flatMap(count => ZIO.fail(()).when(count < 1))
+  } yield effect
 
   // TODO add tests for edge-case behavior, eg interruption
 }

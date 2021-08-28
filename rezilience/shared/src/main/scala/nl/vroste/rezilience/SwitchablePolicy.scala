@@ -7,6 +7,8 @@ import zio.{ Exit, IO, Promise, UIO, ZIO, ZManaged }
 
 /**
  * A Policy that can be replaced safely at runtime
+ *
+ * Failure and defect propagatation
  */
 trait SwitchablePolicy[R0, E0, E] extends Policy[E] {
 
@@ -42,9 +44,12 @@ object SwitchablePolicy {
       currentPolicy <- TRef.make(policyState).commit.toManaged_
     } yield new SwitchablePolicy[R0, E0, E] {
       override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
-        ZManaged.make(beginCallWithPolicy)(endCallWithPolicy).map(_.policy).use { policy =>
-          policy.apply(f)
-        }
+        ZManaged
+          .make(beginCallWithPolicy)(endCallWithPolicy)
+          .map(_.policy)
+          .use { policy =>
+            policy.apply(f)
+          }
 
       def beginCallWithPolicy: IO[Nothing, PolicyState[E]] = STM.atomically {
         for {
