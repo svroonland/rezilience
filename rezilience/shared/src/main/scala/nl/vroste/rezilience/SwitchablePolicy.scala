@@ -10,7 +10,7 @@ import zio.{ Exit, IO, Promise, UIO, ZIO, ZManaged }
  *
  * Failure and defect propagatation
  */
-trait SwitchablePolicy[R0, E0, E] extends Policy[E] {
+trait SwitchablePolicy[E] extends Policy[E] {
 
   /**
    * Switches the policy to the new policy
@@ -21,7 +21,7 @@ trait SwitchablePolicy[R0, E0, E] extends Policy[E] {
    * The old policy will be released after those in-flight calls are completed.
    * The inner UIO signals completion of release of the old policy.
    */
-  def switch(newPolicy: ZManaged[R0, E0, Policy[E]], mode: Mode = Mode.Transition): ZIO[R0, E0, UIO[Unit]]
+  def switch[R0, E0](newPolicy: ZManaged[R0, E0, Policy[E]], mode: Mode = Mode.Transition): ZIO[R0, E0, UIO[Unit]]
 }
 
 object SwitchablePolicy {
@@ -37,12 +37,12 @@ object SwitchablePolicy {
    */
   def make[R0, E0, E](
     initial: ZManaged[R0, E0, Policy[E]]
-  ): ZManaged[R0, E0, SwitchablePolicy[R0, E0, E]] =
+  ): ZManaged[R0, E0, SwitchablePolicy[E]] =
     for {
       scope         <- ZManaged.scope
       policyState   <- makeInUsePolicyState(scope, initial, awaitReady = UIO.unit).toManaged_
       currentPolicy <- TRef.make(policyState).commit.toManaged_
-    } yield new SwitchablePolicy[R0, E0, E] {
+    } yield new SwitchablePolicy[E] {
       override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
         ZManaged
           .make(beginCallWithPolicy)(endCallWithPolicy)
@@ -69,7 +69,7 @@ object SwitchablePolicy {
           ZIO.when(done)(usedPolicyState.shutdownComplete.succeed(()))
         }
 
-      override def switch(newPolicy: ZManaged[R0, E0, Policy[E]], mode: Mode): ZIO[R0, E0, UIO[Unit]] =
+      override def switch[R1, E1](newPolicy: ZManaged[R1, E1, Policy[E]], mode: Mode): ZIO[R1, E1, UIO[Unit]] =
         mode match {
           case Mode.Transition     =>
             switchTransition(scope, currentPolicy, newPolicy)
