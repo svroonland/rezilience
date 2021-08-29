@@ -1,7 +1,9 @@
 package nl.vroste.rezilience
 
 import nl.vroste.rezilience.Policy.WrappedError
+import zio.clock.Clock
 import zio.duration.durationInt
+import zio.random.Random
 import zio.test.Assertion.{ equalTo, fails }
 import zio.test.TestAspect.{ nonFlaky, timed, timeout }
 import zio.test._
@@ -14,7 +16,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
       testM("uses the new policy after switching") {
         val initialPolicy = Retry.make().map(_.toPolicy)
 
-        val policy = SwitchablePolicy.make(initialPolicy)
+        val policy = SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
 
         policy.use { callWithPolicy =>
           for {
@@ -29,7 +31,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
       testM("does not wait for in-flight calls to finish when switching") {
         val initialPolicy = Bulkhead.make(1).map(_.toPolicy)
 
-        val policy = SwitchablePolicy.make(initialPolicy)
+        val policy = SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
 
         policy.use { callWithPolicy =>
           for {
@@ -49,7 +51,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
       testM("in-flight calls can be interrupted while switching") {
         val initialPolicy = Bulkhead.make(1).map(_.toPolicy)
 
-        val policy = SwitchablePolicy.make(initialPolicy)
+        val policy = SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
 
         policy.use { callWithPolicy =>
           for {
@@ -70,7 +72,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
       testM("uses the new policy after switching") {
         val initialPolicy = Retry.make().map(_.toPolicy)
 
-        val policy = SwitchablePolicy.make(initialPolicy)
+        val policy = SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
 
         val failFirstTime: ZIO[Any, Nothing, ZIO[Any, Unit, Unit]] = for {
           ref   <- Ref.make(0)
@@ -92,7 +94,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
       testM("waits for in-flight calls to finish when switching") {
         val initialPolicy = Bulkhead.make(1).map(_.toPolicy)
 
-        val policy = SwitchablePolicy.make(initialPolicy)
+        val policy = SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
 
         policy.use { callWithPolicy =>
           for {
@@ -116,7 +118,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
       testM("in-flight calls can be interrupted while switching") {
         val initialPolicy = Bulkhead.make(1).map(_.toPolicy)
 
-        val policy = SwitchablePolicy.make(initialPolicy)
+        val policy = SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
 
         policy.use { callWithPolicy =>
           for {
