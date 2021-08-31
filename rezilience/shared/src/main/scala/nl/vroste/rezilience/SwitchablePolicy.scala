@@ -21,7 +21,10 @@ trait SwitchablePolicy[E] extends Policy[E] {
    * The old policy will be released after those in-flight calls are completed.
    * The inner UIO signals completion of release of the old policy.
    */
-  def switch[R0, E0](newPolicy: ZManaged[R0, E0, Policy[E]], mode: Mode = Mode.Transition): ZIO[R0, E0, UIO[Unit]]
+  def switch[R0, E0, E2 >: E](
+    newPolicy: ZManaged[R0, E0, Policy[E2]],
+    mode: Mode = Mode.Transition
+  ): ZIO[R0, E0, UIO[Unit]]
 }
 
 object SwitchablePolicy {
@@ -69,7 +72,10 @@ object SwitchablePolicy {
           ZIO.when(done)(usedPolicyState.shutdownComplete.succeed(()))
         }
 
-      override def switch[R1, E1](newPolicy: ZManaged[R1, E1, Policy[E]], mode: Mode): ZIO[R1, E1, UIO[Unit]] =
+      override def switch[R1, E1, E2 >: E](
+        newPolicy: ZManaged[R1, E1, Policy[E2]],
+        mode: Mode
+      ): ZIO[R1, E1, UIO[Unit]] =
         mode match {
           case Mode.Transition     =>
             switchTransition(scope, currentPolicy, newPolicy)
