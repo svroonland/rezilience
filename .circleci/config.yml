@@ -45,7 +45,7 @@ jobs:
             - "~/.m2"
   test_dotty_jdk11:
     docker:
-      - image: hseeberger/scala-sbt:11.0.10_1.5.2_3.0.0
+      - image: hseeberger/scala-sbt:11.0.10_1.5.2_3.0.2
     steps:
       - checkout
       - restore_cache:
