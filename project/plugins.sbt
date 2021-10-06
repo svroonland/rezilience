@@ -1,7 +1,7 @@
 addSbtPlugin("org.scalameta"             % "sbt-scalafmt"             % "2.4.3")
 addSbtPlugin("io.github.davidgregory084" % "sbt-tpolecat"             % "0.1.20")
 addSbtPlugin("com.eed3si9n"              % "sbt-assembly"             % "1.1.0")
-addSbtPlugin("org.scala-js"              % "sbt-scalajs"              % "1.7.0")
+addSbtPlugin("org.scala-js"              % "sbt-scalajs"              % "1.7.1")
 addSbtPlugin("org.portable-scala"        % "sbt-scalajs-crossproject" % "1.1.0")
 addSbtPlugin("io.shiftleft"              % "sbt-ci-release-early"     % "2.0.17")
 addSbtPlugin("com.47deg"                 % "sbt-microsites"           % "1.3.4")
