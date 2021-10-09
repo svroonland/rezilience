@@ -86,14 +86,24 @@ CircuitBreaker.make(
 ```
 
 ## Monitoring
-You may want to monitor circuit breaker failures and trigger alerts when the circuit breaker trips. For this purpose, CircuitBreaker publishes state changes via a callback provided to `make`. Usage:
+You may want to monitor circuit breaker failures and trigger alerts when the circuit breaker trips. For this purpose, CircuitBreaker publishes state changes. Usage:
 
 ```scala mdoc:silent
-CircuitBreaker.make(
-  trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
-  onStateChange = (s: State) => ZIO(println(s"State changed to ${s}")).ignore
-).use { circuitBreaker =>
-  // Make calls to an external system
-  circuitBreaker(ZIO.unit) // etc
-}
+import zio.stream._
+
+CircuitBreaker
+  .make(trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10))
+  .tap(cb =>
+    cb.stateChanges.flatMap(
+      ZStream
+        .fromQueue(_)
+        .mapM(stateChange => ZIO(println(s"State changed from ${stateChange.from} to ${stateChange.to}")))
+        .runDrain
+        .forkManaged
+    )
+  )
+  .use { circuitBreaker =>
+    // Make calls to an external system
+    circuitBreaker(ZIO.unit) // etc
+  }
 ```
