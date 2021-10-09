@@ -89,8 +89,8 @@ object PolicySpec extends DefaultRunnableSpec {
           initialStatus <- fib.status
           _             <- TestClock.adjust(1.seconds)
           _             <- fib.join
-        } yield assert(initialStatus)(Assertion.isSubtype[Fiber.Status.Suspended](anything))
+        } yield assert(initialStatus)(isSubtype[Fiber.Status.Suspended](anything))
       }
     }
-  ) @@ nonFlaky @@ timeout(30.seconds)
+  ) @@ nonFlaky @@ timeout(60.seconds)
 }
