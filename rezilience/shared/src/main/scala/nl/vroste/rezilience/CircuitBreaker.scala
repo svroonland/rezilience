@@ -146,7 +146,7 @@ object CircuitBreaker {
                           }
                           .runDrain
                           .forkManaged
-    } yield new CircuitBreakerImpl[E](
+    } yield new CircuitBreakerImpl[resetPolicy.State, E](
       state,
       resetRequests,
       strategy,
@@ -156,12 +156,12 @@ object CircuitBreaker {
       halfOpenSwitch
     )
 
-  private case class CircuitBreakerImpl[-E](
+  private case class CircuitBreakerImpl[ScheduleState, -E](
     state: Ref[State],
     resetRequests: Queue[Unit],
     strategy: TrippingStrategy,
     onStateChange: State => UIO[Unit],
-    schedule: Schedule.Driver[Has[Clock], Any, Any],
+    schedule: Schedule.Driver[ScheduleState, Has[Clock], Any, Any],
     isFailure: PartialFunction[E, Boolean],
     halfOpenSwitch: Ref[Boolean]
   ) extends CircuitBreaker[E] {
@@ -215,7 +215,7 @@ object CircuitBreaker {
                         }
       } yield result
 
-    def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2] = CircuitBreakerImpl[E2](
+    def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2] = CircuitBreakerImpl[ScheduleState, E2](
       state,
       resetRequests,
       strategy,

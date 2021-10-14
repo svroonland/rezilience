@@ -76,7 +76,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
           effect = ref
                      .getAndUpdate(_ + 1)
                      .flatMap(count => ZIO.fail(()).when(count < 1))
-        } yield effect
+        } yield effect.unit
 
         policy.use { callWithPolicy =>
           for {
@@ -146,7 +146,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
   val failFirstTime: ZIO[Any, Nothing, ZIO[Any, Unit, Unit]] = for {
     ref   <- Ref.make(0)
     effect = ref.getAndUpdate(_ + 1).flatMap(count => ZIO.fail(()).when(count < 1))
-  } yield effect
+  } yield effect.unit
 
   // TODO add tests for edge-case behavior, eg interruption
 }

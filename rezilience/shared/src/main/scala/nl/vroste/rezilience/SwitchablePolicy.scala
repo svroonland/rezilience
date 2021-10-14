@@ -73,7 +73,7 @@ object SwitchablePolicy {
             done              = shutdownBegan && (newInFlightCalls == 0)
           } yield done
         }.flatMap { done =>
-          ZIO.when(done)(usedPolicyState.shutdownComplete.succeed(()))
+          ZIO.when(done)(usedPolicyState.shutdownComplete.succeed(())).unit
         }
 
       override def switch[R1, E1, E2 >: E](
@@ -109,7 +109,7 @@ object SwitchablePolicy {
       _                  <-
         (currentPolicyState.shutdownComplete.await *> currentPolicyState.finalizer
           .apply(Exit.unit)
-          .to(policyReleased)).fork
+          .intoPromise(policyReleased)).fork
     } yield policyReleased.await.unit
 
   private def switchFinishInFlight[E, E0, R0](
@@ -137,7 +137,7 @@ object SwitchablePolicy {
       _                             <-
         (currentPolicyState.shutdownComplete.await.unless(inFlight == 0) *>
           markAsReady.succeed(()) *>
-          currentPolicyState.finalizer.apply(Exit.unit).to(policyReleased)).fork
+          currentPolicyState.finalizer.apply(Exit.unit).intoPromise(policyReleased)).fork
     } yield policyReleased.await.unit
 
   private case class PolicyState[E](

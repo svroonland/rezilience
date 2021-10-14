@@ -103,9 +103,10 @@ object Bulkhead {
 
             }.flatten.uninterruptible
           onInterruptOrCompletion = done.succeed(())
-          result                 <- ZManaged
-                                      .makeInterruptible_(enqueueAction.onInterrupt(onInterruptOrCompletion))(onInterruptOrCompletion)
-                                      .useDiscard(start.await *> task.mapError(WrappedError(_)))
+          result                 <-
+            ZManaged
+              .acquireReleaseInterruptible(enqueueAction.onInterrupt(onInterruptOrCompletion))(onInterruptOrCompletion)
+              .useDiscard(start.await *> task.mapError(WrappedError(_)))
         } yield result
 
       override def metrics: UIO[Metrics] = inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued))

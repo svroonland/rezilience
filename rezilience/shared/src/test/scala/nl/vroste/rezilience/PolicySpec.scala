@@ -1,11 +1,10 @@
 package nl.vroste.rezilience
 import nl.vroste.rezilience.Policy.WrappedError
-import zio.durationInt
 import zio.test.Assertion._
 import zio.test.TestAspect.{ nonFlaky, timeout }
 import zio.test.environment.TestClock
-import zio.test.{ DefaultRunnableSpec, _ }
-import zio.{ Fiber, Promise, ZIO, ZManaged }
+import zio.test._
+import zio.{ durationInt, Fiber, Promise, ZIO }
 
 object PolicySpec extends DefaultRunnableSpec {
   sealed trait Error
@@ -15,9 +14,9 @@ object PolicySpec extends DefaultRunnableSpec {
   override def spec = suite("Policy")(
     test("succeeds the first call immediately regardless of the policies") {
       val policy =
-        ZManaged.mapN(RateLimiter.make(1), Bulkhead.make(100), CircuitBreaker.withMaxFailures(10))(
-          Policy.common(_, _, _)
-        )
+        (RateLimiter.make(1) zip
+          Bulkhead.make(100) zip
+          CircuitBreaker.withMaxFailures(10)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
       policy.use { policy =>
         for {
@@ -28,9 +27,9 @@ object PolicySpec extends DefaultRunnableSpec {
     },
     test("fails the first call when retry is disabled") {
       val policy =
-        ZManaged.mapN(RateLimiter.make(1), Bulkhead.make(100), CircuitBreaker.withMaxFailures(10))(
-          Policy.common(_, _, _)
-        )
+        (RateLimiter.make(1) zip
+          Bulkhead.make(100) zip
+          CircuitBreaker.withMaxFailures(10)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
       policy.use { policy =>
         for {
@@ -40,11 +39,9 @@ object PolicySpec extends DefaultRunnableSpec {
     },
     test("fail with a circuit breaker error after too many failed calls") {
       val policy =
-        ZManaged.mapN(
-          RateLimiter.make(2),
-          Bulkhead.make(100),
-          CircuitBreaker.withMaxFailures(1)
-        )(Policy.common(_, _, _))
+        (RateLimiter.make(2) zip
+          Bulkhead.make(100) zip
+          CircuitBreaker.withMaxFailures(1)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
       policy.use { policy =>
         for {
@@ -55,11 +52,9 @@ object PolicySpec extends DefaultRunnableSpec {
     },
     test("fail with a bulkhead error after too many calls in progress") {
       val policy =
-        ZManaged.mapN(
-          RateLimiter.make(10),
-          Bulkhead.make(1, maxQueueing = 1),
-          CircuitBreaker.withMaxFailures(1)
-        )(Policy.common(_, _, _))
+        (RateLimiter.make(10) zip
+          Bulkhead.make(1, maxQueueing = 1) zip
+          CircuitBreaker.withMaxFailures(1)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
       policy.use { policy =>
         for {
@@ -74,11 +69,9 @@ object PolicySpec extends DefaultRunnableSpec {
     },
     test("rate limit") {
       val policy =
-        ZManaged.mapN(
-          RateLimiter.make(2),
-          Bulkhead.make(10),
-          CircuitBreaker.withMaxFailures(1)
-        )(Policy.common(_, _, _))
+        (RateLimiter.make(2) zip
+          Bulkhead.make(10) zip
+          CircuitBreaker.withMaxFailures(1)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
       policy.use { policy =>
         for {

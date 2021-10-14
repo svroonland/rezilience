@@ -64,11 +64,12 @@ object RateLimiter {
         interruptedRef         <- Ref.make(false)
         action                  = start.succeed(()) *> done.await
         onInterruptOrCompletion = interruptedRef.set(true) *> done.succeed(())
-        result                 <- ZManaged
-                                    .makeInterruptible_(q.offer((interruptedRef, action)).onInterrupt(onInterruptOrCompletion))(
-                                      onInterruptOrCompletion
-                                    )
-                                    .useDiscard(start.await *> task)
+        result                 <-
+          ZManaged
+            .acquireReleaseInterruptible(q.offer((interruptedRef, action)).onInterrupt(onInterruptOrCompletion))(
+              onInterruptOrCompletion
+            )
+            .useDiscard(start.await *> task)
       } yield result
     }
 }

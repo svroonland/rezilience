@@ -7,7 +7,7 @@ import zio._
 /**
  * Example of how to integrate a rate limiter to an entire Service using ZLayer
  */
-object ZLayerIntegrationExample extends zio.App {
+object ZLayerIntegrationExample extends zio.ZIOAppDefault {
   type Account = String
   type Amount  = Int
 
@@ -115,7 +115,7 @@ object ZLayerIntegrationExample extends zio.App {
     (Clock.live ++ databaseLayer) >+> addRateLimiterToDatabase >>> addCircuitBreakerToDatabase
 
   // Run our program against the Database service being unconcerned with the rate limiter
-  override def run(args: List[String]): URIO[ZEnv, ExitCode] =
+  override def run: ZIO[zio.ZEnv with Has[ZIOAppArgs], Any, Any] =
     (ResilientDatabase.transfer(1, "a", "b") *> ResilientDatabase.transfer(3, "b", "a"))
       .provideCustomLayer(env)
       .exitCode
