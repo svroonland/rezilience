@@ -46,6 +46,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
               .foreachParDiscard(1 to max + 2)(_ =>
                 bulkhead(callsCompleted.updateAndGet(_ + 1) *> ZIO.sleep(2.seconds))
               )
+              .withParallelismUnbounded
               .fork
           _                <- TestClock.adjust(1.second)
           nrCallsCompleted <- callsCompleted.get
@@ -74,6 +75,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
                                  } yield ()
                                }
                              }
+                             .withParallelismUnbounded
                              .fork
           _             <- maxInFlight.await raceFirst calls.join
           // Enqueue 6 more, of which one will fail
@@ -82,6 +84,7 @@ object BulkheadSpec extends DefaultRunnableSpec {
                              .foreachPar(1 to queueLimit + 1)(i =>
                                bulkhead(ZIO.unit).tapError(_ => failure.succeed(())).orElseFail(i).either
                              )
+                             .withParallelismUnbounded
                              .fork
           // We expect one failure
           _             <- failure.await
