@@ -40,7 +40,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
         }
       } @@ nonFlaky,
       test("does not trip when all calls are successful") {
-        checkM(
+        check(
           Gen.double(0.0, 1.0),                     // Failure threshold
           Gen.finiteDuration(1.second, 10.minutes), // Sample duration
           Gen.int(1, 10),                           // Min throughput
@@ -138,7 +138,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
       test("trips only after the sample duration has expired and all calls fail") {
         val nrSampleBuckets = 10
 
-        checkM(
+        check(
           Gen.double(0.1, 1.0),                                                   // Failure threshold
           Gen.finiteDuration(1.second, 10.minutes).map(PrintFriendlyDuration(_)), // Sample duration
           Gen.int(1, 10),                                                         // Min throughput
