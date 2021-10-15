@@ -50,7 +50,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache
-      - run: sbt ++3.0.0! rezilienceJVM/test
+      - run: sbt ++3.0.2! rezilienceJVM/test
       - save_cache:
           key: sbt-cache
           paths:
