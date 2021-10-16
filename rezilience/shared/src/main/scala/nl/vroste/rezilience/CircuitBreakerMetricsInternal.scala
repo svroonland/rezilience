@@ -1,6 +1,6 @@
 package nl.vroste.rezilience
 
-import nl.vroste.rezilience.CircuitBreaker.{ Metrics, State, StateChange }
+import nl.vroste.rezilience.CircuitBreaker.{ State, StateChange }
 import zio.Chunk
 import zio.duration.Duration
 
@@ -18,8 +18,8 @@ private[rezilience] final case class CircuitBreakerMetricsInternal(
 
   def toUserMetrics(
     interval: Duration
-  ): Metrics =
-    Metrics(
+  ): CircuitBreakerMetrics =
+    CircuitBreakerMetrics(
       interval,
       succeededCalls,
       failedCalls,
