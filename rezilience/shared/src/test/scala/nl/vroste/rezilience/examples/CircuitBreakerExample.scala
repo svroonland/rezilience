@@ -21,7 +21,7 @@ object CircuitBreakerExample {
       cb.stateChanges.flatMap(
         ZStream
           .fromQueue(_)
-          .mapM(stateChange => UIO(println(s"State changed from ${stateChange.from} to ${stateChange.to}")))
+          .tap(stateChange => UIO(println(s"State changed from ${stateChange.from} to ${stateChange.to}")))
           .runDrain
           .forkManaged
       )
