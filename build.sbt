@@ -86,6 +86,12 @@ lazy val docs = project
     micrositeGithubRepo := "rezilience",
     micrositeGitterChannel := false,
     micrositeDataDirectory := file("docs/src/microsite/data"),
-    micrositeFooterText := None
+    micrositeFooterText := None,
+    libraryDependencies ++= Seq(
+      "dev.zio"                %%% "zio-streams"             % "1.0.12",
+      "dev.zio"                %%% "zio-test"                % "1.0.12" % "test",
+      "dev.zio"                %%% "zio-test-sbt"            % "1.0.12" % "test",
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.5.0"
+    )
   )
   .dependsOn(rezilience.jvm)
