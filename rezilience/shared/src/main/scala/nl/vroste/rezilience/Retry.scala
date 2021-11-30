@@ -1,5 +1,5 @@
 package nl.vroste.rezilience
-import zio.{ durationInt, Clock, Duration, Has, Random, Schedule, ZIO, ZManaged }
+import zio.{ durationInt, Clock, Duration, Random, Schedule, ZEnvironment, ZIO, ZManaged }
 
 import scala.math.Ordered.orderingToOrdered
 
@@ -46,21 +46,23 @@ object Retry {
     factor: Double = 2.0,
     retryImmediately: Boolean = true,
     maxRetries: Option[Int] = Some(3)
-  ): ZManaged[Has[Clock] with Has[Random], Nothing, Retry[Any]] =
+  ): ZManaged[Clock with Random, Nothing, Retry[Any]] =
     make(Schedules.common(min, max, factor, retryImmediately, maxRetries))
 
   /**
    * Create a Retry from a ZIO Schedule
    */
-  def make[R, E](schedule: Schedule[R, E, Any]): ZManaged[Has[Clock] with R, Nothing, Retry[E]] =
-    ZManaged.environment[Has[Clock] with R].map(RetryImpl(_, schedule))
+  def make[R, E](schedule: Schedule[R, E, Any]): ZManaged[Clock with R, Nothing, Retry[E]] =
+    ZManaged.environment[Clock with R].map(env => RetryImpl[E, R with Clock](env, schedule))
 
   private case class RetryImpl[-E, ScheduleEnv](
-    scheduleEnv: Has[Clock] with ScheduleEnv,
+    scheduleEnv: ZEnvironment[Clock with ScheduleEnv],
     schedule: Schedule[ScheduleEnv, E, Any]
   ) extends Retry[E] {
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] =
-      ZIO.environment[R].flatMap(env => f.provide(env).retry(schedule).provide(scheduleEnv))
+      ZIO
+        .environment[R]
+        .flatMap(env => f.provideEnvironment(env).retry(schedule).provideEnvironment(scheduleEnv))
 
     override def widen[E2](pf: PartialFunction[E2, E]): Retry[E2] = RetryImpl[E2, ScheduleEnv](
       scheduleEnv,
@@ -101,7 +103,7 @@ object Retry {
       retryImmediately: Boolean = true,
       maxRetries: Option[Int] = Some(3),
       jitterFactor: Double = 0.1
-    ): Schedule[Any with Has[Random], Any, (Any, Long)] =
+    ): Schedule[Random, Any, (Any, Long)] =
       ((if (retryImmediately) zio.Schedule.once else zio.Schedule.stop) andThen
         exponentialBackoff(min, max, factor).jittered(jitterFactor, 1.0 - jitterFactor)) &&
         maxRetries.fold(zio.Schedule.forever)(zio.Schedule.recurs)

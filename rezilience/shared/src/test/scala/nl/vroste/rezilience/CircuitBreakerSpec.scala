@@ -5,7 +5,6 @@ import zio.{ durationInt, Queue, Schedule, ZIO }
 import zio.test.Assertion._
 import zio.test.TestAspect.nonFlaky
 import zio.test._
-import zio.test.environment.TestClock
 
 object CircuitBreakerSpec extends DefaultRunnableSpec {
   sealed trait Error

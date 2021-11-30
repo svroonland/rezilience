@@ -2,7 +2,6 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.Policy.WrappedError
 import zio.test.Assertion._
 import zio.test.TestAspect.{ nonFlaky, timeout }
-import zio.test.environment.TestClock
 import zio.test._
 import zio.{ durationInt, Fiber, Promise, ZIO }
 

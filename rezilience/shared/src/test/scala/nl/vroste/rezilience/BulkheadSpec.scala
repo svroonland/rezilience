@@ -3,7 +3,6 @@ package nl.vroste.rezilience
 import zio.test.Assertion._
 import zio.test.TestAspect.{ nonFlaky, timed, timeout }
 import zio.test._
-import zio.test.environment.TestClock
 import zio.{ durationInt, Promise, Ref, ZIO }
 
 object BulkheadSpec extends DefaultRunnableSpec {

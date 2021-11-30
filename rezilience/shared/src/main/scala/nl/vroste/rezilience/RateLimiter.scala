@@ -45,7 +45,7 @@ object RateLimiter {
    * @param interval Interval duration
    * @return RateLimiter
    */
-  def make(max: Int, interval: Duration = 1.second): ZManaged[Has[Clock], Nothing, RateLimiter] =
+  def make(max: Int, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] =
     for {
       q <- Queue
              .bounded[(Ref[Boolean], UIO[Any])](zio.internal.RingBuffer.nextPow2(max))

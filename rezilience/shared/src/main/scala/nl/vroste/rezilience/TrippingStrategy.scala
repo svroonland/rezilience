@@ -50,7 +50,7 @@ object TrippingStrategy {
     sampleDuration: Duration = 1.minute,
     minThroughput: Int = 10,
     nrSampleBuckets: Int = 10
-  ): ZManaged[Has[Clock], Nothing, TrippingStrategy] = {
+  ): ZManaged[Clock, Nothing, TrippingStrategy] = {
     require(
       failureRateThreshold > 0.0 && failureRateThreshold < 1.0,
       "failureRateThreshold must be between 0 (exclusive) and 1"

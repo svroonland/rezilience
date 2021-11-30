@@ -3,7 +3,6 @@ package nl.vroste.rezilience
 import zio.test.Assertion._
 import zio.test._
 import zio._
-import zio.test.environment.{ testEnvironment, TestClock, TestEnvironment }
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerOpen
 import nl.vroste.rezilience.CircuitBreaker.State
 import zio.test.TestAspect.{ diagnose, nonFlaky, timeout }
@@ -19,7 +18,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
   case object MyCallError     extends Error
   case object MyNotFatalError extends Error
 
-  val randomListOfIntervals: Gen[Has[Random], List[PrintFriendlyDuration]] = Gen.int(0, 5).flatMap {
+  val randomListOfIntervals: Gen[Random, List[PrintFriendlyDuration]] = Gen.int(0, 5).flatMap {
     Gen.listOfN(_) {
       Gen.finiteDuration(min = 100.millis, max = 10.seconds).map(PrintFriendlyDuration(_))
     }
@@ -74,7 +73,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
               r <- cb(UIO(println("Succeeding call that should fail fast"))).exit
             } yield assert(r)(fails(equalTo(CircuitBreakerOpen)))
           }
-      }.provideSomeLayer(Clock.live) @@ nonFlaky,
+      }.provideSome(Clock.live) @@ nonFlaky,
       test("does not trip if the failure rate stays below the threshold") {
         val rate           = 0.7
         val sampleDuration = 400.millis
@@ -95,7 +94,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
               }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(10))
             } yield assertCompletes
           }
-      }.provideSomeLayer(Clock.live) @@ nonFlaky,
+      }.provideSome(Clock.live) @@ nonFlaky,
       test("does not trip after resetting") {
         val rate           = 0.5
         val sampleDuration = 400.millis
@@ -134,7 +133,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
             _ <- makeCall(ZIO.unit)
           } yield assertCompletes
         }
-      }.provideSomeLayer(Clock.live ++ Console.live) @@ nonFlaky,
+      }.provideSome(Clock.live ++ Console.live) @@ nonFlaky,
       test("trips only after the sample duration has expired and all calls fail") {
         val nrSampleBuckets = 10
 
