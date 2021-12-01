@@ -1,5 +1,5 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
-val mainScala    = "2.13.6"
+val mainScala    = "2.13.7"
 val allScala     = Seq("2.12.15", mainScala)
 val dottyVersion = "3.1.0"
 val zioVersion   = "2.0.0-M6-2"
@@ -54,7 +54,7 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
       "dev.zio"                %%% "zio-streams"             % zioVersion,
       "dev.zio"                %%% "zio-test"                % zioVersion % "test",
       "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.5.0"
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.6.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
@@ -91,7 +91,7 @@ lazy val docs = project
       "dev.zio"                %%% "zio-streams"             % "1.0.12",
       "dev.zio"                %%% "zio-test"                % "1.0.12" % "test",
       "dev.zio"                %%% "zio-test-sbt"            % "1.0.12" % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.5.0"
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.6.0"
     )
   )
   .dependsOn(rezilience.jvm)
