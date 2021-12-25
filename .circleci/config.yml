@@ -5,51 +5,25 @@ jobs:
       - image: hseeberger/scala-sbt:8u312_1.5.8_2.13.7
     steps:
       - checkout
-      - restore_cache:
-          key: sbt-cache
       - run: sbt ++2.13.7! check
-      - save_cache:
-          key: sbt-cache
-          paths:
-            - "~/.ivy2/cache"
-            - "~/.sbt"
-            - "~/.m2"
   test213:
     docker:
       - image: hseeberger/scala-sbt:17.0.1_1.5.8_2.13.7
     steps:
       - checkout
-      - restore_cache:
-          key: sbt-cache
       - run: sbt ++2.13.7! compile rezilienceJVM/test
-      - save_cache:
-          key: sbt-cache
-          paths:
-            - "~/.ivy2/cache"
-            - "~/.sbt"
-            - "~/.m2"
   test_dotty:
     docker:
       - image: hseeberger/scala-sbt:17.0.1_1.5.8_3.1.0
     steps:
       - checkout
-      - restore_cache:
-          key: sbt-cache
       - run: sbt ++3.1.0! rezilienceJVM/test
-      - save_cache:
-          key: sbt-cache
-          paths:
-            - "~/.ivy2/cache"
-            - "~/.sbt"
-            - "~/.m2"
   release:
     docker:
       - image: hseeberger/scala-sbt:17.0.1_1.5.8_2.13.7
     steps:
       - checkout
       - run: git fetch --tags
-      - restore_cache:
-          key: sbt-cache
       - run: apt install -y gnupg
       - run: export GPG_TTY=$(tty)
       - run: echo $PGP_SECRET | base64 --decode | gpg --batch --import
