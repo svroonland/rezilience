@@ -88,9 +88,9 @@ lazy val docs = project
     micrositeDataDirectory := file("docs/src/microsite/data"),
     micrositeFooterText := None,
     libraryDependencies ++= Seq(
-      "dev.zio"                %%% "zio-streams"             % "1.0.12",
-      "dev.zio"                %%% "zio-test"                % "1.0.12" % "test",
-      "dev.zio"                %%% "zio-test-sbt"            % "1.0.12" % "test",
+      "dev.zio"                %%% "zio-streams"             % zioVersion,
+      "dev.zio"                %%% "zio-test"                % zioVersion % "test",
+      "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
       "org.scala-lang.modules" %%% "scala-collection-compat" % "2.6.0"
     )
   )
