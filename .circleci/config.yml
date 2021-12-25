@@ -2,7 +2,7 @@ version: 2.1
 jobs:
   lint:
     docker:
-      - image: hseeberger/scala-sbt:8u312_1.5.5_2.13.7
+      - image: hseeberger/scala-sbt:8u312_1.5.8_2.13.7
     steps:
       - checkout
       - restore_cache:
@@ -14,10 +14,9 @@ jobs:
             - "~/.ivy2/cache"
             - "~/.sbt"
             - "~/.m2"
-  test213_jdk8:
+  test213:
     docker:
-      - image: hseeberger/scala-sbt:8u312_1.5.5_2.13.7
-
+      - image: hseeberger/scala-sbt:17.0.1_1.5.8_2.13.7
     steps:
       - checkout
       - restore_cache:
@@ -29,23 +28,9 @@ jobs:
             - "~/.ivy2/cache"
             - "~/.sbt"
             - "~/.m2"
-  test213_jdk11:
+  test_dotty:
     docker:
-      - image: hseeberger/scala-sbt:11.0.13_1.5.5_2.13.7
-    steps:
-      - checkout
-      - restore_cache:
-          key: sbt-cache
-      - run: sbt ++2.13.7! compile rezilienceJVM/test
-      - save_cache:
-          key: sbt-cache
-          paths:
-            - "~/.ivy2/cache"
-            - "~/.sbt"
-            - "~/.m2"
-  test_dotty_jdk11:
-    docker:
-      - image: hseeberger/scala-sbt:11.0.13_1.5.5_3.1.0
+      - image: hseeberger/scala-sbt:17.0.1_1.5.8_3.1.0
     steps:
       - checkout
       - restore_cache:
@@ -57,37 +42,9 @@ jobs:
             - "~/.ivy2/cache"
             - "~/.sbt"
             - "~/.m2"
-  test212_jdk8:
-    docker:
-      - image: hseeberger/scala-sbt:8u312_1.5.5_2.12.15
-    steps:
-      - checkout
-      - restore_cache:
-          key: sbt-cache
-      - run: sbt ++2.12.15! compile rezilienceJVM/test
-      - save_cache:
-          key: sbt-cache
-          paths:
-            - "~/.ivy2/cache"
-            - "~/.sbt"
-            - "~/.m2"
-  test212_jdk11:
-    docker:
-      - image: hseeberger/scala-sbt:11.0.13_1.5.5_2.12.15
-    steps:
-      - checkout
-      - restore_cache:
-          key: sbt-cache
-      - run: sbt ++2.12.15! compile rezilienceJVM/test
-      - save_cache:
-          key: sbt-cache
-          paths:
-            - "~/.ivy2/cache"
-            - "~/.sbt"
-            - "~/.m2"
   release:
     docker:
-      - image: hseeberger/scala-sbt:17.0.1_1.5.5_2.13.7
+      - image: hseeberger/scala-sbt:17.0.1_1.5.8_2.13.7
     steps:
       - checkout
       - run: git fetch --tags
@@ -107,31 +64,13 @@ workflows:
           filters:
             tags:
               only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
-      - test213_jdk8:
+      - test213:
           requires:
             - lint
           filters:
             tags:
               only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
-      - test213_jdk11:
-          requires:
-            - lint
-          filters:
-            tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
-      - test212_jdk8:
-          requires:
-            - lint
-          filters:
-            tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
-      - test212_jdk11:
-          requires:
-            - lint
-          filters:
-            tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
-      - test_dotty_jdk11:
+      - test_dotty:
           requires:
             - lint
           filters:
@@ -139,11 +78,8 @@ workflows:
               only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
       - release:
           requires:
-            - test213_jdk8
-            - test213_jdk11
-            - test212_jdk8
-            - test212_jdk11
-            - test_dotty_jdk11
+            - test213
+            - test_dotty
           filters:
             branches:
               only:
