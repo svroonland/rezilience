@@ -11,13 +11,13 @@ jobs:
       - image: hseeberger/scala-sbt:17.0.1_1.5.8_2.13.7
     steps:
       - checkout
-      - run: sbt ++2.13.7! compile rezilienceJVM/test
+      - run: sbt ++2.13.7! compile rezilienceJVM/test:compile
   test_dotty:
     docker:
       - image: hseeberger/scala-sbt:17.0.1_1.5.8_3.1.0
     steps:
       - checkout
-      - run: sbt ++3.1.0! rezilienceJVM/test
+      - run: sbt ++3.1.0! rezilienceJVM/test:compile
   release:
     docker:
       - image: hseeberger/scala-sbt:17.0.1_1.5.8_2.13.7
