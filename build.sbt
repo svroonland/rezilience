@@ -1,8 +1,9 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
+import sbt.Keys.resolvers
 val mainScala    = "2.13.7"
 val allScala     = Seq("2.12.15", mainScala)
 val dottyVersion = "3.1.0"
-val zioVersion   = "2.0.0-RC1"
+val zioVersion   = "2.0.0-RC1+43-07d852cd-SNAPSHOT"
 
 lazy val commonJvmSettings = Seq(
   crossScalaVersions := allScala :+ dottyVersion
@@ -27,7 +28,8 @@ inThisBuild(
     ),
     scmInfo := Some(
       ScmInfo(url("https://github.com/svroonland/rezilience/"), "scm:git:git@github.com:svroonland/rezilience.git")
-    )
+    ),
+    resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
   )
 )
 
@@ -35,6 +37,7 @@ lazy val root = project
   .in(file("."))
   .aggregate(rezilience.js, rezilience.jvm)
   .settings(
+    name := "rezilience",
     publish := {},
     publishLocal := {}
   )
