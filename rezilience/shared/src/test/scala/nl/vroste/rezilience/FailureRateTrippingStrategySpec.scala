@@ -73,7 +73,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
               r <- cb(UIO(println("Succeeding call that should fail fast"))).exit
             } yield assert(r)(fails(equalTo(CircuitBreakerOpen)))
           }
-      }.provideSome(Clock.live) @@ nonFlaky,
+      }.provideSomeLayer(Clock.live) @@ nonFlaky,
       test("does not trip if the failure rate stays below the threshold") {
         val rate           = 0.7
         val sampleDuration = 400.millis
@@ -94,7 +94,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
               }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(10))
             } yield assertCompletes
           }
-      }.provideSome(Clock.live) @@ nonFlaky,
+      }.provideSomeLayer(Clock.live) @@ nonFlaky,
       test("does not trip after resetting") {
         val rate           = 0.5
         val sampleDuration = 400.millis
@@ -133,7 +133,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
             _ <- makeCall(ZIO.unit)
           } yield assertCompletes
         }
-      }.provideSome(Clock.live ++ Console.live) @@ nonFlaky,
+      }.provideSomeLayer(Clock.live ++ Console.live) @@ nonFlaky,
       test("trips only after the sample duration has expired and all calls fail") {
         val nrSampleBuckets = 10
 
