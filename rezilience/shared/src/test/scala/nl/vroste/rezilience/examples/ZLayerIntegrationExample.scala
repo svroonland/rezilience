@@ -117,6 +117,6 @@ object ZLayerIntegrationExample extends zio.ZIOAppDefault {
   // Run our program against the Database service being unconcerned with the rate limiter
   override def run: ZIO[zio.ZEnv with ZIOAppArgs, Any, Any] =
     (ResilientDatabase.transfer(1, "a", "b") *> ResilientDatabase.transfer(3, "b", "a"))
-      .provideCustom(env)
+      .provideCustomLayer(env)
       .exitCode
 }
