@@ -13,14 +13,10 @@ trait Policy[-E] { self =>
   /**
    * Apply another policy on top of this one
    *
-   * The other policy gets applied before this policy, i.e. policyA compose policyB means
-   * policyB {
-   *  policyA {
-   *    effect
-   *    }
-   * }
+   * The other policy gets applied before this policy, i.e. policyA compose policyB means policyB { policyA { effect } }
    *
-   * @param that The other policy
+   * @param that
+   *   The other policy
    * @tparam E2
    * @return
    */
@@ -60,8 +56,8 @@ object Policy {
   def unwrap[E]: PartialFunction[PolicyError[E], E] = { case WrappedError(e) => e }
 
   /**
-   * Creates a common rezilience policy that wraps calls with a bulkhead, followed by a circuit breaker,
-   * followed by a rate limiter, followed by a retry policy.
+   * Creates a common rezilience policy that wraps calls with a bulkhead, followed by a circuit breaker, followed by a
+   * rate limiter, followed by a retry policy.
    *
    * i.e. retry(withRateLimiter(withCircuitBreaker(withBulkhead(effect)))
    *
