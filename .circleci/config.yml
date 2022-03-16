@@ -147,3 +147,4 @@ workflows:
             branches:
               only:
                 - master
+                - zio-2.0
