@@ -12,8 +12,7 @@ private[rezilience] final case class CircuitBreakerMetricsInternal(
   failedCalls: Long,
   rejectedCalls: Long,
   stateChanges: Chunk[StateChange],
-  lastResetTime: Option[Instant],
-  currentState: State
+  lastResetTime: Option[Instant]
 ) {
 
   def toUserMetrics(
@@ -28,24 +27,23 @@ private[rezilience] final case class CircuitBreakerMetricsInternal(
       lastResetTime
     )
 
-  def callSucceeded: CircuitBreakerMetricsInternal                            = copy(succeededCalls = succeededCalls + 1)
-  def callRejected: CircuitBreakerMetricsInternal                             = copy(rejectedCalls = rejectedCalls + 1)
-  def callFailed: CircuitBreakerMetricsInternal                               = copy(failedCalls = failedCalls + 1)
-  def stateChanged(state: State, now: Instant): CircuitBreakerMetricsInternal =
-    copy(stateChanges = stateChanges :+ StateChange(currentState, state, now), currentState = state)
+  def callSucceeded: CircuitBreakerMetricsInternal                                                 = copy(succeededCalls = succeededCalls + 1)
+  def callRejected: CircuitBreakerMetricsInternal                                                  = copy(rejectedCalls = rejectedCalls + 1)
+  def callFailed: CircuitBreakerMetricsInternal                                                    = copy(failedCalls = failedCalls + 1)
+  def stateChanged(currentState: State, state: State, now: Instant): CircuitBreakerMetricsInternal =
+    copy(stateChanges = stateChanges :+ StateChange(currentState, state, now))
 
 }
 
 private[rezilience] object CircuitBreakerMetricsInternal {
 
-  def empty(now: Instant, currentState: State): CircuitBreakerMetricsInternal =
+  def empty(now: Instant): CircuitBreakerMetricsInternal =
     CircuitBreakerMetricsInternal(
       start = now,
       succeededCalls = 0,
       failedCalls = 0,
       rejectedCalls = 0,
       stateChanges = Chunk.empty,
-      lastResetTime = None,
-      currentState = currentState
+      lastResetTime = None
     )
 }

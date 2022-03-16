@@ -185,27 +185,26 @@ object CircuitBreaker {
     metricsInterval: Duration = 10.seconds
   ): ZManaged[Clock with R1, Nothing, CircuitBreaker[E]] = {
 
-    def makeNewMetrics(currentState: State) =
+    def makeNewMetrics =
       for {
         now <- clock.instant
-      } yield CircuitBreakerMetricsInternal.empty(now, currentState)
+      } yield CircuitBreakerMetricsInternal.empty(now)
 
     def collectMetrics(currentMetrics: Ref[CircuitBreakerMetricsInternal]) =
       for {
-        currentState <- currentMetrics.get
-        newMetrics   <- makeNewMetrics(currentState.currentState)
-        lastMetrics  <- currentMetrics.getAndSet(newMetrics)
-        interval      = java.time.Duration.between(lastMetrics.start, newMetrics.start)
-        _            <- onMetrics(lastMetrics.toUserMetrics(interval))
+        newMetrics  <- makeNewMetrics
+        lastMetrics <- currentMetrics.getAndSet(newMetrics)
+        interval     = java.time.Duration.between(lastMetrics.start, newMetrics.start)
+        _           <- onMetrics(lastMetrics.toUserMetrics(interval))
       } yield ()
 
     for {
-      metrics      <- makeNewMetrics(State.Closed).flatMap(Ref.make).toManaged_
+      metrics      <- makeNewMetrics.flatMap(Ref.make).toManaged_
       _            <- MetricsUtil.runCollectMetricsLoop(metrics, metricsInterval)(collectMetrics)
       stateChanges <- cb.stateChanges
       _            <- ZStream
                         .fromQueue(stateChanges)
-                        .tap(stateChange => metrics.update(_.stateChanged(stateChange.to, stateChange.at)))
+                        .tap(stateChange => metrics.update(_.stateChanged(stateChange.from, stateChange.to, stateChange.at)))
                         .runDrain
                         .forkManaged
     } yield CircuitBreakerWithMetricsImpl(cb, metrics)
