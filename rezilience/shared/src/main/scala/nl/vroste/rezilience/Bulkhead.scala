@@ -7,23 +7,24 @@ import zio.stream.ZStream
 /**
  * Limits the number of simultaneous in-flight calls to an external resource
  *
- * A bulkhead limits the resources used by some system by limiting the number of concurrent calls to that system.
- * Calls that exceed that number are rejected with a `BulkheadError`. To ensure good utilisation of the system, however,
- * there is a queue/buffer of waiting calls.
+ * A bulkhead limits the resources used by some system by limiting the number of concurrent calls to that system. Calls
+ * that exceed that number are rejected with a `BulkheadError`. To ensure good utilisation of the system, however, there
+ * is a queue/buffer of waiting calls.
  *
- * It also prevents queueing up of requests, which consume resources in the calling system, by rejecting
- * calls when the queue is full.
+ * It also prevents queueing up of requests, which consume resources in the calling system, by rejecting calls when the
+ * queue is full.
  */
 trait Bulkhead { self =>
 
   /**
    * Call the system protected by the Bulkhead
    *
-   * @param task Task to execute. When the maximum number of in-flight calls is exceeded, the
-   *             call will be queued.
+   * @param task
+   *   Task to execute. When the maximum number of in-flight calls is exceeded, the call will be queued.
    *
-   * @return Effect that succeeds with the success of the given task or fails, when executed,
-   *         with a WrappedError of the task's error, or when not executed, with a BulkheadRejection.
+   * @return
+   *   Effect that succeeds with the success of the given task or fails, when executed, with a WrappedError of the
+   *   task's error, or when not executed, with a BulkheadRejection.
    */
   def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A]
 
@@ -67,8 +68,10 @@ object Bulkhead {
   /**
    * Create a Bulkhead with the given parameters
    *
-   * @param maxInFlightCalls Maxmimum of concurrent executing calls
-   * @param maxQueueing Maximum queueing calls
+   * @param maxInFlightCalls
+   *   Maxmimum of concurrent executing calls
+   * @param maxQueueing
+   *   Maximum queueing calls
    * @return
    */
   def make(maxInFlightCalls: Int, maxQueueing: Int = 32): ZManaged[Any, Nothing, Bulkhead] =

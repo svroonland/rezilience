@@ -94,7 +94,7 @@ object RateLimiterSpec extends DefaultRunnableSpec {
     testM("will make effects wait for interrupted effects to pass through the rate limiter") {
       RateLimiter.make(1, 1.second).use { rl =>
         for {
-          _  <- rl(ZIO.unit) // Execute one
+          _  <- rl(ZIO.unit)               // Execute one
           f1 <- rl(ZIO.unit).fork
           _  <- TestClock.adjust(1.second) // This ensures that the second RL call is in the stream before we interrupt
           _  <- f1.interrupt
