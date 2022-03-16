@@ -41,7 +41,7 @@ final case class RateLimiterMetrics(
    * currentlyEnqueued is taken from the `that` parameter, so be sure to use this method as `oldMetrics +
    * latestMetrics`.
    */
-  def +(that: RateLimiterMetrics): RateLimiterMetrics = copy(
+  def +(that: RateLimiterMetrics): RateLimiterMetrics = RateLimiterMetrics(
     interval = interval plus that.interval,
     latency = mergeHistograms(latency, that.latency),
     tasksEnqueued = tasksEnqueued + that.tasksEnqueued,

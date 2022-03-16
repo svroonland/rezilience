@@ -64,7 +64,7 @@ final case class BulkheadMetrics(
    * currentlyEnqueued and currentlyInFlight are taken from the `that` parameter, so be sure to use this method as
    * `oldMetrics + latestMetrics`.
    */
-  def +(that: BulkheadMetrics): BulkheadMetrics = copy(
+  def +(that: BulkheadMetrics): BulkheadMetrics = BulkheadMetrics(
     interval = interval plus that.interval,
     latency = mergeHistograms(latency, that.latency),
     inFlight = mergeHistograms(inFlight, that.inFlight),
