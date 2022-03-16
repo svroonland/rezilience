@@ -25,7 +25,7 @@ final case class BulkheadMetrics(
    */
   currentlyInFlight: Long,
   /**
-   *  Number of tasks that are currently enqueued
+   * Number of tasks that are currently enqueued
    */
   currentlyEnqueued: Long
 ) {
@@ -39,7 +39,7 @@ final case class BulkheadMetrics(
 
   def tasksStarted: Long = latency.getTotalCount
 
-  override def toString: String                 =
+  override def toString: String =
     Seq(
       ("interval", interval.getSeconds, "s"),
       ("tasks currently enqueued", currentlyEnqueued, ""),
@@ -61,8 +61,8 @@ final case class BulkheadMetrics(
   /**
    * Combines the metrics and their histograms
    *
-   * currentlyEnqueued and currentlyInFlight are taken from the `that` parameter, so be sure to use this
-   * method as `oldMetrics + latestMetrics`.
+   * currentlyEnqueued and currentlyInFlight are taken from the `that` parameter, so be sure to use this method as
+   * `oldMetrics + latestMetrics`.
    */
   def +(that: BulkheadMetrics): BulkheadMetrics = copy(
     interval = interval plus that.interval,

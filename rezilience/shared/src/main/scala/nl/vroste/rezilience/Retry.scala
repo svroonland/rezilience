@@ -29,17 +29,21 @@ object Retry {
   /**
    * Create a Retry policy with a common retry schedule
    *
-   * By default the first retry is done immediately. With transient / random failures this method gives the
-   * highest chance of fast success.
-   * After that Retry uses exponential backoff between some minimum and maximum duration. Jitter is added
-   * to prevent spikes of retries.
-   * An optional maximum number of retries ensures that retrying does not continue forever.
+   * By default the first retry is done immediately. With transient / random failures this method gives the highest
+   * chance of fast success. After that Retry uses exponential backoff between some minimum and maximum duration. Jitter
+   * is added to prevent spikes of retries. An optional maximum number of retries ensures that retrying does not
+   * continue forever.
    *
-   * @param min Minimum retry backoff delay
-   * @param max Maximum backoff time. When this value is reached, subsequent intervals will be equal to this value.
-   * @param factor Factor with which delays increase
-   * @param retryImmediately Retry immediately after the first failure
-   * @param maxRetries Maximum number of retries
+   * @param min
+   *   Minimum retry backoff delay
+   * @param max
+   *   Maximum backoff time. When this value is reached, subsequent intervals will be equal to this value.
+   * @param factor
+   *   Factor with which delays increase
+   * @param retryImmediately
+   *   Retry immediately after the first failure
+   * @param maxRetries
+   *   Maximum number of retries
    */
   def make(
     min: Duration = 1.second,
@@ -79,21 +83,28 @@ object Retry {
     /**
      * A common-practice schedule for retrying
      *
-     * By default the first retry is done immediately. With transient / random failures this method gives the
-     * highest chance of fast success.
-     * After that Retry uses exponential backoff between some minimum and maximum duration. Jitter is added
-     * to prevent spikes of retries.
-     * An optional maximum number of retries ensures that retrying does not continue forever.
+     * By default the first retry is done immediately. With transient / random failures this method gives the highest
+     * chance of fast success. After that Retry uses exponential backoff between some minimum and maximum duration.
+     * Jitter is added to prevent spikes of retries from multiple instances. An optional maximum number of retries
+     * ensures that retrying does not continue forever.
      *
      * See also https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
      *
-     * @param min Minimum retry backoff delay
-     * @param max Maximum backoff time. When this value is reached, subsequent intervals will be equal to this value.
-     * @param factor Factor with which delays increase
-     * @param retryImmediately Retry immediately after the first failure
-     * @param maxRetries Maximum number of retries
-     * @param jitterFactor Maximum fraction of the current delay interval that is randomly added or substracted. This
-     *                     helps to spread call attempts in time. To get a 10% jitter for example, use jitterFactor=0.1
+     * @param min
+     *   Minimum retry backoff delay
+     * @param max
+     *   Maximum backoff time. When this value is reached, subsequent intervals will be equal to this value.
+     * @param factor
+     *   Factor with which delays increase
+     * @param retryImmediately
+     *   Retry immediately after the first failure
+     * @param maxRetries
+     *   Maximum number of retries
+     * @param jitterFactor
+     *   Maximum fraction of the current delay interval that is randomly added or subtracted. This helps to spread call
+     *   attempts in time when there are multiple systems making calls to some system using the same retry schedule. For
+     *   example, with `jitterFactor = 0.1` the retry intervals will be multiplied with a random factor between 0.9 and
+     * 1.1. `jitterFactor = 0` disables jittering.
      */
     def common(
       min: Duration = 1.second,
@@ -104,16 +115,20 @@ object Retry {
       jitterFactor: Double = 0.1
     ): Schedule[Any with Random, Any, (Any, Long)] =
       ((if (retryImmediately) zio.Schedule.once else zio.Schedule.stop) andThen
-        exponentialBackoff(min, max, factor).jittered(jitterFactor, 1.0 - jitterFactor)) &&
+        exponentialBackoff(min, max, factor).jittered(1.0 - jitterFactor, 1.0 + jitterFactor)) &&
         maxRetries.fold(zio.Schedule.forever)(zio.Schedule.recurs)
 
     /**
      * Schedule for exponential backoff up to a maximum interval
      *
-     * @param min Minimum backoff time
-     * @param max Maximum backoff time. When this value is reached, subsequent intervals will be equal to this value.
-     * @param factor Exponential factor. 2 means doubling, 1 is constant, < 1 means decreasing
-     * @tparam E Schedule input
+     * @param min
+     *   Minimum backoff time
+     * @param max
+     *   Maximum backoff time. When this value is reached, subsequent intervals will be equal to this value.
+     * @param factor
+     *   Exponential factor. 2 means doubling, 1 is constant, < 1 means decreasing
+     * @tparam E
+     *   Schedule input
      */
     def exponentialBackoff[E](
       min: Duration,

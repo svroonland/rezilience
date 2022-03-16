@@ -42,7 +42,7 @@ final case class CircuitBreakerMetrics(
 
   def numberOfResets: Int = stateChanges.count(_.to == State.Closed)
 
-  override def toString: String                             =
+  override def toString: String =
     Seq(
       ("interval", interval.getSeconds, "s"),
       ("succeeded calls", succeededCalls, ""),

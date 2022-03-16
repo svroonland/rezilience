@@ -11,8 +11,10 @@ trait BulkheadPlatformSpecificObj {
    *
    * @param maxInFlightCalls
    * @param maxQueueing
-   * @param metricsInterval Interval at which metrics are emitted
-   * @param sampleInterval Interval at which the number of in-flight calls is sampled
+   * @param metricsInterval
+   *   Interval at which metrics are emitted
+   * @param sampleInterval
+   *   Interval at which the number of in-flight calls is sampled
    * @return
    */
   def makeWithMetrics[R](

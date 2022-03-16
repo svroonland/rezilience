@@ -17,14 +17,14 @@ final case class RateLimiterMetrics(
    */
   tasksEnqueued: Long,
   /**
-   *  Number of tasks that are currently enqueued
+   * Number of tasks that are currently enqueued
    */
   currentlyEnqueued: Long
 ) {
   import HistogramUtil._
   val tasksStarted = latency.getTotalCount
 
-  override def toString: String                       =
+  override def toString: String =
     Seq(
       ("interval", interval.getSeconds, "s"),
       ("tasks enqueued in interval", tasksEnqueued, ""),
@@ -38,8 +38,8 @@ final case class RateLimiterMetrics(
   /**
    * Combines the metrics and their histograms
    *
-   * currentlyEnqueued is taken from the `that` parameter, so be sure to use this
-   * method as `oldMetrics + latestMetrics`.
+   * currentlyEnqueued is taken from the `that` parameter, so be sure to use this method as `oldMetrics +
+   * latestMetrics`.
    */
   def +(that: RateLimiterMetrics): RateLimiterMetrics = copy(
     interval = interval plus that.interval,

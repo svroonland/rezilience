@@ -9,8 +9,8 @@ trait RateLimiterPlatformSpecificObj {
   /**
    * Create a RateLimiter with metrics
    *
-   * Metrics are emitted at a regular interval. When the RateLimiter is released, metrics for the
-   * final interval are emitted.
+   * Metrics are emitted at a regular interval. When the RateLimiter is released, metrics for the final interval are
+   * emitted.
    *
    * @param max
    * @param interval
