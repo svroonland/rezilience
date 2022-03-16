@@ -75,7 +75,7 @@ trait CircuitBreaker[-E] {
   /**
    * Stream of Circuit Breaker state changes
    *
-   * Is backed by a zio.Hub, so each execution of the stream will get its own stream of state changes
+   * Is backed by a zio.Hub, so each use of the Dequeue will receive all state changes
    */
   val stateChanges: Managed[Nothing, Dequeue[StateChange]]
 }
@@ -291,9 +291,6 @@ object CircuitBreaker {
       clock
     )
 
-    /**
-     * Stream of Circuit Breaker state changes
-     */
     override val stateChanges: Managed[Nothing, Dequeue[StateChange]] = stateChangesHub.subscribe
   }
 

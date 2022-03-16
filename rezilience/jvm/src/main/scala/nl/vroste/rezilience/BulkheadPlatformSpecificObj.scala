@@ -17,14 +17,14 @@ trait BulkheadPlatformSpecificObj {
    *   Interval at which the number of in-flight calls is sampled
    * @return
    */
-  def makeWithMetrics[R](
+  def makeWithMetrics[R1](
     maxInFlightCalls: Int,
     maxQueueing: Int = 32,
-    onMetrics: BulkheadMetrics => URIO[R, Any], // TODO add R and provide it through the ZManaged?
+    onMetrics: BulkheadMetrics => URIO[R1, Any],
     metricsInterval: Duration = 10.seconds,
     sampleInterval: Duration = 1.seconds,
     latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings(1.milli, 2.minutes)
-  ): ZManaged[Clock with R, Nothing, Bulkhead] = {
+  ): ZManaged[Clock with R1, Nothing, Bulkhead] = {
     val inFlightHistogramSettings = HistogramSettings[Long](1, maxInFlightCalls.toLong, 2)
     val enqueuedHistogramSettings = HistogramSettings[Long](1, maxQueueing.toLong, 2)
 
@@ -62,7 +62,7 @@ trait BulkheadPlatformSpecificObj {
                    .forkManaged
       env     <- ZManaged.environment[Clock]
     } yield new Bulkhead {
-      override def apply[R1, E, A](task: ZIO[R1, E, A]): ZIO[R1, Bulkhead.BulkheadError[E], A] = for {
+      override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, Bulkhead.BulkheadError[E], A] = for {
         enqueueTime <- clock.instant.provide(env)
         // Keep track of whether the task was started to have correct statistics under interruption
         started     <- Ref.make(false)

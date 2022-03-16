@@ -2,7 +2,7 @@ package nl.vroste.rezilience
 
 import zio.clock.Clock
 import zio.duration.{ durationInt, Duration }
-import zio.{ clock, Ref, UIO, ZIO, ZManaged }
+import zio.{ clock, Ref, URIO, ZIO, ZManaged }
 
 trait RateLimiterPlatformSpecificObj {
 
@@ -19,13 +19,13 @@ trait RateLimiterPlatformSpecificObj {
    * @param latencyHistogramSettings
    * @return
    */
-  def makeWithMetrics(
+  def makeWithMetrics[R1](
     max: Int,
     interval: Duration = 1.second,
-    onMetrics: RateLimiterMetrics => UIO[Any],
+    onMetrics: RateLimiterMetrics => URIO[R1, Any],
     metricsInterval: Duration = 10.seconds,
     latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings(1.milli, 2.minutes)
-  ): ZManaged[Clock, Nothing, RateLimiter] = {
+  ): ZManaged[Clock with R1, Nothing, RateLimiter] = {
 
     def makeNewMetrics = clock.instant.map(RateLimiterMetricsInternal.empty)
 
