@@ -18,7 +18,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
         policy.use { callWithPolicy =>
           for {
             e      <- failFirstTime
-            _      <- callWithPolicy(e)      // Should succeed
+            _      <- callWithPolicy(e)       // Should succeed
             _      <- callWithPolicy.switch(ZManaged.succeed(Policy.noop))
             e2     <- failFirstTime
             result <- callWithPolicy(e2).exit // Should fail
@@ -81,7 +81,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
         policy.use { callWithPolicy =>
           for {
             e      <- failFirstTime
-            _      <- callWithPolicy(e)      // Should succeed
+            _      <- callWithPolicy(e)       // Should succeed
             _      <- callWithPolicy.switch(ZManaged.succeed(Policy.noop), SwitchablePolicy.Mode.FinishInFlight)
             e2     <- failFirstTime
             result <- callWithPolicy(e2).exit // Should fail

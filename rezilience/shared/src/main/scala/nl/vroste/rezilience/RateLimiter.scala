@@ -1,6 +1,6 @@
 package nl.vroste.rezilience
 import zio.stream.ZStream
-import zio.{ Clock, Duration, durationInt, _ }
+import zio.{ durationInt, Clock, Duration, _ }
 
 /**
  * Limits the number of calls to a resource to a maximum amount in some interval
