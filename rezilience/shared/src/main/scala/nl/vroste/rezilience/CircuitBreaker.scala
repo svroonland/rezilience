@@ -1,6 +1,6 @@
 package nl.vroste.rezilience
 
-import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, StateChange }
+import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, State, StateChange }
 import nl.vroste.rezilience.Policy.PolicyError
 import zio.clock.Clock
 import zio.duration._
@@ -78,6 +78,8 @@ trait CircuitBreaker[-E] {
    * Is backed by a zio.Hub, so each use of the Dequeue will receive all state changes
    */
   val stateChanges: Managed[Nothing, Dequeue[StateChange]]
+
+  def currentState: UIO[State]
 }
 
 object CircuitBreaker {
@@ -142,8 +144,7 @@ object CircuitBreaker {
    */
   def make[E](
     trippingStrategy: ZManaged[Clock, Nothing, TrippingStrategy],
-    resetPolicy: Schedule[Clock, Any, Any] =
-      Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
+    resetPolicy: Schedule[Clock, Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E]
   ): ZManaged[Clock, Nothing, CircuitBreaker[E]] =
     for {
@@ -291,6 +292,8 @@ object CircuitBreaker {
       clock
     )
 
+    override def currentState: UIO[State] = state.get
+
     override val stateChanges: Managed[Nothing, Dequeue[StateChange]] = stateChangesHub.subscribe
   }
 
@@ -310,6 +313,8 @@ object CircuitBreaker {
     } yield result
     override def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]                      =
       CircuitBreakerWithMetricsImpl(cb.widen[E2](pf), metrics)
+
+    override def currentState: UIO[State] = cb.currentState
 
     override val stateChanges = cb.stateChanges
   }

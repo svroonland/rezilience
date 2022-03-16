@@ -30,7 +30,7 @@ final case class CircuitBreakerMetrics(
   /**
    * All state changes made in the metrics interval
    */
-  stateChanges: Chunk[StateChange], // TODO should be ordered?
+  stateChanges: Chunk[StateChange],
 
   /**
    * Time of the last reset to the Closed state
