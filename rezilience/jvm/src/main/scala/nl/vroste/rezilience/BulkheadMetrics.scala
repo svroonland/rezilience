@@ -75,6 +75,7 @@ final case class BulkheadMetrics(
 }
 
 object BulkheadMetrics {
+  // TODO the highestTrackableValue is wrong in many cases
   private val emptyInFlight = new IntCountsHistogram(1, 10, 2)
   private val emptyEnqueued = new IntCountsHistogram(1, 10, 2)
   private val emptyLatency  = new IntCountsHistogram(1, 6000000, 2)
