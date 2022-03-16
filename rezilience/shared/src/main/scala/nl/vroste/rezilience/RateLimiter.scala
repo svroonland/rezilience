@@ -18,11 +18,13 @@ trait RateLimiter { self =>
    * Execute the task with RateLimiter protection
    *
    * The effect returned by this method can be interrupted, which is handled as follows:
-   * - If the task is still waiting in the rate limiter queue, it will not start execution.
-   *   It will also not count for the rate limiting or hold back other uninterrupted queued tasks.
-   * - If the task has already started executing, interruption will interrupt the task and will complete when the task's interruption is complete.
+   *   - If the task is still waiting in the rate limiter queue, it will not start execution. It will also not count for
+   *     the rate limiting or hold back other uninterrupted queued tasks.
+   *   - If the task has already started executing, interruption will interrupt the task and will complete when the
+   *     task's interruption is complete.
    *
-   * @param task Task to execute. When the rate limit is exceeded, the call will be postponed.
+   * @param task
+   *   Task to execute. When the rate limit is exceeded, the call will be postponed.
    */
   def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A]
 
@@ -37,13 +39,16 @@ object RateLimiter {
   /**
    * Creates a RateLimiter as Managed resource
    *
-   * Note that the maximum number of calls is spread out over the interval, i.e. 10 calls per second
-   * means that 1 call can be made every 100 ms. Up to `max` calls can be saved up. The maximum
-   * is immediately available when starting the RateLimiter
+   * Note that the maximum number of calls is spread out over the interval, i.e. 10 calls per second means that 1 call
+   * can be made every 100 ms. Up to `max` calls can be saved up. The maximum is immediately available when starting the
+   * RateLimiter
    *
-   * @param max Maximum number of calls in each interval
-   * @param interval Interval duration
-   * @return RateLimiter
+   * @param max
+   *   Maximum number of calls in each interval
+   * @param interval
+   *   Interval duration
+   * @return
+   *   RateLimiter
    */
   def make(max: Int, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] =
     for {

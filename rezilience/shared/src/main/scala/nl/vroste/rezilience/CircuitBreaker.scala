@@ -10,32 +10,30 @@ import zio.stream.ZStream
  *
  * Operates in three states:
  *
- * - Closed (initial state / normal operation): calls are let through normally. Call failures and successes
- * update the call statistics, eg failure count. When the statistics satisfy some criteria, the circuit
- * breaker is 'tripped' and set to the Open state. Note that after this switch, in-flight calls are not canceled.
- * Their success  or failure does not affect the circuit breaker anymore though.
+ *   - Closed (initial state / normal operation): calls are let through normally. Call failures and successes update the
+ *     call statistics, eg failure count. When the statistics satisfy some criteria, the circuit breaker is 'tripped'
+ *     and set to the Open state. Note that after this switch, in-flight calls are not canceled. Their success or
+ *     failure does not affect the circuit breaker anymore though.
  *
- * - Open: all calls fail fast with a `CircuitBreakerOpen` error. After the reset timeout,
- * the states changes to HalfOpen
+ *   - Open: all calls fail fast with a `CircuitBreakerOpen` error. After the reset timeout, the states changes to
+ *     HalfOpen
  *
- * - HalfOpen: the first call is let through. Meanwhile all other calls fail with a
- * `CircuitBreakerOpen` error. If the first call succeeds, the state changes to
- * Closed again (normal operation). If it fails, the state changes back to Open.
- * The reset timeout is governed by a reset policy, which is typically an exponential backoff.
+ *   - HalfOpen: the first call is let through. Meanwhile all other calls fail with a `CircuitBreakerOpen` error. If the
+ *     first call succeeds, the state changes to Closed again (normal operation). If it fails, the state changes back to
+ *     Open. The reset timeout is governed by a reset policy, which is typically an exponential backoff.
  *
- * Two tripping strategies are implemented:
- * 1) Failure counting. When the number of successive failures exceeds a threshold, the circuit
- * breaker is tripped.
+ * Two tripping strategies are implemented: 1) Failure counting. When the number of successive failures exceeds a
+ * threshold, the circuit breaker is tripped.
  *
- * Note that the maximum number of failures before tripping the circuit breaker is not absolute under
- * concurrent execution. I.e. if you make 20 calls to a failing system in parallel via a circuit breaker
- * with max 10 failures, the calls will be running concurrently. The circuit breaker will trip
- * after 10 calls, but the remaining 10 that are in-flight will continue to run and fail as well.
+ * Note that the maximum number of failures before tripping the circuit breaker is not absolute under concurrent
+ * execution. I.e. if you make 20 calls to a failing system in parallel via a circuit breaker with max 10 failures, the
+ * calls will be running concurrently. The circuit breaker will trip after 10 calls, but the remaining 10 that are
+ * in-flight will continue to run and fail as well.
  *
  * TODO what to do if you want this kind of behavior, or should we make it an option?
  *
- * 2) Failure rate. When the fraction of failed calls in some sample period exceeds
- * a threshold (between 0 and 1), the circuit breaker is tripped.
+ * 2) Failure rate. When the fraction of failed calls in some sample period exceeds a threshold (between 0 and 1), the
+ * circuit breaker is tripped.
  */
 trait CircuitBreaker[-E] {
   self =>
@@ -43,9 +41,11 @@ trait CircuitBreaker[-E] {
   /**
    * Execute a given effect with the circuit breaker
    *
-   * @param f Effect to execute
-   * @return A ZIO that either succeeds with the success of the given f or fails with either a `CircuitBreakerOpen`
-   *         or a `WrappedError` of the error of the given f
+   * @param f
+   *   Effect to execute
+   * @return
+   *   A ZIO that either succeeds with the success of the given f or fails with either a `CircuitBreakerOpen` or a
+   *   `WrappedError` of the error of the given f
    */
   def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A]
 
@@ -57,12 +57,14 @@ trait CircuitBreaker[-E] {
   /**
    * Transform this policy to apply to larger class of errors
    *
-   * Only for errors where the partial function is defined will errors be considered as failures, otherwise
-   * the error is passed through to the caller
+   * Only for errors where the partial function is defined will errors be considered as failures, otherwise the error is
+   * passed through to the caller
    *
-   * @param pf Map an error of type E2 to an error of type E
+   * @param pf
+   *   Map an error of type E2 to an error of type E
    * @tparam E2
-   * @return A new CircuitBreaker defined for failures of type E2
+   * @return
+   *   A new CircuitBreaker defined for failures of type E2
    */
   def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]
 }
@@ -96,12 +98,17 @@ object CircuitBreaker {
   /**
    * Create a CircuitBreaker that fails when a number of successive failures (no pun intended) has been counted
    *
-   * @param maxFailures   Maximum number of failures before tripping the circuit breaker
-   * @param resetPolicy   Reset schedule after too many failures. Typically an exponential backoff strategy is used.
-   * @param isFailure     Only failures that match according to `isFailure` are treated as failures by the circuit breaker.
-   *                      Other failures are passed on, circumventing the circuit breaker's failure counter.
-   * @param onStateChange Observer for circuit breaker state changes
-   * @return The CircuitBreaker as a managed resource
+   * @param maxFailures
+   *   Maximum number of failures before tripping the circuit breaker
+   * @param resetPolicy
+   *   Reset schedule after too many failures. Typically an exponential backoff strategy is used.
+   * @param isFailure
+   *   Only failures that match according to `isFailure` are treated as failures by the circuit breaker. Other failures
+   *   are passed on, circumventing the circuit breaker's failure counter.
+   * @param onStateChange
+   *   Observer for circuit breaker state changes
+   * @return
+   *   The CircuitBreaker as a managed resource
    */
   def withMaxFailures[E](
     maxFailures: Int,
@@ -114,11 +121,15 @@ object CircuitBreaker {
   /**
    * Create a CircuitBreaker with the given tripping strategy
    *
-   * @param trippingStrategy Determines under which conditions the CircuitBraker trips
-   * @param resetPolicy      Reset schedule after too many failures. Typically an exponential backoff strategy is used.
-   * @param isFailure        Only failures that match according to `isFailure` are treated as failures by the circuit breaker.
-   *                         Other failures are passed on, circumventing the circuit breaker's failure counter.
-   * @param onStateChange    Observer for circuit breaker state changes
+   * @param trippingStrategy
+   *   Determines under which conditions the CircuitBraker trips
+   * @param resetPolicy
+   *   Reset schedule after too many failures. Typically an exponential backoff strategy is used.
+   * @param isFailure
+   *   Only failures that match according to `isFailure` are treated as failures by the circuit breaker. Other failures
+   *   are passed on, circumventing the circuit breaker's failure counter.
+   * @param onStateChange
+   *   Observer for circuit breaker state changes
    * @return
    */
   def make[E](
@@ -138,7 +149,7 @@ object CircuitBreaker {
                           .fromQueue(resetRequests)
                           .mapZIO { _ =>
                             for {
-                              _ <- schedule.next(()) // TODO handle schedule completion?
+                              _ <- schedule.next(())            // TODO handle schedule completion?
                               _ <- halfOpenSwitch.set(true)
                               _ <- state.set(HalfOpen)
                               _ <- onStateChange(HalfOpen).fork // Do not wait for user code

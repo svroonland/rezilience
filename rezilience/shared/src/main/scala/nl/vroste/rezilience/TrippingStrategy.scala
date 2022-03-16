@@ -3,8 +3,8 @@ package nl.vroste.rezilience
 import zio._
 
 /**
- * Keeps track of successful calls and failures and determines when the circuit breaker
- * should trip from Closed to Open state
+ * Keeps track of successful calls and failures and determines when the circuit breaker should trip from Closed to Open
+ * state
  *
  * Custom implementations are supported
  */
@@ -20,7 +20,8 @@ object TrippingStrategy {
   /**
    * For a CircuitBreaker that fails when a number of successive failures (no pun intended) has been counted
    *
-   * @param maxFailures Maximum number of failures before tripping the circuit breaker
+   * @param maxFailures
+   *   Maximum number of failures before tripping the circuit breaker
    * @return
    */
   def failureCount(maxFailures: Int): ZManaged[Any, Nothing, TrippingStrategy] =
@@ -36,14 +37,18 @@ object TrippingStrategy {
   /**
    * For a CircuitBreaker that fails when the fraction of failures in a sample period exceeds some threshold
    *
-   * The sample interval is divided into a number of buckets, which are rotated periodically (sampleDuration / nrSampleBuckets)
-   * to achieve a moving average of the failure rate.
+   * The sample interval is divided into a number of buckets, which are rotated periodically (sampleDuration /
+   * nrSampleBuckets) to achieve a moving average of the failure rate.
    *
-   * @param failureRateThreshold The minimum fraction (between 0.0 and 1.0) of calls that must fail within the sample duration
-   * for the circuit breaker to trip
-   * @param sampleDuration Minimum amount of time to record calls
-   * @param minThroughput Minimum number of calls required within the sample period to evaluate the actual failure rate.
-   * @param nrSampleBuckets Nr of intervals to divide
+   * @param failureRateThreshold
+   *   The minimum fraction (between 0.0 and 1.0) of calls that must fail within the sample duration for the circuit
+   *   breaker to trip
+   * @param sampleDuration
+   *   Minimum amount of time to record calls
+   * @param minThroughput
+   *   Minimum number of calls required within the sample period to evaluate the actual failure rate.
+   * @param nrSampleBuckets
+   *   Nr of intervals to divide
    */
   def failureRate(
     failureRateThreshold: Double = 0.5,

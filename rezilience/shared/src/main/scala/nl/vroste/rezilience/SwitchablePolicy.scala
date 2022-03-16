@@ -13,17 +13,17 @@ trait SwitchablePolicy[E] extends Policy[E] {
   /**
    * Switches the policy to the new policy
    *
-   * After completion of this effect, it is guaranteed that new calls are executed with the new policy.
-   * Calls in flight before execution of the switch will be completed with the old policy.
+   * After completion of this effect, it is guaranteed that new calls are executed with the new policy. Calls in flight
+   * before execution of the switch will be completed with the old policy.
    *
-   * The old policy will be released after those in-flight calls are completed.
-   * The inner UIO signals completion of release of the old policy.
+   * The old policy will be released after those in-flight calls are completed. The inner UIO signals completion of
+   * release of the old policy.
    *
-   * @param newPolicy The new policy to apply. Can be a policy that accepts a supertype of errors
-   *                  of the original policy.
-   * @param mode Transition mode:
-   *             Transition = Process new calls with the new policy while completing in-flight calls with the previous policy.
-   *             FinishInFlight = Wait for completion of in-flight calls with the old policy before accepting
+   * @param newPolicy
+   *   The new policy to apply. Can be a policy that accepts a supertype of errors of the original policy.
+   * @param mode
+   *   Transition mode: Transition = Process new calls with the new policy while completing in-flight calls with the
+   *   previous policy. FinishInFlight = Wait for completion of in-flight calls with the old policy before accepting
    */
   def switch[R0, E0, E2 >: E](
     newPolicy: ZManaged[R0, E0, Policy[E2]],
