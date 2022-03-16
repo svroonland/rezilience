@@ -41,7 +41,7 @@ trait RateLimiterPlatformSpecificObj {
     for {
       inner   <- RateLimiter.make(max, interval)
       metrics <- makeNewMetrics.flatMap(Ref.make).toManaged_
-      _       <- MetricsUtil.runCollectMetricsLoop(metrics, metricsInterval)(collectMetrics)
+      _       <- MetricsUtil.runCollectMetricsLoop(metricsInterval)(collectMetrics(metrics))
       env     <- ZManaged.environment[Clock]
     } yield new RateLimiter {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {

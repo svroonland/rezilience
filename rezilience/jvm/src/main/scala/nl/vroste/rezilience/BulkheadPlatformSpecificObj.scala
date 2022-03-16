@@ -54,7 +54,7 @@ trait BulkheadPlatformSpecificObj {
     for {
       inner   <- Bulkhead.make(maxInFlightCalls, maxQueueing)
       metrics <- makeNewMetrics.flatMap(Ref.make).toManaged_
-      _       <- MetricsUtil.runCollectMetricsLoop(metrics, metricsInterval)(collectMetrics)
+      _       <- MetricsUtil.runCollectMetricsLoop(metricsInterval)(collectMetrics(metrics))
       _       <- metrics
                    .update(_.sampleCurrently)
                    .repeat(Schedule.fixed(sampleInterval))

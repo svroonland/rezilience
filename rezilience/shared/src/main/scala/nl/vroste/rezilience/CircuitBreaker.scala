@@ -200,7 +200,7 @@ object CircuitBreaker {
 
     for {
       metrics      <- makeNewMetrics.flatMap(Ref.make).toManaged_
-      _            <- MetricsUtil.runCollectMetricsLoop(metrics, metricsInterval)(collectMetrics)
+      _            <- MetricsUtil.runCollectMetricsLoop(metricsInterval)(collectMetrics(metrics))
       stateChanges <- cb.stateChanges
       _            <- ZStream
                         .fromQueue(stateChanges)
