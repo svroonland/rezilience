@@ -2,7 +2,7 @@ package nl.vroste.rezilience
 
 import zio.clock.Clock
 import zio.duration.Duration
-import zio.{ Fiber, Ref, Schedule, ZIO, ZManaged }
+import zio.{ Fiber, Schedule, ZIO, ZManaged }
 
 private[rezilience] object MetricsUtil {
   def runCollectMetricsLoop[R](interval: Duration)(
