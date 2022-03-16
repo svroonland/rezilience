@@ -6,12 +6,12 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
       - run: sbt ++2.13.8! check
       - save_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
           paths:
-            - "~/.coursier"
+            - "~/.cache/coursier/"
             - "~/.sbt"
             - "~/.m2"
   test213_jdk17:
@@ -20,12 +20,12 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
       - run: sbt ++2.13.8! compile rezilienceJVM/test
       - save_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
           paths:
-            - "~/.coursier"
+            - "~/.cache/coursier/"
             - "~/.sbt"
             - "~/.m2"
   test213_jdk11:
@@ -34,12 +34,12 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
       - run: sbt ++2.13.8! compile rezilienceJVM/test
       - save_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
           paths:
-            - "~/.coursier"
+            - "~/.cache/coursier/"
             - "~/.sbt"
             - "~/.m2"
   test_dotty_jdk17:
@@ -48,12 +48,12 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
       - run: sbt ++3.1.1! rezilienceJVM/test
       - save_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
           paths:
-            - "~/.coursier"
+            - "~/.cache/coursier/"
             - "~/.sbt"
             - "~/.m2"
   test212_jdk17:
@@ -62,12 +62,12 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
       - run: sbt ++2.12.15! compile rezilienceJVM/test
       - save_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
           paths:
-            - "~/.coursier"
+            - "~/.cache/coursier/"
             - "~/.sbt"
             - "~/.m2"
   test212_jdk11:
@@ -76,12 +76,12 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
       - run: sbt ++2.12.15! compile rezilienceJVM/test
       - save_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
           paths:
-            - "~/.coursier"
+            - "~/.cache/coursier/"
             - "~/.sbt"
             - "~/.m2"
   release:
@@ -91,7 +91,7 @@ jobs:
       - checkout
       - run: git fetch --tags
       - restore_cache:
-          key: sbt-cache-2
+          key: sbt-cache-3
       - run: apt install -y gnupg
       - run: export GPG_TTY=$(tty)
       - run: echo $PGP_SECRET | base64 --decode | gpg --batch --import
