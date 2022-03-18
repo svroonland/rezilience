@@ -30,10 +30,12 @@ import nl.vroste.rezilience._
 
 val myEffect: ZIO[Any, Exception, Unit] = ZIO.unit
 
-val retry: ZManaged[Clock with Random, Nothing, Retry[Any]] = Retry.make(min = 1.second, max = 10.seconds)
+val retry: ZIO[Scope with Clock with Random, Nothing, Retry[Any]] = Retry.make(min = 1.second, max = 10.seconds)
 
-retry.use { retryPolicy => 
-  retryPolicy(myEffect)
+ZIO.scoped {
+  retry.flatMap { retryPolicy => 
+    retryPolicy(myEffect)
+  }
 }
 ```
 
@@ -72,7 +74,9 @@ val retry2 = Retry.make(
     Retry.Schedules.whenCase(isUnknownHostException) { Retry.Schedules.common(min = 1.day, max = 5.days) }
 )
 
-retry2.use { retryPolicy => 
-  retryPolicy(myEffect)
+ZIO.scoped {
+  retry2.flatMap { retryPolicy => 
+    retryPolicy(myEffect)
+  }
 }
 ```

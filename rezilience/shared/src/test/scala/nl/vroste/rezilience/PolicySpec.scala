@@ -17,8 +17,9 @@ object PolicySpec extends DefaultRunnableSpec {
           Bulkhead.make(100) zip
           CircuitBreaker.withMaxFailures(10)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
-      policy.use { policy =>
+      ZIO.scoped {
         for {
+          policy <- policy
           result <- policy(ZIO.succeed(123))
         } yield assert(result)(equalTo(123))
 
@@ -30,8 +31,9 @@ object PolicySpec extends DefaultRunnableSpec {
           Bulkhead.make(100) zip
           CircuitBreaker.withMaxFailures(10)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
-      policy.use { policy =>
+      ZIO.scoped {
         for {
+          policy <- policy
           result <- policy(ZIO.fail(MyCallError)).flip
         } yield assert(result)(equalTo(WrappedError(MyCallError)))
       }
@@ -42,8 +44,9 @@ object PolicySpec extends DefaultRunnableSpec {
           Bulkhead.make(100) zip
           CircuitBreaker.withMaxFailures(1)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
-      policy.use { policy =>
+      ZIO.scoped {
         for {
+          policy <- policy
           _      <- policy(ZIO.fail(MyCallError)).flip
           result <- policy(ZIO.fail(MyCallError)).flip
         } yield assert(result)(equalTo(Policy.CircuitBreakerOpen))
@@ -55,8 +58,9 @@ object PolicySpec extends DefaultRunnableSpec {
           Bulkhead.make(1, maxQueueing = 1) zip
           CircuitBreaker.withMaxFailures(1)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
-      policy.use { policy =>
+      ZIO.scoped {
         for {
+          policy <- policy
           latch  <- Promise.make[Nothing, Unit]
           latch3 <- Promise.make[Nothing, Unit]
           _      <- policy(latch.succeed(()) *> latch3.await).fork // This one will go in-flight immediately
@@ -72,8 +76,9 @@ object PolicySpec extends DefaultRunnableSpec {
           Bulkhead.make(10) zip
           CircuitBreaker.withMaxFailures(1)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
-      policy.use { policy =>
+      ZIO.scoped {
         for {
+          policy        <- policy
           _             <- policy(ZIO.unit)
           _             <- policy(ZIO.unit)
           fib           <- policy(ZIO.succeed(123)).fork

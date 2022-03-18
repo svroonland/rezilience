@@ -48,67 +48,70 @@ object ZLayerIntegrationExample extends zio.ZIOAppDefault {
   val databaseLayer: ULayer[Database] = ZLayer.succeed {
     new Database.Service {
       override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
-        UIO(println("transfer"))
+        UIO.succeed(println("transfer"))
 
       override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
-        UIO(println("new account"))
+        UIO.succeed(println("new account"))
     }
   }
 
   // A layer that adds a rate limiter to our database
   val addRateLimiterToDatabase: ZLayer[Database with Clock, Nothing, Database] =
-    ZManaged
-      .service[Database.Service]
-      .flatMap { (database: Database.Service) =>
-        RateLimiter.make(10).map { rl =>
-          new Database.Service {
-            override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
-              rl(database.transfer(amount, from, to))
-
-            override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
-              rl(database.newAccount(name))
-          }
-        }
-      }
-      .toLayer
-
-  val addBulkheadToDatabase: ZLayer[Database with Clock, Nothing, Database] =
-    ZManaged
-      .service[Database.Service]
-      .flatMap { (database: Database.Service) =>
-        Bulkhead
-          .make(10)
-          .map { bulkhead =>
+    ZLayer.scoped {
+      ZIO
+        .service[Database.Service]
+        .flatMap { (database: Database.Service) =>
+          RateLimiter.make(10).map { rl =>
             new Database.Service {
               override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
-                bulkhead(database.transfer(amount, from, to)).mapError(_.toException)
-
-              override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
-                bulkhead(database.newAccount(name)).mapError(_.toException)
-            }
-          }
-      }
-      .toLayer
-
-  val addCircuitBreakerToDatabase: ZLayer[Database with Clock, Nothing, ResilientDatabase] =
-    ZManaged
-      .service[Database.Service]
-      .flatMap { (database: Database.Service) =>
-        CircuitBreaker
-          .withMaxFailures[Throwable](10)
-          .map(_.toPolicy)
-          .map { rl =>
-            new ResilientDatabase.Service {
-              override def transfer(amount: Amount, from: Account, to: Account)
-                : ZIO[Any, PolicyError[Throwable], Unit] =
                 rl(database.transfer(amount, from, to))
 
-              override def newAccount(name: Account): ZIO[Any, PolicyError[Throwable], Unit] =
+              override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
                 rl(database.newAccount(name))
             }
           }
-      }
-      .toLayer
+        }
+    }
+
+  val addBulkheadToDatabase: ZLayer[Database with Clock, Nothing, Database] =
+    ZLayer.scoped {
+      ZIO
+        .service[Database.Service]
+        .flatMap { (database: Database.Service) =>
+          Bulkhead
+            .make(10)
+            .map { bulkhead =>
+              new Database.Service {
+                override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
+                  bulkhead(database.transfer(amount, from, to)).mapError(_.toException)
+
+                override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
+                  bulkhead(database.newAccount(name)).mapError(_.toException)
+              }
+            }
+        }
+    }
+
+  val addCircuitBreakerToDatabase: ZLayer[Database with Clock, Nothing, ResilientDatabase] =
+    ZLayer.scoped {
+      ZIO
+        .service[Database.Service]
+        .flatMap { (database: Database.Service) =>
+          CircuitBreaker
+            .withMaxFailures[Throwable](10)
+            .map(_.toPolicy)
+            .map { rl =>
+              new ResilientDatabase.Service {
+                override def transfer(amount: Amount, from: Account, to: Account)
+                  : ZIO[Any, PolicyError[Throwable], Unit] =
+                  rl(database.transfer(amount, from, to))
+
+                override def newAccount(name: Account): ZIO[Any, PolicyError[Throwable], Unit] =
+                  rl(database.newAccount(name))
+              }
+            }
+        }
+    }
 
   // The complete environment of our application
   val env: ZLayer[Clock, Nothing, ResilientDatabase] =

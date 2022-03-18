@@ -33,7 +33,7 @@ object Timeout {
 
   case class TimeoutException[E](error: TimeoutError[E]) extends Exception("Timeout")
 
-  def make(timeout: Duration): ZManaged[Clock, Nothing, Timeout] = ZManaged.service[Clock].map { clock =>
+  def make(timeout: Duration): ZIO[Scope with Clock, Nothing, Timeout] = ZIO.service[Clock].map { clock =>
     new Timeout {
       override def apply[R, E, A](f: ZIO[R, E, A]): ZIO[R, TimeoutError[E], A] =
         ZIO

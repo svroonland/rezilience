@@ -3,7 +3,7 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.Policy.PolicyError
 import nl.vroste.rezilience.SwitchablePolicy.Mode
 import zio.stm.{ STM, TRef }
-import zio.{ Exit, IO, Promise, UIO, ZIO, ZManaged }
+import zio.{ Exit, IO, Promise, Scope, UIO, ZIO }
 
 /**
  * A Policy that can be replaced safely at runtime
@@ -26,7 +26,7 @@ trait SwitchablePolicy[E] extends Policy[E] {
    *   previous policy. FinishInFlight = Wait for completion of in-flight calls with the old policy before accepting
    */
   def switch[R0, E0, E2 >: E](
-    newPolicy: ZManaged[R0, E0, Policy[E2]],
+    newPolicy: ZIO[Scope with R0, E0, Policy[E2]],
     mode: Mode = Mode.Transition
   ): ZIO[R0, E0, UIO[Unit]]
 }
@@ -43,20 +43,15 @@ object SwitchablePolicy {
    * Creates a Policy that can be replaced safely at runtime
    */
   def make[R0, E0, E](
-    initial: ZManaged[R0, E0, Policy[E]]
-  ): ZManaged[R0, E0, SwitchablePolicy[E]] =
+    initial: ZIO[Scope with R0, E0, Policy[E]]
+  ): ZIO[Scope with R0, E0, SwitchablePolicy[E]] =
     for {
-      scope         <- ZManaged.scope
-      policyState   <- makeInUsePolicyState(scope, initial, awaitReady = UIO.unit).toManaged
-      currentPolicy <- TRef.make(policyState).commit.toManaged
+      scope         <- Scope.make
+      policyState   <- makeInUsePolicyState[R0, E0, E](scope, initial, awaitReady = UIO.unit)
+      currentPolicy <- TRef.make(policyState).commit
     } yield new SwitchablePolicy[E] {
       override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
-        ZManaged
-          .acquireReleaseWith(beginCallWithPolicy)(endCallWithPolicy)
-          .map(_.policy)
-          .use { policy =>
-            policy.apply(f)
-          }
+        beginCallWithPolicy.acquireReleaseWith(endCallWithPolicy)(policyState => policyState.policy(f))
 
       def beginCallWithPolicy: IO[Nothing, PolicyState[E]] = STM.atomically {
         for {
@@ -77,24 +72,24 @@ object SwitchablePolicy {
         }
 
       override def switch[R1, E1, E2 >: E](
-        newPolicy: ZManaged[R1, E1, Policy[E2]],
+        newPolicy: ZIO[Scope with R1, E1, Policy[E2]],
         mode: Mode
       ): ZIO[R1, E1, UIO[Unit]] =
         mode match {
           case Mode.Transition     =>
-            switchTransition(scope, currentPolicy, newPolicy)
+            switchTransition[E, E1, R1](scope, currentPolicy, newPolicy)
           case Mode.FinishInFlight =>
-            switchFinishInFlight(scope, currentPolicy, newPolicy)
+            switchFinishInFlight[E, E1, R1](scope, currentPolicy, newPolicy)
         }
     }
 
   private def switchTransition[E, E0, R0](
-    scope: ZManaged.Scope,
+    scope: Scope.Closeable,
     currentPolicy: TRef[PolicyState[E]],
-    newPolicy: ZManaged[R0, E0, Policy[E]]
+    newPolicy: ZIO[Scope with R0, E0, Policy[E]]
   ): ZIO[R0, E0, ZIO[Any, Nothing, Unit]] =
     for {
-      newPolicyState     <- makeInUsePolicyState(scope, newPolicy, awaitReady = UIO.unit)
+      newPolicyState     <- makeInUsePolicyState[R0, E0, E](scope, newPolicy, awaitReady = UIO.unit)
       // Atomically switch the policy and mark the old one as shutting down
       currentPolicyState <- STM.atomically {
                               for {
@@ -113,13 +108,13 @@ object SwitchablePolicy {
     } yield policyReleased.await.unit
 
   private def switchFinishInFlight[E, E0, R0](
-    scope: ZManaged.Scope,
+    scope: Scope.Closeable,
     currentPolicy: TRef[PolicyState[E]],
-    newPolicy: ZManaged[R0, E0, Policy[E]]
+    newPolicy: ZIO[Scope with R0, E0, Policy[E]]
   ): ZIO[R0, E0, ZIO[Any, Nothing, Unit]] =
     for {
       markAsReady                   <- Promise.make[Nothing, Unit]
-      newPolicyState                <- makeInUsePolicyState(scope, newPolicy, markAsReady.await)
+      newPolicyState                <- makeInUsePolicyState[R0, E0, E](scope, newPolicy, markAsReady.await)
       // Atomically switch the policy and mark the old one as shutting down
       switchResult                  <- STM.atomically {
                                          for {
@@ -142,7 +137,7 @@ object SwitchablePolicy {
 
   private case class PolicyState[E](
     policy: Policy[E],
-    finalizer: ZManaged.Finalizer,
+    finalizer: Exit[Any, Any] => UIO[Unit],
     inFlightCalls: TRef[Long],
     awaitReady: UIO[Unit],
     shuttingDown: TRef[Boolean],
@@ -150,15 +145,16 @@ object SwitchablePolicy {
   )
 
   private def makeInUsePolicyState[R0, E0, E](
-    scope: ZManaged.Scope,
-    newPolicy: ZManaged[R0, E0, Policy[E]],
+    scope: Scope.Closeable,
+    newPolicy: ZIO[Scope with R0, E0, Policy[E]],
     awaitReady: UIO[Unit]
   ): ZIO[R0, E0, PolicyState[E]] = for {
-    shutdownComplete   <- Promise.make[Nothing, Unit]
-    inFlightCalls      <- TRef.make(0L).commit
-    shuttingDown       <- TRef.make(false).commit
-    r                  <- scope.apply(newPolicy)
-    (finalizer, policy) = r
+    shutdownComplete <- Promise.make[Nothing, Unit]
+    inFlightCalls    <- TRef.make(0L).commit
+    shuttingDown     <- TRef.make(false).commit
+    newPolicyScope   <- scope.extend(Scope.make)
+    finalizer         = (exit: Exit[Any, Any]) => newPolicyScope.close(exit)
+    policy           <- newPolicyScope.extend[R0](newPolicy)
   } yield PolicyState(policy, finalizer, inFlightCalls, awaitReady, shuttingDown, shutdownComplete)
 
 }

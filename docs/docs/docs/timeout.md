@@ -24,10 +24,12 @@ import nl.vroste.rezilience.Timeout.TimeoutError
 
 val myEffect: ZIO[Clock, Exception, Unit] = ZIO.sleep(20.seconds)
 
-val timeout: ZManaged[Clock, Nothing, Timeout] = Timeout.make(10.seconds)
+val timeout: ZIO[Scope with Clock, Nothing, Timeout] = Timeout.make(10.seconds)
 
-val result: ZIO[Clock, TimeoutError[Exception], Unit] = timeout.use { policy => 
-  policy(myEffect)
+val result: ZIO[Clock, TimeoutError[Exception], Unit] = ZIO.scoped {
+    timeout.flatMap { policy => 
+      policy(myEffect)
+    }
 }
 
 // result will be a ZIO failure with value `CallTimedOut`

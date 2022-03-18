@@ -1,5 +1,5 @@
 package nl.vroste.rezilience
-import zio.{ durationInt, Clock, Duration, Random, Schedule, ZEnvironment, ZIO, ZManaged }
+import zio.{ durationInt, Clock, Duration, Random, Schedule, Scope, ZEnvironment, ZIO }
 
 import scala.math.Ordered.orderingToOrdered
 
@@ -50,14 +50,14 @@ object Retry {
     factor: Double = 2.0,
     retryImmediately: Boolean = true,
     maxRetries: Option[Int] = Some(3)
-  ): ZManaged[Clock with Random, Nothing, Retry[Any]] =
+  ): ZIO[Scope with Clock with Random, Nothing, Retry[Any]] =
     make(Schedules.common(min, max, factor, retryImmediately, maxRetries))
 
   /**
    * Create a Retry from a ZIO Schedule
    */
-  def make[R, E](schedule: Schedule[R, E, Any]): ZManaged[Clock with R, Nothing, Retry[E]] =
-    ZManaged.environment[Clock with R].map(env => RetryImpl[E, R with Clock](env, schedule))
+  def make[R, E](schedule: Schedule[R, E, Any]): ZIO[Scope with Clock with R, Nothing, Retry[E]] =
+    ZIO.environment[Clock with R].map(env => RetryImpl[E, R with Clock](env, schedule))
 
   private case class RetryImpl[-E, ScheduleEnv](
     scheduleEnv: ZEnvironment[Clock with ScheduleEnv],

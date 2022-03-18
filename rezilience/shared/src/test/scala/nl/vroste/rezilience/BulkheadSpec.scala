@@ -15,18 +15,20 @@ object BulkheadSpec extends DefaultRunnableSpec {
 
   def spec = suite("Bulkhead")(
     test("executes calls immediately") {
-      Bulkhead.make(10).use { bulkhead =>
+      ZIO.scoped {
         for {
-          p <- Promise.make[Nothing, Unit]
-          _ <- bulkhead(p.succeed(()))
-          _ <- p.await
+          bulkhead <- Bulkhead.make(10)
+          p        <- Promise.make[Nothing, Unit]
+          _        <- bulkhead(p.succeed(()))
+          _        <- p.await
         } yield assertCompletes
       }
     },
     test("executes up to the max nr of calls immediately") {
       val max = 10
-      Bulkhead.make(max).use { bulkhead =>
+      ZIO.scoped {
         for {
+          bulkhead       <- Bulkhead.make(max)
           p              <- Promise.make[Nothing, Unit]
           callsCompleted <- Ref.make(0)
           calls          <- ZIO.foreachPar(1 to max)(_ => p.await *> bulkhead(callsCompleted.updateAndGet(_ + 1))).fork
@@ -37,8 +39,9 @@ object BulkheadSpec extends DefaultRunnableSpec {
     },
     test("holds back more calls than the max") {
       val max = 20
-      Bulkhead.make(max).use { bulkhead =>
+      ZIO.scoped {
         for {
+          bulkhead         <- Bulkhead.make(max)
           callsCompleted   <- Ref.make(0)
           calls            <-
             ZIO
@@ -58,8 +61,9 @@ object BulkheadSpec extends DefaultRunnableSpec {
       val max        = 10
       val queueLimit = 5
 
-      Bulkhead.make(max, queueLimit).use { bulkhead =>
+      ZIO.scoped {
         for {
+          bulkhead      <- Bulkhead.make(max, queueLimit)
           p             <- Promise.make[Nothing, Unit]
           maxInFlight   <- Promise.make[Nothing, Unit]
           callsInFlight <- Ref.make(0)
@@ -94,8 +98,9 @@ object BulkheadSpec extends DefaultRunnableSpec {
       }
     },
     test("will interrupt the effect when a call is interrupted") {
-      Bulkhead.make(10).use { bulkhead =>
+      ZIO.scoped {
         for {
+          bulkhead    <- Bulkhead.make(10)
           latch       <- Promise.make[Nothing, Unit]
           interrupted <- Promise.make[Nothing, Unit]
           fib         <- bulkhead((latch.succeed(()) *> ZIO.never).onInterrupt(interrupted.succeed(()))).fork

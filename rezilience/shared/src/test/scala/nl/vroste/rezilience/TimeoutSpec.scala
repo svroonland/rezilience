@@ -10,18 +10,20 @@ import zio.test._
 object TimeoutSpec extends DefaultRunnableSpec {
   override def spec = suite("Timeout")(
     test("succeeds a regular call") {
-      Timeout.make(10.seconds).use { timeoutPolicy =>
+      ZIO.scoped {
         for {
-          result <- timeoutPolicy(ZIO.unit).exit
+          timeoutPolicy <- Timeout.make(10.seconds)
+          result        <- timeoutPolicy(ZIO.unit).exit
         } yield assert(result)(succeeds(anything))
       }
     },
     test("fails a call that times out") {
-      Timeout.make(10.seconds).use { timeoutPolicy =>
+      ZIO.scoped {
         for {
-          fib    <- timeoutPolicy(ZIO.sleep(20.seconds)).fork
-          _      <- TestClock.adjust(30.seconds)
-          result <- fib.join.exit
+          timeoutPolicy <- Timeout.make(10.seconds)
+          fib           <- timeoutPolicy(ZIO.sleep(20.seconds)).fork
+          _             <- TestClock.adjust(30.seconds)
+          result        <- fib.join.exit
         } yield assert(result)(fails(equalTo(CallTimedOut)))
       }
     }

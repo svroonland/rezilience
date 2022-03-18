@@ -115,7 +115,7 @@ object CircuitBreaker {
     resetPolicy: Schedule[Clock, Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
-  ): ZManaged[Clock, Nothing, CircuitBreaker[E]] =
+  ): ZIO[Scope with Clock, Nothing, CircuitBreaker[E]] =
     make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, onStateChange)
 
   /**
@@ -133,18 +133,18 @@ object CircuitBreaker {
    * @return
    */
   def make[E](
-    trippingStrategy: ZManaged[Clock, Nothing, TrippingStrategy],
+    trippingStrategy: ZIO[Scope with Clock, Nothing, TrippingStrategy],
     resetPolicy: Schedule[Clock, Any, Any] =
       Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
-  ): ZManaged[Clock, Nothing, CircuitBreaker[E]] =
+  ): ZIO[Scope with Clock, Nothing, CircuitBreaker[E]] =
     for {
       strategy       <- trippingStrategy
-      state          <- Ref.make[State](Closed).toManaged
-      halfOpenSwitch <- Ref.make[Boolean](true).toManaged
-      schedule       <- resetPolicy.driver.toManaged
-      resetRequests  <- ZQueue.bounded[Unit](1).toManaged
+      state          <- Ref.make[State](Closed)
+      halfOpenSwitch <- Ref.make[Boolean](true)
+      schedule       <- resetPolicy.driver
+      resetRequests  <- ZQueue.bounded[Unit](1)
       _              <- ZStream
                           .fromQueue(resetRequests)
                           .mapZIO { _ =>
@@ -156,7 +156,7 @@ object CircuitBreaker {
                             } yield ()
                           }
                           .runDrain
-                          .forkManaged
+                          .forkScoped
     } yield new CircuitBreakerImpl[resetPolicy.State, E](
       state,
       resetRequests,
