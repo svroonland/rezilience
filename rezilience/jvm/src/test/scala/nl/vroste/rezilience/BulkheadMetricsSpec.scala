@@ -62,7 +62,6 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
       },
       testM("can sum metrics") {
         for {
-          _          <- UIO(println("Running test"))
           metricsRef <- Ref.make(BulkheadMetrics.empty)
           _          <- BulkheadPlatformSpecificObj
                           .makeWithMetrics(
