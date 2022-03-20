@@ -39,18 +39,18 @@ trait BulkheadPlatformSpecificObj {
                            lastMetricsStart <- currentMetrics.start.get
                            interval          = java.time.Duration.between(lastMetricsStart, now)
 
-                           // Reset collectors
-                           _ <- currentMetrics.start.set(now)
-                           _ <- currentMetrics.inFlight.set(Chunk.empty)
-                           _ <- currentMetrics.enqueued.set(Chunk.empty)
-                           _ <- currentMetrics.latency.set(Chunk.empty)
-
                            userMetrics <- currentMetrics.toUserMetrics(
                                             interval,
                                             latencyHistogramSettings,
                                             inFlightHistogramSettings,
                                             enqueuedHistogramSettings
                                           )
+
+                           // Reset collectors
+                           _           <- currentMetrics.start.set(now)
+                           _           <- currentMetrics.inFlight.set(Chunk.empty)
+                           _           <- currentMetrics.enqueued.set(Chunk.empty)
+                           _           <- currentMetrics.latency.set(Chunk.empty)
                          } yield userMetrics
                        }
         _           <- onMetrics(userMetrics)
