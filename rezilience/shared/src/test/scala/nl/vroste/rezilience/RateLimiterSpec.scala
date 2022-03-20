@@ -22,16 +22,10 @@ object RateLimiterSpec extends DefaultRunnableSpec {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
           now           <- clock.instant
-          started       <- Promise.make[Nothing, Unit]
-          continue      <- Promise.make[Nothing, Unit]
-          firstCallFib  <-
-            ZIO.foreachPar((1 to 5).toList)(_ => rl(started.succeed(()) *> continue.await *> clock.instant)).fork
-          _             <- started.await
+          times1        <-
+            ZIO.foreachPar((1 to 5).toList)(_ => rl(clock.instant))
           secondCallFib <- ZIO.foreachPar((1 to 15).toList)(_ => rl(clock.instant).fork)
-          _             <- continue.succeed(())
-          _             <- TestClock.adjust(0.seconds)
           _             <- TestClock.adjust(1.second)
-          times1        <- firstCallFib.join
           times2        <- ZIO.foreach(secondCallFib)(_.join)
 
           times = times1 ++ times2
