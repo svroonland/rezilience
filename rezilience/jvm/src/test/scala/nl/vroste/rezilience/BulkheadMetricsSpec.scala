@@ -61,27 +61,26 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
         } yield assert(metrics)(hasSize(equalTo(3)))
       },
       testM("can sum metrics") {
+        println("Running test")
         for {
           metricsRef <- Ref.make(BulkheadMetrics.empty)
           _          <- BulkheadPlatformSpecificObj
                           .makeWithMetrics(
-                            200,
-                            200,
+                            10,
+                            5,
                             onMetrics = m => metricsRef.update(_ + m),
-                            metricsInterval = 1.second,
-                            sampleInterval = 100.millis
+                            metricsInterval = 1.second
                           )
-                          .use { bulkhead =>
+                          .use { rl =>
                             for {
-                              inFlight <- ZIO.foreachPar_(1 to 25)(_ => bulkhead(ZIO.sleep(5.second))).fork
-                              _        <- TestClock.adjust(5.second)
-                              _        <- inFlight.join
-                              _        <- TestClock.adjust(10.second)
-                              _        <- TestClock.adjust(500.millis)
+                              _ <- rl(UIO.unit).fork.repeatN(100)
+                              _ <- TestClock.adjust(1.second)
+                              _ <- TestClock.adjust(1.second)
+                              _ <- TestClock.adjust(500.millis)
                             } yield ()
                           }
           metrics    <- metricsRef.get
-        } yield assert(metrics)(hasField("interval", _.interval, equalTo(15500.millis)))
+        } yield assert(metrics)(hasField("interval", _.interval, equalTo(2500.millis)))
       }
     ) @@ nonFlaky
   )
