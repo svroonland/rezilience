@@ -58,8 +58,8 @@ object RateLimiter {
              .bounded[(Ref[Boolean], UIO[Any])](zio.internal.RingBuffer.nextPow2(max))
              .toManaged_ // Power of two because it is a more efficient queue implementation
       _ <- ZStream
-             .fromQueue(q, maxChunkSize = max)
-             .filterM { case (interrupted, effect @ _) => interrupted.get.map(!_) }
+             .fromQueue(q)
+//             .filterM { case (interrupted, effect @ _) => interrupted.get.map(!_) } // This will emit chunks of size 1
              .throttleShape(max.toLong, interval, max.toLong)(_.size.toLong)
              .mapMParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
              .runDrain

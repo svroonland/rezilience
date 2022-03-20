@@ -18,6 +18,27 @@ object RateLimiterSpec extends DefaultRunnableSpec {
         } yield assert(times)(forall(equalTo(now)))
       }
     },
+    testM("is not affected by stream chunk size") {
+      RateLimiter.make(10, 1.second).use { rl =>
+        for {
+          now           <- clock.instant
+          started       <- Promise.make[Nothing, Unit]
+          continue      <- Promise.make[Nothing, Unit]
+          firstCallFib  <-
+            ZIO.foreachPar((1 to 5).toList)(_ => rl(started.succeed(()) *> continue.await *> clock.instant)).fork
+          _             <- started.await
+          secondCallFib <- ZIO.foreachPar((1 to 15).toList)(_ => rl(clock.instant).fork)
+          _             <- continue.succeed(())
+          _             <- TestClock.adjust(0.seconds)
+          _             <- TestClock.adjust(1.second)
+          times1        <- firstCallFib.join
+          times2        <- ZIO.foreach(secondCallFib)(_.join)
+
+          times = times1 ++ times2
+
+        } yield assert(times.filter(_ == now))(hasSize(equalTo(10)))
+      }
+    },
     testM("succeed with the result of the call") {
       RateLimiter.make(10, 1.second).use { rl =>
         for {
