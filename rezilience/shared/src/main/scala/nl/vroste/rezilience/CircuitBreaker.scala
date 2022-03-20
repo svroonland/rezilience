@@ -4,6 +4,7 @@ import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, State, Sta
 import nl.vroste.rezilience.Policy.PolicyError
 import zio.clock.Clock
 import zio.duration._
+import zio.stm.ZSTM
 import zio.stream.ZStream
 import zio.{ clock, _ }
 
@@ -186,25 +187,37 @@ object CircuitBreaker {
   ): ZManaged[Clock with R1, Nothing, CircuitBreaker[E]] = {
 
     def makeNewMetrics =
-      for {
-        now <- clock.instant
-      } yield CircuitBreakerMetricsInternal.empty(now)
+      clock.instant
+        .flatMap(CircuitBreakerMetricsInternal.makeEmpty(_).commit)
 
-    def collectMetrics(currentMetrics: Ref[CircuitBreakerMetricsInternal]) =
+    def collectMetrics(currentMetrics: CircuitBreakerMetricsInternal) =
       for {
-        newMetrics  <- makeNewMetrics
-        lastMetrics <- currentMetrics.getAndSet(newMetrics)
-        interval     = java.time.Duration.between(lastMetrics.start, newMetrics.start)
-        _           <- onMetrics(lastMetrics.toUserMetrics(interval))
+        now         <- clock.instant
+        userMetrics <- ZSTM.atomically {
+                         for {
+                           lastMetricsStart <- currentMetrics.start.get
+                           interval          = java.time.Duration.between(lastMetricsStart, now)
+
+                           userMetrics <- currentMetrics.toUserMetrics(interval)
+
+                           // Reset collectors
+                           _ <- currentMetrics.start.set(now)
+                           _ <- currentMetrics.succeededCalls.set(0L)
+                           _ <- currentMetrics.failedCalls.set(0L)
+                           _ <- currentMetrics.rejectedCalls.set(0L)
+                           _ <- currentMetrics.stateChanges.set(Chunk.empty)
+                         } yield userMetrics
+                       }
+        _           <- onMetrics(userMetrics)
       } yield ()
 
     for {
-      metrics      <- makeNewMetrics.flatMap(Ref.make).toManaged_
+      metrics      <- makeNewMetrics.toManaged_
       _            <- MetricsUtil.runCollectMetricsLoop(metricsInterval)(collectMetrics(metrics))
       stateChanges <- cb.stateChanges
       _            <- ZStream
                         .fromQueue(stateChanges)
-                        .tap(stateChange => metrics.update(_.stateChanged(stateChange.from, stateChange.to, stateChange.at)))
+                        .tap(stateChange => metrics.stateChanged(stateChange.from, stateChange.to, stateChange.at).commit)
                         .runDrain
                         .forkManaged
     } yield CircuitBreakerWithMetricsImpl(cb, metrics)
@@ -300,14 +313,14 @@ object CircuitBreaker {
 
   private[rezilience] case class CircuitBreakerWithMetricsImpl[-E](
     cb: CircuitBreaker[E],
-    metrics: Ref[CircuitBreakerMetricsInternal]
+    metrics: CircuitBreakerMetricsInternal
   ) extends CircuitBreaker[E] {
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] = for {
       result <- cb.apply(f)
-                  .tap(_ => metrics.update(_.callSucceeded))
+                  .tap(_ => metrics.callSucceeded.commit)
                   .tapError {
-                    case CircuitBreaker.CircuitBreakerOpen => metrics.update(_.callRejected)
-                    case CircuitBreaker.WrappedError(_)    => metrics.update(_.callFailed)
+                    case CircuitBreaker.CircuitBreakerOpen => metrics.callRejected.commit
+                    case CircuitBreaker.WrappedError(_)    => metrics.callFailed.commit
                   }
     } yield result
     override def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]                      =

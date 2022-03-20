@@ -3,47 +3,60 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.CircuitBreaker.{ State, StateChange }
 import zio.Chunk
 import zio.duration.Duration
+import zio.stm.{ TRef, USTM }
 
 import java.time.Instant
 
 private[rezilience] final case class CircuitBreakerMetricsInternal(
-  start: Instant,
-  succeededCalls: Long,
-  failedCalls: Long,
-  rejectedCalls: Long,
-  stateChanges: Chunk[StateChange],
-  lastResetTime: Option[Instant]
+  start: TRef[Instant],
+  succeededCalls: TRef[Long],
+  failedCalls: TRef[Long],
+  rejectedCalls: TRef[Long],
+  stateChanges: TRef[Chunk[StateChange]],
+  lastResetTime: TRef[Option[Instant]]
 ) {
 
   def toUserMetrics(
     interval: Duration
-  ): CircuitBreakerMetrics =
-    CircuitBreakerMetrics(
-      interval,
-      succeededCalls,
-      failedCalls,
-      rejectedCalls,
-      stateChanges,
-      lastResetTime
-    )
+  ): USTM[CircuitBreakerMetrics] = for {
+    succeededCalls <- succeededCalls.get
+    failedCalls    <- failedCalls.get
+    rejectedCalls  <- rejectedCalls.get
+    stateChanges   <- stateChanges.get
+    lastResetTime  <- lastResetTime.get
+  } yield CircuitBreakerMetrics(
+    interval,
+    succeededCalls,
+    failedCalls,
+    rejectedCalls,
+    stateChanges,
+    lastResetTime
+  )
 
-  def callSucceeded: CircuitBreakerMetricsInternal                                                 = copy(succeededCalls = succeededCalls + 1)
-  def callRejected: CircuitBreakerMetricsInternal                                                  = copy(rejectedCalls = rejectedCalls + 1)
-  def callFailed: CircuitBreakerMetricsInternal                                                    = copy(failedCalls = failedCalls + 1)
-  def stateChanged(currentState: State, state: State, now: Instant): CircuitBreakerMetricsInternal =
-    copy(stateChanges = stateChanges :+ StateChange(currentState, state, now))
+  def callSucceeded: USTM[Unit]                                                 = succeededCalls.update(_ + 1)
+  def callRejected: USTM[Unit]                                                  = rejectedCalls.update(_ + 1)
+  def callFailed: USTM[Unit]                                                    = failedCalls.update(_ + 1)
+  def stateChanged(currentState: State, state: State, now: Instant): USTM[Unit] =
+    stateChanges.update(_ :+ StateChange(currentState, state, now))
 
 }
 
 private[rezilience] object CircuitBreakerMetricsInternal {
 
-  def empty(now: Instant): CircuitBreakerMetricsInternal =
-    CircuitBreakerMetricsInternal(
-      start = now,
-      succeededCalls = 0,
-      failedCalls = 0,
-      rejectedCalls = 0,
-      stateChanges = Chunk.empty,
-      lastResetTime = None
+  def makeEmpty(now: Instant): USTM[CircuitBreakerMetricsInternal] =
+    for {
+      start          <- TRef.make(now)
+      succeededCalls <- TRef.make(0L)
+      failedCalls    <- TRef.make(0L)
+      rejectedCalls  <- TRef.make(0L)
+      stateChanges   <- TRef.make[Chunk[StateChange]](Chunk.empty)
+      lastResetTime  <- TRef.make[Option[Instant]](None)
+    } yield CircuitBreakerMetricsInternal(
+      start = start,
+      succeededCalls = succeededCalls,
+      failedCalls = failedCalls,
+      rejectedCalls = rejectedCalls,
+      stateChanges = stateChanges,
+      lastResetTime = lastResetTime
     )
 }

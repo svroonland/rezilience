@@ -29,7 +29,8 @@ trait BulkheadPlatformSpecificObj {
     val inFlightHistogramSettings = HistogramSettings[Long](1, maxInFlightCalls.toLong, 2)
     val enqueuedHistogramSettings = HistogramSettings[Long](1, maxQueueing.toLong, 2)
 
-    def makeNewMetrics = clock.instant.map(BulkheadMetricsInternal.makeEmpty).flatMap(_.commit)
+    def makeNewMetrics = clock.instant
+      .flatMap(BulkheadMetricsInternal.makeEmpty(_).commit)
 
     def collectMetrics(currentMetrics: BulkheadMetricsInternal) =
       for {
