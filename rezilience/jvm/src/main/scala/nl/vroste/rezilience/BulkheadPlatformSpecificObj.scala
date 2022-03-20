@@ -2,7 +2,8 @@ package nl.vroste.rezilience
 
 import zio.clock.Clock
 import zio.duration._
-import zio.{ clock, Ref, Schedule, URIO, ZIO, ZManaged }
+import zio.stm.ZSTM
+import zio.{ clock, Chunk, Ref, Schedule, URIO, ZIO, ZManaged }
 
 trait BulkheadPlatformSpecificObj {
 
@@ -28,35 +29,38 @@ trait BulkheadPlatformSpecificObj {
     val inFlightHistogramSettings = HistogramSettings[Long](1, maxInFlightCalls.toLong, 2)
     val enqueuedHistogramSettings = HistogramSettings[Long](1, maxQueueing.toLong, 2)
 
-    def makeNewMetrics = clock.instant.map(BulkheadMetricsInternal.empty)
+    def makeNewMetrics = clock.instant.map(BulkheadMetricsInternal.makeEmpty).flatMap(_.commit)
 
-    def collectMetrics(currentMetrics: Ref[BulkheadMetricsInternal]) =
+    def collectMetrics(currentMetrics: BulkheadMetricsInternal) =
       for {
-        newMetrics  <- makeNewMetrics
-        lastMetrics <-
-          currentMetrics.getAndUpdate(metrics =>
-            newMetrics.copy(
-              currentlyEnqueued = metrics.currentlyEnqueued,
-              currentlyInFlight = metrics.currentlyInFlight
-            )
-          )
-        interval     = java.time.Duration.between(lastMetrics.start, newMetrics.start)
-        _           <- onMetrics(
-                         lastMetrics.toUserMetrics(
-                           interval,
-                           latencyHistogramSettings,
-                           inFlightHistogramSettings,
-                           enqueuedHistogramSettings
-                         )
-                       )
+        now         <- clock.instant
+        userMetrics <- ZSTM.atomically {
+                         for {
+                           lastMetricsStart <- currentMetrics.start.get
+                           interval          = java.time.Duration.between(lastMetricsStart, now)
+
+                           // Reset collectors
+                           _ <- currentMetrics.start.set(now)
+                           _ <- currentMetrics.inFlight.set(Chunk.empty)
+                           _ <- currentMetrics.enqueued.set(Chunk.empty)
+                           _ <- currentMetrics.latency.set(Chunk.empty)
+
+                           userMetrics <- currentMetrics.toUserMetrics(
+                                            interval,
+                                            latencyHistogramSettings,
+                                            inFlightHistogramSettings,
+                                            enqueuedHistogramSettings
+                                          )
+                         } yield userMetrics
+                       }
+        _           <- onMetrics(userMetrics)
       } yield ()
 
     for {
       inner   <- Bulkhead.make(maxInFlightCalls, maxQueueing)
-      metrics <- makeNewMetrics.flatMap(Ref.make).toManaged_
+      metrics <- makeNewMetrics.toManaged_
       _       <- MetricsUtil.runCollectMetricsLoop(metricsInterval)(collectMetrics(metrics))
-      _       <- metrics
-                   .update(_.sampleCurrently)
+      _       <- metrics.sampleCurrently.commit
                    .repeat(Schedule.fixed(sampleInterval))
                    .delay(sampleInterval)
                    .forkManaged
@@ -66,16 +70,15 @@ trait BulkheadPlatformSpecificObj {
         enqueueTime <- clock.instant.provide(env)
         // Keep track of whether the task was started to have correct statistics under interruption
         started     <- Ref.make(false)
-        result      <- metrics
-                         .update(_.enqueueTask)
-                         .toManaged(_ => metrics.update(_.taskInterrupted).unlessM(started.get))
+        result      <- metrics.enqueueTask.commit
+                         .toManaged(_ => metrics.taskInterrupted.commit.unlessM(started.get))
                          .use_ {
                            inner.apply {
                              for {
                                startTime <- clock.instant.provide(env)
                                latency    = java.time.Duration.between(enqueueTime, startTime)
-                               _         <- metrics.update(_.taskStarted(latency)).ensuring(started.set(true))
-                               result    <- task.ensuring(metrics.update(_.taskCompleted))
+                               _         <- metrics.taskStarted(latency).commit.ensuring(started.set(true))
+                               result    <- task.ensuring(metrics.taskCompleted.commit)
                              } yield result
                            }
                          }

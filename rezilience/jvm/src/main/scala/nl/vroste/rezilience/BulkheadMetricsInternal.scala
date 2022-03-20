@@ -3,43 +3,44 @@ package nl.vroste.rezilience
 import org.HdrHistogram.IntCountsHistogram
 import zio.Chunk
 import zio.duration.Duration
+import zio.stm.{ TRef, USTM }
 
 import java.time.Instant
 
 private[rezilience] final case class BulkheadMetricsInternal(
-  start: Instant,
-  inFlight: Chunk[Long],
-  enqueued: Chunk[Long],
-  latency: Chunk[Long],
-  currentlyInFlight: Long,
-  currentlyEnqueued: Long
+  start: TRef[Instant],
+  inFlight: TRef[Chunk[Long]],
+  enqueued: TRef[Chunk[Long]],
+  latency: TRef[Chunk[Long]],
+  currentlyInFlight: TRef[Long],
+  currentlyEnqueued: TRef[Long]
 ) {
-  def taskStarted(latencySample: Duration): BulkheadMetricsInternal = copy(
-    latency = latency :+ Math.max(0, latencySample.toMillis),
-    currentlyEnqueued = currentlyEnqueued - 1,
-    currentlyInFlight = currentlyInFlight + 1
-  )
+  def taskStarted(latencySample: Duration): USTM[Unit] =
+    (latency.update(_ :+ Math.max(0, latencySample.toMillis)) zip
+      currentlyEnqueued.update(_ - 1) zip
+      currentlyInFlight.update(_ + 1)).unit
 
-  def taskCompleted: BulkheadMetricsInternal = copy(
-    currentlyInFlight = currentlyInFlight - 1
-  )
+  def taskCompleted: USTM[Unit]   = currentlyInFlight.update(_ - 1)
+  def taskInterrupted: USTM[Unit] = currentlyEnqueued.update(_ - 1)
 
-  def taskInterrupted: BulkheadMetricsInternal = copy(currentlyEnqueued = currentlyEnqueued - 1)
+  def enqueueTask: USTM[Unit] = currentlyEnqueued.update(_ + 1)
 
-  def enqueueTask: BulkheadMetricsInternal =
-    copy(currentlyEnqueued = currentlyEnqueued + 1)
-
-  def sampleCurrently: BulkheadMetricsInternal = copy(
-    inFlight = inFlight :+ currentlyInFlight,
-    enqueued = enqueued :+ currentlyEnqueued
-  )
+  def sampleCurrently: USTM[Unit] =
+    currentlyInFlight.get.flatMap(nr => inFlight.update(_ :+ nr)) *>
+      currentlyEnqueued.get.flatMap(nr => enqueued.update(_ :+ nr))
 
   def toUserMetrics(
     interval: Duration,
     latencySettings: HistogramSettings[Duration],
     inFlightSettings: HistogramSettings[Long],
     enqueuedSettings: HistogramSettings[Long]
-  ): BulkheadMetrics = {
+  ): USTM[BulkheadMetrics] = for {
+    inFlight          <- inFlight.get
+    enqueued          <- enqueued.get
+    latency           <- latency.get
+    currentlyInFlight <- currentlyInFlight.get
+    currentlyEnqueued <- currentlyEnqueued.get
+  } yield {
     val inFlightHistogram =
       new IntCountsHistogram(inFlightSettings.min, inFlightSettings.max, inFlightSettings.significantDigits)
     inFlight.foreach(inFlightHistogram.recordValue)
@@ -67,13 +68,13 @@ private[rezilience] final case class BulkheadMetricsInternal(
 }
 
 private[rezilience] object BulkheadMetricsInternal {
-  def empty(now: Instant): BulkheadMetricsInternal =
-    BulkheadMetricsInternal(
-      start = now,
-      latency = Chunk.empty,
-      inFlight = Chunk.empty,
-      enqueued = Chunk.empty,
-      currentlyEnqueued = 0,
-      currentlyInFlight = 0
-    )
+  def makeEmpty(now: Instant): USTM[BulkheadMetricsInternal] =
+    for {
+      start             <- TRef.make(now)
+      latency           <- TRef.make[Chunk[Long]](Chunk.empty)
+      inFlight          <- TRef.make[Chunk[Long]](Chunk.empty)
+      enqueued          <- TRef.make[Chunk[Long]](Chunk.empty)
+      currentlyEnqueued <- TRef.make(0L)
+      currentlyInFlight <- TRef.make(0L)
+    } yield BulkheadMetricsInternal(start, inFlight, enqueued, latency, currentlyEnqueued, currentlyInFlight)
 }
