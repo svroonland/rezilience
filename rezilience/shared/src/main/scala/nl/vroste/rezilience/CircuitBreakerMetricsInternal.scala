@@ -25,12 +25,12 @@ private[rezilience] final case class CircuitBreakerMetricsInternal(
     stateChanges   <- stateChanges.get
     lastResetTime  <- lastResetTime.get
   } yield CircuitBreakerMetrics(
-    interval,
-    succeededCalls,
-    failedCalls,
-    rejectedCalls,
-    stateChanges,
-    lastResetTime
+    interval = interval,
+    failedCalls = failedCalls,
+    succeededCalls = succeededCalls,
+    rejectedCalls = rejectedCalls,
+    stateChanges = stateChanges,
+    lastResetTime = lastResetTime
   )
 
   def callSucceeded: USTM[Unit]                                                 = succeededCalls.update(_ + 1)
