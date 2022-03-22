@@ -37,8 +37,8 @@ private[rezilience] final case class CircuitBreakerMetricsInternal(
   def callRejected: USTM[Unit]                                                  = rejectedCalls.update(_ + 1)
   def callFailed: USTM[Unit]                                                    = failedCalls.update(_ + 1)
   def stateChanged(currentState: State, state: State, now: Instant): USTM[Unit] =
-    stateChanges.update(_ :+ StateChange(currentState, state, now))
-
+    stateChanges
+      .update(_ :+ StateChange(currentState, state, now)) *> lastResetTime.set(Some(now)).when(state == State.Closed)
 }
 
 private[rezilience] object CircuitBreakerMetricsInternal {

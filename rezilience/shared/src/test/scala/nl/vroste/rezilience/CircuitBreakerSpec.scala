@@ -1,12 +1,12 @@
 package nl.vroste.rezilience
 
-import nl.vroste.rezilience.CircuitBreaker.State
+import nl.vroste.rezilience.CircuitBreaker.{ State, StateChange }
 import zio.duration._
 import zio.stream.ZStream
 import zio.test.Assertion._
 import zio.test._
 import zio.test.environment.TestClock
-import zio.{ Queue, Schedule, ZIO }
+import zio.{ clock, Chunk, Promise, Queue, Ref, Schedule, UIO, ZIO }
 
 object CircuitBreakerSpec extends DefaultRunnableSpec {
   sealed trait Error
@@ -134,6 +134,141 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
           s1 <- stateChanges.take // HalfOpen
         } yield assert(s1)(equalTo(State.HalfOpen))
       }
-    }
+    },
+    suite("metrics")(
+      testM("can sum metrics") {
+        for {
+          metricsRef <- Ref.make(CircuitBreakerMetrics.empty)
+          _          <- CircuitBreaker
+                          .withMaxFailures(3)
+                          .flatMap(
+                            CircuitBreaker
+                              .makeWithMetrics(_, onMetrics = m => metricsRef.update(_ + m), metricsInterval = 1.second)
+                          )
+                          .use { cb =>
+                            for {
+                              fib <- ZIO.foreachPar_(1 to 100)(_ => cb(UIO.unit)).fork
+                              _   <- TestClock.adjust(1.second)
+                              _   <- TestClock.adjust(1.second)
+                              _   <- fib.join
+                            } yield ()
+                          }
+          metrics    <- metricsRef.get
+        } yield assert(metrics)(hasField("interval", _.interval, equalTo(2000.millis))) &&
+          assert(metrics)(hasField("succeededCalls", _.succeededCalls, equalTo(100L)))
+      },
+      testM("emits metrics after use") {
+        for {
+          metricsRef <- Promise.make[Nothing, CircuitBreakerMetrics]
+          _          <- CircuitBreaker
+                          .withMaxFailures(3)
+                          .flatMap(
+                            CircuitBreaker
+                              .makeWithMetrics(_, onMetrics = metricsRef.succeed, metricsInterval = 5.second)
+                          )
+                          .use { cb =>
+                            cb(UIO.unit)
+                          }
+          metrics    <- metricsRef.await
+
+        } yield assert(metrics)(hasField("succeededCalls", _.succeededCalls, equalTo(1L)))
+      },
+      testM("emits metrics periodically") {
+        for {
+          metricsRef <- Ref.make[Chunk[CircuitBreakerMetrics]](Chunk.empty)
+          _          <- CircuitBreaker
+                          .withMaxFailures(3)
+                          .flatMap(
+                            CircuitBreaker
+                              .makeWithMetrics(_, onMetrics = m => metricsRef.update(_ :+ m), metricsInterval = 5.second)
+                          )
+                          .use { cb =>
+                            for {
+                              _ <- cb(UIO.unit)
+                              _ <- TestClock.adjust(5.second)
+                              _ <- cb(UIO.unit)
+                              _ <- TestClock.adjust(5.second)
+                            } yield ()
+                          }
+          metrics    <- metricsRef.get
+
+        } yield assert(metrics)(hasSize(equalTo(3)))
+
+      },
+      testM("emits successful and failed calls in each metrics interval") {
+        for {
+          metricsRef <- Ref.make[Chunk[CircuitBreakerMetrics]](Chunk.empty)
+          _          <- CircuitBreaker
+                          .withMaxFailures(3)
+                          .flatMap(
+                            CircuitBreaker
+                              .makeWithMetrics(_, onMetrics = m => metricsRef.update(_ :+ m), metricsInterval = 5.second)
+                          )
+                          .use { cb =>
+                            for {
+                              _ <- cb(UIO.unit)
+                              _ <- TestClock.adjust(5.second)
+                              _ <- cb(ZIO.fail("Failed")).either
+                              _ <- TestClock.adjust(5.second)
+                            } yield ()
+                          }
+          metrics    <- metricsRef.get
+
+        } yield assertTrue(metrics.map(_.succeededCalls) == Chunk(1L, 0, 0)) &&
+          assertTrue(metrics.map(_.failedCalls) == Chunk(0L, 1, 0))
+      },
+      testM("records state changes") {
+        for {
+          now        <- clock.instant
+          metricsRef <- Ref.make[Chunk[CircuitBreakerMetrics]](Chunk.empty)
+          _          <-
+            CircuitBreaker
+              .withMaxFailures(10, Schedule.exponential(1.second))
+              .flatMap(
+                CircuitBreaker
+                  .makeWithMetrics(_, onMetrics = m => metricsRef.update(_ :+ m), metricsInterval = 5.second)
+              )
+              .use { cb =>
+                for {
+                  _ <- ZIO.foreach_(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
+                  _ <- TestClock.adjust(1.second)
+                  _ <- TestClock.adjust(1.second)
+                  _ <- cb(ZIO.unit)
+                  _ <- TestClock.adjust(1.second)
+                } yield ()
+              }
+          metrics    <- metricsRef.get
+        } yield assertTrue(
+          metrics.map(_.stateChanges).flatten == Chunk(
+            StateChange(State.Closed, State.Open, now),
+            StateChange(State.Open, State.HalfOpen, now.plusSeconds(1)),
+            StateChange(State.HalfOpen, State.Closed, now.plusSeconds(2))
+          )
+        )
+      },
+      testM("records time of last reset") {
+        for {
+          now        <- clock.instant
+          metricsRef <- Ref.make[Chunk[CircuitBreakerMetrics]](Chunk.empty)
+          _          <-
+            CircuitBreaker
+              .withMaxFailures(10, Schedule.exponential(1.second))
+              .flatMap(
+                CircuitBreaker
+                  .makeWithMetrics(_, onMetrics = m => metricsRef.update(_ :+ m), metricsInterval = 5.second)
+              )
+              .use { cb =>
+                for {
+                  _ <- ZIO.foreach_(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
+                  _ <- TestClock.adjust(1.second)
+                  _ <- TestClock.adjust(1.second)
+                  _ <- cb(ZIO.unit)
+                  _ <- TestClock.adjust(1.second)
+                } yield ()
+              }
+          metrics    <- metricsRef.get
+        } yield assertTrue(metrics.reduce(_ + _).lastResetTime.get == now.plusSeconds(2))
+      }
+    )
   ) @@ TestAspect.timeout(30.seconds) @@ TestAspect.nonFlaky
 }

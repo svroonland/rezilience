@@ -3,7 +3,7 @@ package nl.vroste.rezilience
 import zio.clock.Clock
 import zio.duration.{ durationInt, Duration }
 import zio.stm.ZSTM
-import zio.{ clock, Chunk, Ref, URIO, ZIO, ZManaged }
+import zio.{ clock, Ref, URIO, ZIO, ZManaged }
 
 trait RateLimiterPlatformSpecificObj {
 
