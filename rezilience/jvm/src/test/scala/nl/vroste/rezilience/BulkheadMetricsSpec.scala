@@ -5,7 +5,7 @@ import zio.test.Assertion._
 import zio.test.TestAspect.nonFlaky
 import zio.test._
 import zio.test.environment.TestClock
-import zio.{ Promise, Ref, UIO, ZIO }
+import zio.{ Chunk, Promise, Ref, UIO, ZIO }
 
 object BulkheadMetricsSpec extends DefaultRunnableSpec {
   override def spec = suite("Bulkhead")(
@@ -25,63 +25,94 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
     ),
     suite("metrics")(
       testM("emits metrics after use") {
-        for {
-          metricsRef <- Promise.make[Nothing, BulkheadMetrics]
-          fib        <- BulkheadPlatformSpecificObj
-                          .makeWithMetrics(10, 5, onMetrics = metricsRef.succeed, metricsInterval = 5.second)
-                          .use { rl =>
-                            rl(ZIO.sleep(4.seconds))
-                          }
-                          .fork
-          _          <- TestClock.adjust(4.seconds)
-          _          <- fib.join
-          metrics    <- metricsRef.await
-
-        } yield assert(metrics)(hasField("maxInFlight", _.inFlight.getMaxValue, equalTo(1L)))
+        withMetricsCollection { onMetrics =>
+          for {
+            fib <- BulkheadPlatformSpecificObj
+                     .makeWithMetrics(10, 5, onMetrics, metricsInterval = 5.second)
+                     .use { rl =>
+                       rl(ZIO.sleep(4.seconds))
+                     }
+                     .fork
+            _   <- TestClock.adjust(4.seconds)
+            _   <- fib.join
+          } yield ()
+        } { metrics =>
+          assertM(UIO(metrics.reduce(_ + _)))(hasField("maxInFlight", _.inFlight.getMaxValue, equalTo(1L)))
+        }
       },
       testM("emits metrics at the interval") {
-        for {
-          metricsRef <- Ref.make(Vector.empty[BulkheadMetrics])
-          _          <- BulkheadPlatformSpecificObj
-                          .makeWithMetrics(
-                            10,
-                            5,
-                            onMetrics = m => metricsRef.update(_ :+ m),
-                            metricsInterval = 1.second
-                          )
-                          .use { rl =>
-                            for {
-                              _ <- rl(UIO.unit).fork.repeatN(100)
-                              _ <- TestClock.adjust(1.second)
-                              _ <- TestClock.adjust(1.second)
-                              _ <- TestClock.adjust(500.millis)
-                            } yield ()
-                          }
-          metrics    <- metricsRef.get
-        } yield assert(metrics)(hasSize(equalTo(3)))
+        withMetricsCollection { onMetrics =>
+          BulkheadPlatformSpecificObj
+            .makeWithMetrics(
+              10,
+              5,
+              onMetrics,
+              metricsInterval = 1.second
+            )
+            .use { rl =>
+              for {
+                _ <- rl(UIO.unit).fork.repeatN(100)
+                _ <- TestClock.adjust(1.second)
+                _ <- TestClock.adjust(1.second)
+                _ <- TestClock.adjust(500.millis)
+              } yield ()
+            }
+        }(metrics => assertM(UIO(metrics))(hasSize(equalTo(3))))
       },
       testM("can sum metrics") {
-        println("Running test")
-        for {
-          metricsRef <- Ref.make(BulkheadMetrics.empty)
-          _          <- BulkheadPlatformSpecificObj
-                          .makeWithMetrics(
-                            10,
-                            5,
-                            onMetrics = m => metricsRef.update(_ + m),
-                            metricsInterval = 1.second
-                          )
-                          .use { rl =>
-                            for {
-                              _ <- rl(UIO.unit).fork.repeatN(100)
-                              _ <- TestClock.adjust(1.second)
-                              _ <- TestClock.adjust(1.second)
-                              _ <- TestClock.adjust(500.millis)
-                            } yield ()
-                          }
-          metrics    <- metricsRef.get
-        } yield assert(metrics)(hasField("interval", _.interval, equalTo(2500.millis)))
+        withMetricsCollection { onMetrics =>
+          BulkheadPlatformSpecificObj
+            .makeWithMetrics(
+              10,
+              5,
+              onMetrics,
+              metricsInterval = 1.second
+            )
+            .use { rl =>
+              for {
+                _ <- rl(UIO.unit).fork.repeatN(100)
+                _ <- TestClock.adjust(1.second)
+                _ <- TestClock.adjust(1.second)
+                _ <- TestClock.adjust(500.millis)
+              } yield ()
+            }
+        } { metrics =>
+          assertM(UIO(metrics.reduce(_ + _)))(hasField("interval", _.interval, equalTo(2500.millis)))
+        }
+      },
+      testM("emits correct currently in flight metrics") {
+        withMetricsCollection { onMetrics =>
+          BulkheadPlatformSpecificObj.makeWithMetrics(10, 5, onMetrics, metricsInterval = 1.second).use { bulkhead =>
+            for {
+              latch1   <- Promise.make[Nothing, Unit]
+              latch2   <- Promise.make[Nothing, Unit]
+              continue <- Promise.make[Nothing, Unit]
+              _        <- TestClock.adjust(1.second)
+              fib      <- bulkhead(latch1.succeed(()) *> continue.await).fork
+              _        <- latch1.await
+              _        <- TestClock.adjust(1.second)
+              fib2     <- bulkhead(latch2.succeed(()) *> continue.await).fork
+              _        <- latch2.await
+              _        <- TestClock.adjust(1.second)
+              _        <- continue.succeed(())
+              _        <- TestClock.adjust(1.second)
+              _        <- fib.join
+              _        <- fib2.join
+            } yield ()
+          }
+        } { metrics =>
+          assertM(UIO(metrics.map(_.currentlyInFlight)))(equalTo(Chunk(0L, 1, 2, 0, 0)))
+        }
       }
     ) @@ nonFlaky
   )
+
+  def withMetricsCollection[R, E, A](
+    f: (BulkheadMetrics => UIO[Unit]) => ZIO[R, E, Any]
+  )(assert: Chunk[BulkheadMetrics] => ZIO[R, E, TestResult]): ZIO[R, E, TestResult] = for {
+    metricsRef <- Ref.make[Chunk[BulkheadMetrics]](Chunk.empty)
+    _          <- f(m => metricsRef.update(_ :+ m))
+    metrics    <- metricsRef.get
+    testResult <- assert(metrics)
+  } yield testResult
 }
