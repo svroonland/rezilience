@@ -55,7 +55,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
       } yield assertCompletes
     },
     test("retry exponentially") {
-      for {
+      (for {
         stateChanges <- Queue.unbounded[State]
         cb           <- CircuitBreaker.withMaxFailures(
                           3,
@@ -78,7 +78,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         assert(s3)(equalTo(State.Open)) &&
         assert(s4)(isNone) &&
         assert(s5)(equalTo(State.HalfOpen)) &&
-        assert(s6)(equalTo(State.Closed))
+        assert(s6)(equalTo(State.Closed))).tapErrorCause(result => ZIO.debug(result))
     },
     test("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
       for {
