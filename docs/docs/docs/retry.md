@@ -30,7 +30,7 @@ import nl.vroste.rezilience._
 
 val myEffect: ZIO[Any, Exception, Unit] = ZIO.unit
 
-val retry: ZIO[Scope with Clock with Random, Nothing, Retry[Any]] = Retry.make(min = 1.second, max = 10.seconds)
+val retry: ZIO[Scope with Random, Nothing, Retry[Any]] = Retry.make(min = 1.second, max = 10.seconds)
 
 ZIO.scoped {
   retry.flatMap { retryPolicy => 

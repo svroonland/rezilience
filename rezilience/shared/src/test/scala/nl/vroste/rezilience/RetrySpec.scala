@@ -6,7 +6,7 @@ import zio.test.TestAspect.nonFlaky
 import zio.test._
 import zio._
 
-object RetrySpec extends DefaultRunnableSpec {
+object RetrySpec extends ZIOSpecDefault {
   override def spec = suite("Retry")(
     test("widen should not retry unmatched errors") {
       ZIO.scoped {

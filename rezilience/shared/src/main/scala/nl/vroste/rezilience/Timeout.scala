@@ -33,7 +33,7 @@ object Timeout {
 
   case class TimeoutException[E](error: TimeoutError[E]) extends Exception("Timeout")
 
-  def make(timeout: Duration): ZIO[Scope with Clock, Nothing, Timeout] = ZIO.service[Clock].map { clock =>
+  def make(timeout: Duration): ZIO[Scope, Nothing, Timeout] = ZIO.succeed {
     new Timeout {
       override def apply[R, E, A](f: ZIO[R, E, A]): ZIO[R, TimeoutError[E], A] =
         ZIO
@@ -42,7 +42,6 @@ object Timeout {
             f.provideEnvironment(env)
               .mapError(WrappedError(_))
               .timeoutFail(CallTimedOut)(timeout)
-              .provideEnvironment(ZEnvironment(clock))
           )
     }
   }

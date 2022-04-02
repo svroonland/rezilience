@@ -8,7 +8,7 @@ object CircuitBreakerExample {
   // We use Throwable as error type in this example
   def callExternalSystem(someInput: String): ZIO[Any, Throwable, Int] = ZIO.succeed(someInput.length)
 
-  val circuitBreaker: ZIO[Scope with Clock, Nothing, CircuitBreaker[Any]] = CircuitBreaker.make(
+  val circuitBreaker: ZIO[Scope, Nothing, CircuitBreaker[Any]] = CircuitBreaker.make(
     trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
     resetPolicy = Schedule.exponential(1.second),
     onStateChange = (s: State) => ZIO.succeed(println(s"State changed to ${s}")).ignore

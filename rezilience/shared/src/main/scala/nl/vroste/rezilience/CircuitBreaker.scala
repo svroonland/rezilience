@@ -112,10 +112,10 @@ object CircuitBreaker {
    */
   def withMaxFailures[E](
     maxFailures: Int,
-    resetPolicy: Schedule[Clock, Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
+    resetPolicy: Schedule[Any, Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
-  ): ZIO[Scope with Clock, Nothing, CircuitBreaker[E]] =
+  ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
     make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, onStateChange)
 
   /**
@@ -133,18 +133,18 @@ object CircuitBreaker {
    * @return
    */
   def make[E](
-    trippingStrategy: ZIO[Scope with Clock, Nothing, TrippingStrategy],
-    resetPolicy: Schedule[Clock, Any, Any] =
+    trippingStrategy: ZIO[Scope, Nothing, TrippingStrategy],
+    resetPolicy: Schedule[Any, Any, Any] =
       Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
     onStateChange: State => UIO[Unit] = _ => ZIO.unit
-  ): ZIO[Scope with Clock, Nothing, CircuitBreaker[E]] =
+  ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
     for {
       strategy       <- trippingStrategy
       state          <- Ref.make[State](Closed)
       halfOpenSwitch <- Ref.make[Boolean](true)
       schedule       <- resetPolicy.driver
-      resetRequests  <- ZQueue.bounded[Unit](1)
+      resetRequests  <- Queue.bounded[Unit](1)
       _              <- ZStream
                           .fromQueue(resetRequests)
                           .mapZIO { _ =>
@@ -172,7 +172,7 @@ object CircuitBreaker {
     resetRequests: Queue[Unit],
     strategy: TrippingStrategy,
     onStateChange: State => UIO[Unit],
-    schedule: Schedule.Driver[ScheduleState, Clock, Any, Any],
+    schedule: Schedule.Driver[ScheduleState, Any, Any, Any],
     isFailure: PartialFunction[E, Boolean],
     halfOpenSwitch: Ref[Boolean]
   ) extends CircuitBreaker[E] {

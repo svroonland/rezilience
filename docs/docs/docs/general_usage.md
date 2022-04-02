@@ -84,7 +84,7 @@ You can apply `rezilience` policies at the level of an individual ZIO effect. Bu
 For example:
 
 ```scala
-val addRateLimiterToDatabase: ZLayer[Database with Clock, Nothing, Database] = {
+val addRateLimiterToDatabase: ZLayer[Database, Nothing, Database] = {
   ZLayer.scoped {
     ZLayer.fromService { database: Database.Service =>
       RateLimiter.make(10).map { rateLimiter =>

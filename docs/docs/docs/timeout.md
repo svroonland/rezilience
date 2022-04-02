@@ -24,7 +24,7 @@ import nl.vroste.rezilience.Timeout.TimeoutError
 
 val myEffect: ZIO[Clock, Exception, Unit] = ZIO.sleep(20.seconds)
 
-val timeout: ZIO[Scope with Clock, Nothing, Timeout] = Timeout.make(10.seconds)
+val timeout: ZIO[Scope, Nothing, Timeout] = Timeout.make(10.seconds)
 
 val result: ZIO[Clock, TimeoutError[Exception], Unit] = ZIO.scoped {
     timeout.flatMap { policy => 

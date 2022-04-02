@@ -7,7 +7,7 @@ import zio.test.Assertion._
 import zio.test.TestAspect.nonFlaky
 import zio.test._
 
-object TimeoutSpec extends DefaultRunnableSpec {
+object TimeoutSpec extends ZIOSpecDefault {
   override def spec = suite("Timeout")(
     test("succeeds a regular call") {
       ZIO.scoped {

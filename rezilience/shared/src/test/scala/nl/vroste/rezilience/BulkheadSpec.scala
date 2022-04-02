@@ -5,7 +5,7 @@ import zio.test.TestAspect.{ nonFlaky, timed, timeout }
 import zio.test._
 import zio.{ durationInt, Promise, Ref, ZIO }
 
-object BulkheadSpec extends DefaultRunnableSpec {
+object BulkheadSpec extends ZIOSpecDefault {
 
   sealed trait Error
 

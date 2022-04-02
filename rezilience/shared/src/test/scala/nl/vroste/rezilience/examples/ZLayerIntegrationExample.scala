@@ -56,7 +56,7 @@ object ZLayerIntegrationExample extends zio.ZIOAppDefault {
   }
 
   // A layer that adds a rate limiter to our database
-  val addRateLimiterToDatabase: ZLayer[Database with Clock, Nothing, Database] =
+  val addRateLimiterToDatabase: ZLayer[Database, Nothing, Database] =
     ZLayer.scoped {
       ZIO
         .service[Database.Service]
@@ -73,7 +73,7 @@ object ZLayerIntegrationExample extends zio.ZIOAppDefault {
         }
     }
 
-  val addBulkheadToDatabase: ZLayer[Database with Clock, Nothing, Database] =
+  val addBulkheadToDatabase: ZLayer[Database, Nothing, Database] =
     ZLayer.scoped {
       ZIO
         .service[Database.Service]
@@ -92,7 +92,7 @@ object ZLayerIntegrationExample extends zio.ZIOAppDefault {
         }
     }
 
-  val addCircuitBreakerToDatabase: ZLayer[Database with Clock, Nothing, ResilientDatabase] =
+  val addCircuitBreakerToDatabase: ZLayer[Database, Nothing, ResilientDatabase] =
     ZLayer.scoped {
       ZIO
         .service[Database.Service]
@@ -114,12 +114,12 @@ object ZLayerIntegrationExample extends zio.ZIOAppDefault {
     }
 
   // The complete environment of our application
-  val env: ZLayer[Clock, Nothing, ResilientDatabase] =
-    (Clock.live ++ databaseLayer) >+> addRateLimiterToDatabase >>> addCircuitBreakerToDatabase
+  val env: ZLayer[Any, Nothing, ResilientDatabase] =
+    databaseLayer >+> addRateLimiterToDatabase >>> addCircuitBreakerToDatabase
 
   // Run our program against the Database service being unconcerned with the rate limiter
-  override def run: ZIO[zio.ZEnv with ZIOAppArgs, Any, Any] =
+  override def run =
     (ResilientDatabase.transfer(1, "a", "b") *> ResilientDatabase.transfer(3, "b", "a"))
-      .provideCustomLayer(env)
+      .provideLayer(env)
       .exitCode
 }

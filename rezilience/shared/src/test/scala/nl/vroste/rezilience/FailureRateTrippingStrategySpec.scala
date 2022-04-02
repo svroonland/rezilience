@@ -12,23 +12,21 @@ case class PrintFriendlyDuration(duration: Duration) extends AnyVal {
   override def toString: String = s"${duration.asScala.toMillis} ms"
 }
 
-object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
+object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
   sealed trait Error
   case object MyCallError     extends Error
   case object MyNotFatalError extends Error
 
-  val randomListOfIntervals: Gen[Random, List[PrintFriendlyDuration]] = Gen.int(0, 5).flatMap {
+  val randomListOfIntervals: Gen[Any, List[PrintFriendlyDuration]] = Gen.int(0, 5).flatMap {
     Gen.listOfN(_) {
       Gen.finiteDuration(min = 100.millis, max = 10.seconds).map(PrintFriendlyDuration(_))
     }
   }
 
   // Smaller number of repeats because of using the live clock
-  val env = testEnvironment ++ TestConfig.live(10, 100, 200, 1000)
+  override val layer = testEnvironment ++ TestConfig.live(10, 100, 200, 1000)
 
-  override def runner: TestRunner[TestEnvironment, Any] = TestRunner(TestExecutor.default(env))
-
-  def spec =
+  override def spec =
     suite("Failure rate tripping strategy")(
       test("does not trip initially") {
         ZIO.scoped {
@@ -167,4 +165,7 @@ object FailureRateTrippingStrategySpec extends DefaultRunnableSpec {
         }
       }
     ) @@ timeout(120.seconds) @@ diagnose(120.seconds)
+
+  // Smaller number of repeats because of using the live clock
+  val env = TestConfig.live(10, 100, 200, 1000)
 }

@@ -1,6 +1,6 @@
 package nl.vroste.rezilience
 import zio.stream.ZStream
-import zio.{ durationInt, Clock, Duration, _ }
+import zio.{ durationInt, Duration, _ }
 
 /**
  * Limits the number of calls to a resource to a maximum amount in some interval
@@ -50,7 +50,7 @@ object RateLimiter {
    * @return
    *   RateLimiter
    */
-  def make(max: Int, interval: Duration = 1.second): ZIO[Scope with Clock, Nothing, RateLimiter] =
+  def make(max: Int, interval: Duration = 1.second): ZIO[Scope, Nothing, RateLimiter] =
     for {
       q <- Queue
              .bounded[(Ref[Boolean], UIO[Any])](

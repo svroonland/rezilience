@@ -6,7 +6,7 @@ import zio.test._
 
 import java.time.Instant
 
-object RateLimiterSpec extends DefaultRunnableSpec {
+object RateLimiterSpec extends ZIOSpecDefault {
   override def spec = suite("RateLimiter")(
     test("execute up to max calls immediately") {
       ZIO.scoped {

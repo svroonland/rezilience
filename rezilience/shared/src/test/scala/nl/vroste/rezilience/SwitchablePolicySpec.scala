@@ -4,9 +4,9 @@ import nl.vroste.rezilience.Policy.WrappedError
 import zio.test.Assertion.{ equalTo, fails }
 import zio.test.TestAspect.{ nonFlaky, timed, timeout }
 import zio.test._
-import zio.{ durationInt, Clock, Promise, Random, Ref, ZIO }
+import zio.{ durationInt, Promise, Ref, ZIO }
 
-object SwitchablePolicySpec extends DefaultRunnableSpec {
+object SwitchablePolicySpec extends ZIOSpecDefault {
 
   override def spec = suite("switchable policy")(
     suite("transition mode")(
@@ -15,7 +15,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
 
         ZIO.scoped {
           for {
-            callWithPolicy <- SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
+            callWithPolicy <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
             e              <- failFirstTime
             _              <- callWithPolicy(e)       // Should succeed
             _              <- callWithPolicy.switch(ZIO.succeed(Policy.noop))
@@ -29,7 +29,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
 
         ZIO.scoped {
           for {
-            callWithPolicy                 <- SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
+            callWithPolicy                 <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
             waitForLatch                   <- waitForLatch
             WaitForLatch(e, started, latch) = waitForLatch
             fib                            <- callWithPolicy(e).fork
@@ -49,7 +49,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
 
         ZIO.scoped {
           for {
-            callWithPolicy                 <- SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
+            callWithPolicy                 <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
             waitForLatch                   <- waitForLatch
             WaitForLatch(e, started, latch) = waitForLatch
             fib                            <- callWithPolicy(e).fork
@@ -77,7 +77,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
 
         ZIO.scoped {
           for {
-            callWithPolicy <- SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
+            callWithPolicy <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
             e              <- failFirstTime
             _              <- callWithPolicy(e)       // Should succeed
             _              <- callWithPolicy.switch(ZIO.succeed(Policy.noop), SwitchablePolicy.Mode.FinishInFlight)
@@ -91,7 +91,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
 
         ZIO.scoped {
           for {
-            callWithPolicy                 <- SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
+            callWithPolicy                 <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
             waitForLatch                   <- waitForLatch
             WaitForLatch(e, started, latch) = waitForLatch
             fib                            <- callWithPolicy(e).fork
@@ -115,7 +115,7 @@ object SwitchablePolicySpec extends DefaultRunnableSpec {
 
         ZIO.scoped {
           for {
-            callWithPolicy                 <- SwitchablePolicy.make[Clock with Random, Nothing, Any](initialPolicy)
+            callWithPolicy                 <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
             waitForLatch                   <- waitForLatch
             WaitForLatch(e, started, latch) = waitForLatch
             fib                            <- callWithPolicy(e).fork

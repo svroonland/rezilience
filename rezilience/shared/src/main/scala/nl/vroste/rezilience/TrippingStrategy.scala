@@ -55,7 +55,7 @@ object TrippingStrategy {
     sampleDuration: Duration = 1.minute,
     minThroughput: Int = 10,
     nrSampleBuckets: Int = 10
-  ): ZIO[Scope with Clock, Nothing, TrippingStrategy] = {
+  ): ZIO[Scope, Nothing, TrippingStrategy] = {
     require(
       failureRateThreshold > 0.0 && failureRateThreshold < 1.0,
       "failureRateThreshold must be between 0 (exclusive) and 1"

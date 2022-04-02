@@ -1,5 +1,5 @@
 package nl.vroste.rezilience
-import zio.{ durationInt, Clock, Duration, Random, Schedule, Scope, ZEnvironment, ZIO }
+import zio.{ durationInt, Duration, Schedule, Scope, ZEnvironment, ZIO }
 
 import scala.math.Ordered.orderingToOrdered
 
@@ -50,17 +50,17 @@ object Retry {
     factor: Double = 2.0,
     retryImmediately: Boolean = true,
     maxRetries: Option[Int] = Some(3)
-  ): ZIO[Scope with Clock with Random, Nothing, Retry[Any]] =
+  ): ZIO[Scope, Nothing, Retry[Any]] =
     make(Schedules.common(min, max, factor, retryImmediately, maxRetries))
 
   /**
    * Create a Retry from a ZIO Schedule
    */
-  def make[R, E](schedule: Schedule[R, E, Any]): ZIO[Scope with Clock with R, Nothing, Retry[E]] =
-    ZIO.environment[Clock with R].map(env => RetryImpl[E, R with Clock](env, schedule))
+  def make[R, E](schedule: Schedule[R, E, Any]): ZIO[Scope with R, Nothing, Retry[E]] =
+    ZIO.environment[R].map(env => RetryImpl[E, R](env, schedule))
 
   private case class RetryImpl[-E, ScheduleEnv](
-    scheduleEnv: ZEnvironment[Clock with ScheduleEnv],
+    scheduleEnv: ZEnvironment[ScheduleEnv],
     schedule: Schedule[ScheduleEnv, E, Any]
   ) extends Retry[E] {
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, E1, A] =
@@ -114,7 +114,7 @@ object Retry {
       retryImmediately: Boolean = true,
       maxRetries: Option[Int] = Some(3),
       jitterFactor: Double = 0.1
-    ): Schedule[Random, Any, (Any, Long)] =
+    ): Schedule[Any, Any, (Any, Long)] =
       ((if (retryImmediately) zio.Schedule.once else zio.Schedule.stop) andThen
         exponentialBackoff(min, max, factor).jittered(1.0 - jitterFactor, 1.0 + jitterFactor)) &&
         maxRetries.fold(zio.Schedule.forever)(zio.Schedule.recurs)

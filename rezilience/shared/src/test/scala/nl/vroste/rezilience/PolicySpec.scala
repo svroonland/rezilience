@@ -5,7 +5,7 @@ import zio.test.TestAspect.{ nonFlaky, timeout }
 import zio.test._
 import zio.{ durationInt, Fiber, Promise, ZIO }
 
-object PolicySpec extends DefaultRunnableSpec {
+object PolicySpec extends ZIOSpecDefault {
   sealed trait Error
   case object MyCallError     extends Error
   case object MyNotFatalError extends Error
