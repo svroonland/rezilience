@@ -14,7 +14,7 @@ object CircuitBreakerExample {
     onStateChange = (s: State) => ZIO.succeed(println(s"State changed to ${s}")).ignore
   )
 
-  ZIO.scoped {
+  ZIO.scoped[Any] {
     circuitBreaker.flatMap { cb =>
       val result: ZIO[Any, CircuitBreakerCallError[Throwable], Int] = cb(callExternalSystem("some input"))
 
