@@ -85,7 +85,7 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
             cb(ZIO.unit) *> cb(ZIO.fail("Oh Oh")).either
           }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(10))
         } yield assertCompletes
-      } @@ nonFlaky @@ withLiveClock,
+      } @@ withLiveClock @@ nonFlaky,
       test("does not trip after resetting") {
         val rate           = 0.5
         val sampleDuration = 400.millis
