@@ -158,7 +158,7 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
           }
         }
       }
-    ) @@ timeout(120.seconds) @@ diagnose(120.seconds)
+    ) @@ timeout(240.seconds) @@ diagnose(120.seconds)
 
   // Smaller number of repeats because of using the live clock
   val env = TestConfig.live(10, 100, 200, 1000)
