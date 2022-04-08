@@ -3,7 +3,7 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerOpen, State }
 import zio._
 import zio.test.Assertion._
-import zio.test.TestAspect.{ diagnose, nonFlaky, timeout, withLiveClock, withLiveConsole }
+import zio.test.TestAspect.{ nonFlaky, timeout, withLiveClock, withLiveConsole }
 import zio.test._
 
 case class PrintFriendlyDuration(duration: Duration) extends AnyVal {
@@ -70,7 +70,7 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
       } @@ withLiveClock @@ nonFlaky,
       test("does not trip if the failure rate stays below the threshold") {
         val rate           = 0.7
-        val sampleDuration = 400.millis
+        val sampleDuration = 100.millis
         val minThroughput  = 5
 
         val strategy = TrippingStrategy.failureRate(rate, sampleDuration, minThroughput, nrSampleBuckets = 10)
@@ -83,9 +83,9 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
           // Make a succeeding and a failing call 4 times every 100 ms
           _  <- {
             cb(ZIO.unit) *> cb(ZIO.fail("Oh Oh")).either
-          }.repeat(Schedule.spaced(150.millis) && Schedule.recurs(10))
+          }.repeat(Schedule.spaced(10.millis) && Schedule.recurs(10))
         } yield assertCompletes
-      } @@ withLiveClock @@ nonFlaky,
+      } @@ withLiveClock @@ nonFlaky @@ TestAspect.parallel,
       test("does not trip after resetting") {
         val rate           = 0.5
         val sampleDuration = 400.millis
@@ -158,7 +158,7 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
           }
         }
       }
-    ) @@ timeout(240.seconds) @@ diagnose(120.seconds)
+    ) @@ timeout(240.seconds)
 
   // Smaller number of repeats because of using the live clock
   val env = TestConfig.live(10, 100, 200, 1000)
