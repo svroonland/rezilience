@@ -23,9 +23,6 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
     }
   }
 
-  // Smaller number of repeats because of using the live clock
-  override val layer = testEnvironment ++ TestConfig.live(10, 100, 200, 1000)
-
   override def spec =
     suite("Failure rate tripping strategy")(
       test("does not trip initially") {
@@ -158,8 +155,5 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
           }
         }
       }
-    ) @@ timeout(240.seconds)
-
-  // Smaller number of repeats because of using the live clock
-  val env = TestConfig.live(10, 100, 200, 1000)
+    ) @@ timeout(240.seconds) @@ TestAspect.repeats(10)
 }
