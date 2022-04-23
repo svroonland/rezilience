@@ -36,7 +36,7 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
             _   <- TestClock.adjust(4.seconds)
             _   <- fib.join
           } yield ()
-        } { metrics =>
+        } { (metrics, _) =>
           assertM(UIO(metrics.reduce(_ + _)))(hasField("maxInFlight", _.inFlight.getMaxValue, equalTo(1L)))
         }
       },
@@ -57,7 +57,7 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
                 _ <- TestClock.adjust(500.millis)
               } yield ()
             }
-        }(metrics => assertM(UIO(metrics))(hasSize(equalTo(3))))
+        }((metrics, _) => assertM(UIO(metrics))(hasSize(equalTo(3))))
       },
       testM("can sum metrics") {
         withMetricsCollection { onMetrics =>
@@ -76,7 +76,7 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
                 _ <- TestClock.adjust(500.millis)
               } yield ()
             }
-        } { metrics =>
+        } { (metrics, _) =>
           assertM(UIO(metrics.reduce(_ + _)))(hasField("interval", _.interval, equalTo(2500.millis)))
         }
       },
@@ -100,19 +100,22 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
               _        <- fib2.join
             } yield ()
           }
-        } { metrics =>
-          assertM(UIO(metrics.map(_.currentlyInFlight)))(equalTo(Chunk(0L, 1, 2, 0, 0)))
+        } { (metrics, _) =>
+          UIO(
+            assertTrue(metrics.map(_.currentlyInFlight) == Chunk(0L, 1, 2, 0, 0)) &&
+              assertTrue(metrics.reduce(_ + _).inFlight.getMaxValue == 2L)
+          )
         }
       }
     ) @@ nonFlaky
   )
 
   def withMetricsCollection[R, E, A](
-    f: (BulkheadMetrics => UIO[Unit]) => ZIO[R, E, Any]
-  )(assert: Chunk[BulkheadMetrics] => ZIO[R, E, TestResult]): ZIO[R, E, TestResult] = for {
+    f: (BulkheadMetrics => UIO[Unit]) => ZIO[R, E, A]
+  )(assert: (Chunk[BulkheadMetrics], A) => ZIO[R, E, TestResult]): ZIO[R, E, TestResult] = for {
     metricsRef <- Ref.make[Chunk[BulkheadMetrics]](Chunk.empty)
-    _          <- f(m => metricsRef.update(_ :+ m))
+    result     <- f(m => metricsRef.update(_ :+ m))
     metrics    <- metricsRef.get
-    testResult <- assert(metrics)
+    testResult <- assert(metrics, result)
   } yield testResult
 }

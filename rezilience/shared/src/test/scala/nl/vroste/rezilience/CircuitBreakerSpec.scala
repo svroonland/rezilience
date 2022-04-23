@@ -218,57 +218,74 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
           assertTrue(metrics.map(_.failedCalls) == Chunk(0L, 1, 0))
       },
       testM("records state changes") {
-        for {
-          now        <- clock.instant
-          metricsRef <- Ref.make[Chunk[CircuitBreakerMetrics]](Chunk.empty)
-          _          <-
-            CircuitBreaker
-              .withMaxFailures(10, Schedule.exponential(1.second))
-              .flatMap(
-                CircuitBreaker
-                  .makeWithMetrics(_, onMetrics = m => metricsRef.update(_ :+ m), metricsInterval = 5.second)
+        withMetricsCollection { onMetrics =>
+          for {
+            now <- clock.instant
+            _   <-
+              CircuitBreaker
+                .withMaxFailures(10, Schedule.exponential(1.second))
+                .flatMap(
+                  CircuitBreaker
+                    .makeWithMetrics(_, onMetrics, metricsInterval = 5.second)
+                )
+                .use { cb =>
+                  for {
+                    _ <- ZIO.foreach_(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
+                    _ <- TestClock.adjust(1.second)
+                    _ <- TestClock.adjust(1.second)
+                    _ <- cb(ZIO.unit)
+                    _ <- TestClock.adjust(1.second)
+                  } yield ()
+                }
+          } yield now
+        } { (metrics, now) =>
+          UIO(
+            assertTrue(
+              metrics.map(_.stateChanges).flatten == Chunk(
+                StateChange(State.Closed, State.Open, now),
+                StateChange(State.Open, State.HalfOpen, now.plusSeconds(1)),
+                StateChange(State.HalfOpen, State.Closed, now.plusSeconds(2))
               )
-              .use { cb =>
-                for {
-                  _ <- ZIO.foreach_(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
-                  _ <- TestClock.adjust(1.second)
-                  _ <- TestClock.adjust(1.second)
-                  _ <- cb(ZIO.unit)
-                  _ <- TestClock.adjust(1.second)
-                } yield ()
-              }
-          metrics    <- metricsRef.get
-        } yield assertTrue(
-          metrics.map(_.stateChanges).flatten == Chunk(
-            StateChange(State.Closed, State.Open, now),
-            StateChange(State.Open, State.HalfOpen, now.plusSeconds(1)),
-            StateChange(State.HalfOpen, State.Closed, now.plusSeconds(2))
+            )
           )
-        )
+        }
       },
       testM("records time of last reset") {
-        for {
-          now        <- clock.instant
-          metricsRef <- Ref.make[Chunk[CircuitBreakerMetrics]](Chunk.empty)
-          _          <-
-            CircuitBreaker
-              .withMaxFailures(10, Schedule.exponential(1.second))
-              .flatMap(
-                CircuitBreaker
-                  .makeWithMetrics(_, onMetrics = m => metricsRef.update(_ :+ m), metricsInterval = 5.second)
-              )
-              .use { cb =>
-                for {
-                  _ <- ZIO.foreach_(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
-                  _ <- TestClock.adjust(1.second)
-                  _ <- TestClock.adjust(1.second)
-                  _ <- cb(ZIO.unit)
-                  _ <- TestClock.adjust(1.second)
-                } yield ()
-              }
-          metrics    <- metricsRef.get
-        } yield assertTrue(metrics.reduce(_ + _).lastResetTime.get == now.plusSeconds(2))
+        withMetricsCollection { onMetrics =>
+          for {
+            now <- clock.instant
+            _   <-
+              CircuitBreaker
+                .withMaxFailures(10, Schedule.exponential(1.second))
+                .flatMap(
+                  CircuitBreaker
+                    .makeWithMetrics(_, onMetrics, metricsInterval = 5.second)
+                )
+                .use { cb =>
+                  for {
+                    _ <- ZIO.foreach_(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
+                    _ <- TestClock.adjust(1.second)
+                    _ <- TestClock.adjust(1.second)
+                    _ <- cb(ZIO.unit)
+                    _ <- TestClock.adjust(1.second)
+                  } yield ()
+                }
+          } yield now
+        } { (metrics, now) =>
+          UIO(
+            assertTrue(metrics.reduce(_ + _).lastResetTime.get == now.plusSeconds(2))
+          )
+        }
       }
     )
   ) @@ TestAspect.timeout(30.seconds) @@ TestAspect.nonFlaky
+
+  def withMetricsCollection[R, E, A](
+    f: (CircuitBreakerMetrics => UIO[Unit]) => ZIO[R, E, A]
+  )(assert: (Chunk[CircuitBreakerMetrics], A) => ZIO[R, E, TestResult]): ZIO[R, E, TestResult] = for {
+    metricsRef <- Ref.make[Chunk[CircuitBreakerMetrics]](Chunk.empty)
+    result     <- f(m => metricsRef.update(_ :+ m))
+    metrics    <- metricsRef.get
+    testResult <- assert(metrics, result)
+  } yield testResult
 }
