@@ -13,7 +13,7 @@ final case class BulkheadMetrics(
    */
   inFlight: IntCountsHistogram,
   /**
-   * Distribution of number of calls in flight
+   * Distribution of number of calls that are enqueued
    */
   enqueued: IntCountsHistogram,
   /**

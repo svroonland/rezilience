@@ -21,8 +21,7 @@ trait RateLimiterPlatformSpecificObj {
    * @return
    */
   def makeWithMetrics[R1](
-    max: Int,
-    interval: Duration = 1.second,
+    inner: RateLimiter,
     onMetrics: RateLimiterMetrics => URIO[R1, Any],
     metricsInterval: Duration = 10.seconds,
     latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings(1.milli, 2.minutes)
@@ -45,7 +44,6 @@ trait RateLimiterPlatformSpecificObj {
       } yield ()
 
     for {
-      inner   <- RateLimiter.make(max, interval)
       metrics <- makeNewMetrics.toManaged_
       _       <- MetricsUtil.runCollectMetricsLoop(metricsInterval)(collectMetrics(metrics))
       env     <- ZManaged.environment[Clock]
