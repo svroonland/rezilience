@@ -48,10 +48,10 @@ object ZLayerIntegrationExample extends zio.ZIOAppDefault {
   val databaseLayer: ULayer[Database] = ZLayer.succeed {
     new Database.Service {
       override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
-        UIO.succeed(println("transfer"))
+        ZIO.succeed(println("transfer"))
 
       override def newAccount(name: Account): ZIO[Any, Throwable, Unit] =
-        UIO.succeed(println("new account"))
+        ZIO.succeed(println("new account"))
     }
   }
 

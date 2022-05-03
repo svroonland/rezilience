@@ -100,7 +100,7 @@ object Policy {
     override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
       task.mapError(Bulkhead.WrappedError(_))
 
-    override def metrics: UIO[Metrics] = UIO.succeed(Metrics.apply(0, 0))
+    override def metrics: UIO[Metrics] = ZIO.succeed(Metrics.apply(0, 0))
   }
 
   val noopRateLimiter: RateLimiter = new RateLimiter {

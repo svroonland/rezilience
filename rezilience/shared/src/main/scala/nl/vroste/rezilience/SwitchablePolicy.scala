@@ -47,11 +47,11 @@ object SwitchablePolicy {
   ): ZIO[Scope with R0, E0, SwitchablePolicy[E]] =
     for {
       scope         <- Scope.make
-      policyState   <- makeInUsePolicyState[R0, E0, E](scope, initial, awaitReady = UIO.unit)
+      policyState   <- makeInUsePolicyState[R0, E0, E](scope, initial, awaitReady = ZIO.unit)
       currentPolicy <- TRef.make(policyState).commit
     } yield new SwitchablePolicy[E] {
       override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
-        beginCallWithPolicy.acquireReleaseWith(endCallWithPolicy)(policyState => policyState.policy(f))
+        ZIO.acquireReleaseWith(beginCallWithPolicy)(endCallWithPolicy)(policyState => policyState.policy(f))
 
       def beginCallWithPolicy: IO[Nothing, PolicyState[E]] = STM.atomically {
         for {
@@ -89,7 +89,7 @@ object SwitchablePolicy {
     newPolicy: ZIO[Scope with R0, E0, Policy[E]]
   ): ZIO[R0, E0, ZIO[Any, Nothing, Unit]] =
     for {
-      newPolicyState     <- makeInUsePolicyState[R0, E0, E](scope, newPolicy, awaitReady = UIO.unit)
+      newPolicyState     <- makeInUsePolicyState[R0, E0, E](scope, newPolicy, awaitReady = ZIO.unit)
       // Atomically switch the policy and mark the old one as shutting down
       currentPolicyState <- STM.atomically {
                               for {

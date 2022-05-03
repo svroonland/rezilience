@@ -62,7 +62,7 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
           }.repeat(Schedule.recurs(3))
           // Next call should fail
           _  <- TestClock.adjust(50.millis)
-          r  <- cb(UIO.succeed(println("Succeeding call that should fail fast"))).exit
+          r  <- cb(ZIO.succeed(println("Succeeding call that should fail fast"))).exit
         } yield assert(r)(fails(equalTo(CircuitBreakerOpen)))
       } @@ nonFlaky,
       test("does not trip if the failure rate stays below the threshold") {

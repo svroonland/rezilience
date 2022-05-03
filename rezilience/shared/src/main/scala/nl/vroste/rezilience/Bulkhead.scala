@@ -84,7 +84,7 @@ object Bulkhead {
       _                 <- ZStream
                              .fromQueueWithShutdown(queue)
                              .mapZIOPar(maxInFlightCalls) { task =>
-                               onStart.acquireRelease(onEnd, task)
+                               ZIO.acquireReleaseWith(onStart)(_ => onEnd)(_ => task)
                              }
                              .runDrain
                              .forkScoped
