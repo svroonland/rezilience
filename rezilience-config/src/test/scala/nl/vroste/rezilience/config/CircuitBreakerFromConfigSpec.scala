@@ -6,7 +6,6 @@ import zio.ZIO
 import zio.config.typesafe.TypesafeConfigSource
 import zio.test._
 import zio.test.Assertion._
-import nl.vroste.rezilience.config.CircuitBreakerFromConfig._
 import zio.duration.durationInt
 import zio.test.environment.TestClock
 

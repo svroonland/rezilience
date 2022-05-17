@@ -58,8 +58,8 @@ object CircuitBreakerConfig {
 
 }
 
-object CircuitBreakerFromConfig {
-  implicit class CircuitBreakerFromConfigSyntax(self: CircuitBreaker.type) {
+trait CircuitBreakerFromConfigSyntax {
+  implicit class CircuitBreakerExtensions(self: CircuitBreaker.type) {
     def fromConfig[E](
       source: ConfigSource,
       isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
