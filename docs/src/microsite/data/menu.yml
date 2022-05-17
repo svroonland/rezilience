@@ -17,6 +17,8 @@ options:
     url: docs/combining_policies
   - title: Switching Policies
     url: docs/switching_policies
+  - title: zio-config Integration
+    url: docs/config
   - title: Additional Resiliency
     url: docs/additional_resiliency
   - title: API reference
