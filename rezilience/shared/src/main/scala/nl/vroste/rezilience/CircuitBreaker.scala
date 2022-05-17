@@ -239,6 +239,6 @@ object CircuitBreaker {
     )
   }
 
-  private def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
+  private[rezilience] def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
 
 }

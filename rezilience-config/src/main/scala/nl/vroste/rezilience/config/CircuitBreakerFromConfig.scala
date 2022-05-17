@@ -3,10 +3,11 @@ package nl.vroste.rezilience.config
 import zio.config._
 import ConfigDescriptor._
 import nl.vroste.rezilience
+import nl.vroste.rezilience.CircuitBreaker.{ isFailureAny, State }
 import nl.vroste.rezilience.{ CircuitBreaker, Retry }
 import nl.vroste.rezilience.config.CircuitBreakerConfig.{ ResetSchedule, TrippingStrategy }
 import zio.clock.Clock
-import zio.{ ZIO, ZManaged }
+import zio.{ UIO, ZIO, ZManaged }
 import zio.duration.{ durationInt, Duration }
 
 object CircuitBreakerConfig {
@@ -59,10 +60,13 @@ object CircuitBreakerConfig {
 
 object CircuitBreakerFromConfig {
   implicit class CircuitBreakerFromConfigSyntax(self: CircuitBreaker.type) {
-    def fromConfig(source: ConfigSource): ZManaged[Clock, ReadError[String], CircuitBreaker[Any]] =
+    def fromConfig[E](
+      source: ConfigSource,
+      isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
+      onStateChange: State => UIO[Unit] = _ => ZIO.unit
+    ): ZManaged[Clock, ReadError[String], CircuitBreaker[E]] =
       for {
         config          <- ZIO.fromEither(read(CircuitBreakerConfig.descriptor from source)).toManaged_
-        _               <- ZIO.debug(s"Creating CircuitBreaker from config ${config.toString}").toManaged_
         trippingStrategy = config.strategy match {
                              case TrippingStrategy.FailureCount(maxFailures) =>
                                rezilience.TrippingStrategy.failureCount(maxFailures)
@@ -83,7 +87,7 @@ object CircuitBreakerFromConfig {
                              case ResetSchedule.ExponentialBackoff(min, max, factor) =>
                                Retry.Schedules.exponentialBackoff(min, max, factor)
                            }
-        cb              <- self.make[Any](trippingStrategy, resetSchedule)
+        cb              <- self.make[E](trippingStrategy, resetSchedule, isFailure, onStateChange)
       } yield cb
   }
 }
