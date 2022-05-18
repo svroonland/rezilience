@@ -103,7 +103,8 @@ jobs:
       - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
     steps:
       - checkout
-      - run: apt-get install -y jekyll
+      - run: apt-get install -y ruby-full build-essential zlib1g-dev
+      - run: gem install jekyll bundler
       - run: sbt ++2.12.15! publishLocal docs/publishMicrosite
 
 workflows:
