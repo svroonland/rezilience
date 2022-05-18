@@ -158,11 +158,9 @@ workflows:
               only:
                 - master
       - publish_docs:
-          #requires:
-            #- test213_jdk11 # TODO change
-            # - release
+          requires:
+             - release
           filters:
             branches:
               only:
                 - master
-                - auto-docs-publish # TODO remove
