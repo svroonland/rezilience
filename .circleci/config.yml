@@ -21,7 +21,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.8! compile rezilienceJVM/test
+      - run: sbt ++2.13.8! compile rezilienceJVM/test config/test
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -70,6 +70,16 @@ jobs:
       - run: echo "credentials += Credentials(\"Sonatype Nexus Repository Manager\", \"oss.sonatype.org\", \"$SONATYPE_USER\", \"$SONATYPE_PASSWORD\")" > ~/.sbt/1.0/sonatype.sbt
       - run: sbt ci-release
 
+  publish_docs:
+    docker:
+      - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
+    steps:
+      - checkout
+      - run: apt-get update
+      - run: apt-get install -y ruby-full build-essential zlib1g-dev
+      - run: gem install jekyll bundler
+      - run: sbt ++2.12.15! publishLocal docs/publishMicrosite
+
 workflows:
   version: 2
   build:
@@ -105,4 +115,14 @@ workflows:
             branches:
               only:
                 - master
+<<<<<<< HEAD
                 - zio-2.0
+=======
+      - publish_docs:
+          requires:
+             - release
+          filters:
+            branches:
+              only:
+                - master
+>>>>>>> origin/master

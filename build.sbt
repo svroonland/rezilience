@@ -1,9 +1,10 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 import sbt.Keys.resolvers
-val mainScala    = "2.13.8"
-val dottyVersion = "3.1.1"
-val allScala     = Seq(mainScala, dottyVersion)
-val zioVersion   = "2.0.0-RC6"
+val mainScala        = "2.13.8"
+val dottyVersion     = "3.1.1"
+val allScala         = Seq(mainScala, dottyVersion)
+val zioVersion       = "2.0.0-RC6"
+val zioConfigVersion = "3.0.0-RC9"
 
 lazy val commonJvmSettings = Seq(crossScalaVersions := allScala)
 
@@ -31,7 +32,7 @@ inThisBuild(
 
 lazy val root = project
   .in(file("."))
-  .aggregate(rezilience.js, rezilience.jvm)
+  .aggregate(rezilience.js, rezilience.jvm, config)
   .settings(
     name         := "rezilience",
     publish      := {},
@@ -52,10 +53,31 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
       "dev.zio"                %%% "zio-streams"             % zioVersion,
       "dev.zio"                %%% "zio-test"                % zioVersion % "test",
       "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.6.0"
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.7.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
+
+lazy val config = project
+  .in(file("rezilience-config"))
+  .settings(commonJvmSettings)
+  .settings(
+    name                     := "rezilience-config",
+    scalaVersion             := mainScala,
+    Test / parallelExecution := false,
+    Test / run / fork        := true,
+    scalafmtOnCompile        := true,
+    libraryDependencies ++= Seq(
+      "dev.zio"                %%% "zio-streams"             % zioVersion,
+      "dev.zio"                %%% "zio-config"              % zioConfigVersion,
+      "dev.zio"                %%% "zio-config-typesafe"     % zioConfigVersion % "test",
+      "dev.zio"                %%% "zio-test"                % zioVersion       % "test",
+      "dev.zio"                %%% "zio-test-sbt"            % zioVersion       % "test",
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.7.0"
+    ),
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
+  )
+  .dependsOn(rezilience.jvm)
 
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
@@ -89,7 +111,8 @@ lazy val docs = project
       "dev.zio"                %%% "zio-streams"             % zioVersion,
       "dev.zio"                %%% "zio-test"                % zioVersion % "test",
       "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.6.0"
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.7.0",
+      "dev.zio"                %%% "zio-config-typesafe"     % "3.0.0-RC9"
     )
   )
-  .dependsOn(rezilience.jvm)
+  .dependsOn(rezilience.jvm, config)

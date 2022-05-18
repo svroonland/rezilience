@@ -17,6 +17,22 @@ object RateLimiterSpec extends ZIOSpecDefault {
         } yield assert(times)(forall(equalTo(now)))
       }
     },
+    test("is not affected by stream chunk size") {
+      ZIO.scoped {
+        for {
+          rl            <- RateLimiter.make(10, 1.second)
+          now           <- Clock.instant
+          times1        <-
+            ZIO.foreachPar((1 to 5).toList)(_ => rl(Clock.instant))
+          secondCallFib <- ZIO.foreachPar((1 to 15).toList)(_ => rl(Clock.instant).fork)
+          _             <- TestClock.adjust(1.second)
+          times2        <- ZIO.foreach(secondCallFib)(_.join)
+
+          times = times1 ++ times2
+
+        } yield assert(times.filter(_ == now))(hasSize(equalTo(10)))
+      }
+    },
     test("succeed with the result of the call") {
       ZIO.scoped {
         for {
