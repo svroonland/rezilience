@@ -14,6 +14,14 @@ jobs:
             - "~/.cache/coursier/"
             - "~/.sbt"
             - "~/.m2"
+  check_docs:
+    docker:
+      - image: hseeberger/scala-sbt:8u312_1.6.2_2.13.8
+    steps:
+      - checkout
+      - restore_cache:
+          key: sbt-cache-3
+      - run: sbt ++2.12.15! docs/makeMdoc
   test213_jdk17:
     docker:
       - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
@@ -116,6 +124,9 @@ workflows:
           filters:
             tags:
               only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+      - check_docs:
+          requires:
+            - lint
       - test213_jdk17:
           requires:
             - lint
@@ -153,6 +164,7 @@ workflows:
             - test212_jdk17
             - test212_jdk11
             - test_dotty_jdk17
+            - check_docs
           filters:
             branches:
               only:
