@@ -23,9 +23,6 @@ See also https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitte
 
 ```scala mdoc:silent
 import zio._
-import zio.duration._
-import zio.clock.Clock
-import zio.random.Random
 import nl.vroste.rezilience._
 
 val myEffect: ZIO[Any, Exception, Unit] = ZIO.unit

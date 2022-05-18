@@ -17,8 +17,6 @@ Effects of type `ZIO[R, E, A]` wrapped with a `Timeout` will get a `TimeoutError
 
 ```scala mdoc:silent
 import zio._
-import zio.duration._
-import zio.clock.Clock
 import nl.vroste.rezilience._
 import nl.vroste.rezilience.Timeout.TimeoutError
 

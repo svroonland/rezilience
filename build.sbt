@@ -6,7 +6,8 @@ val allScala         = Seq(mainScala, dottyVersion)
 val zioVersion       = "2.0.0-RC6"
 val zioConfigVersion = "3.0.0-RC9"
 
-lazy val commonJvmSettings = Seq(crossScalaVersions := allScala)
+val excludeInferAny        = { options: Seq[String] => options.filterNot(Set("-Xlint:infer-any")) }
+lazy val commonJvmSettings = Seq(crossScalaVersions := allScala, Compile / scalacOptions ~= excludeInferAny)
 
 lazy val commonJsSettings = Seq(crossScalaVersions := allScala)
 
@@ -86,6 +87,7 @@ lazy val docs = project
   .enablePlugins(MicrositesPlugin)
   .enablePlugins(SiteScaladocPlugin)
   .enablePlugins(ScalaUnidocPlugin)
+  .settings(commonJvmSettings)
   .settings(
     name                                       := "rezilience",
     publish / skip                             := true,
