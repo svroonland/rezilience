@@ -115,9 +115,7 @@ workflows:
             branches:
               only:
                 - master
-<<<<<<< HEAD
                 - zio-2.0
-=======
       - publish_docs:
           requires:
              - release
@@ -125,4 +123,3 @@ workflows:
             branches:
               only:
                 - master
->>>>>>> origin/master
