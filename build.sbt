@@ -33,7 +33,7 @@ inThisBuild(
 
 lazy val root = project
   .in(file("."))
-  .aggregate(rezilience.js, rezilience.jvm, config)
+  .aggregate(rezilience.js, rezilience.jvm, config, docs)
   .settings(
     name         := "rezilience",
     publish      := {},
