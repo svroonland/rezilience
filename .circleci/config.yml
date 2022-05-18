@@ -103,7 +103,7 @@ jobs:
       - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
     steps:
       - checkout
-      - run: sbt docs/publishMicrosite
+      - run: sbt ++2.12.15! publishLocal docs/publishMicrosite
 
 workflows:
   version: 2
@@ -155,8 +155,8 @@ workflows:
               only:
                 - master
       - publish_docs:
-          requires:
-            - test213_jdk11 # TODO change
+          #requires:
+            #- test213_jdk11 # TODO change
             # - release
           filters:
             branches:
