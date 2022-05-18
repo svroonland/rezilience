@@ -7,5 +7,5 @@ import zio.duration.Duration
 object RateLimiterConfig {
   case class Config(max: Int, interval: Duration)
 
-  val descriptor: ConfigDescriptor[Config] = (int("max") |@| zioDuration("interval")).to[Config]
+  val descriptor: ConfigDescriptor[Config] = (int("max") zip zioDuration("interval")).to[Config]
 }

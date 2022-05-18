@@ -16,7 +16,7 @@ trait CircuitBreakerFromConfigSyntax {
       onStateChange: State => UIO[Unit] = _ => ZIO.unit
     ): ZManaged[Clock, ReadError[String], CircuitBreaker[E]] =
       for {
-        config          <- ZIO.fromEither(read(CircuitBreakerConfig.descriptor from source)).toManaged_
+        config          <- read(CircuitBreakerConfig.descriptor from source).toManaged_
         trippingStrategy = config.strategy match {
                              case TrippingStrategy.FailureCount(maxFailures) =>
                                rezilience.TrippingStrategy.failureCount(maxFailures)

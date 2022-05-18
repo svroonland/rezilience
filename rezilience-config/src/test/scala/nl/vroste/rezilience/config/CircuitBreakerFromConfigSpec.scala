@@ -24,15 +24,13 @@ object CircuitBreakerFromConfigSpec extends DefaultRunnableSpec {
                                                 | }
                                                 |""".stripMargin)
 
-      ZIO
-        .fromEither(TypesafeConfigSource.fromTypesafeConfig(config.getConfig("my-circuit-breaker")))
-        .toManaged_
-        .flatMap(CircuitBreaker.fromConfig(_))
-        .use { cb =>
-          for {
-            result <- cb(ZIO.fail(())).ignore *> cb(ZIO.fail(())).ignore *> cb(ZIO.succeed(123)).either
-          } yield assert(result)(isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen)))
-        }
+      val configSource = TypesafeConfigSource.fromTypesafeConfig(ZIO.succeed(config.getConfig("my-circuit-breaker")))
+
+      CircuitBreaker.fromConfig(configSource).use { cb =>
+        for {
+          result <- cb(ZIO.fail(())).ignore *> cb(ZIO.fail(())).ignore *> cb(ZIO.succeed(123)).either
+        } yield assert(result)(isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen)))
+      }
     },
     testM("can read failure-rate strategy from config") {
       val config = ConfigFactory.parseString(s"""
@@ -50,31 +48,29 @@ object CircuitBreakerFromConfigSpec extends DefaultRunnableSpec {
                                                 | }
                                                 |""".stripMargin)
 
-      ZIO
-        .fromEither(TypesafeConfigSource.fromTypesafeConfig(config.getConfig("my-circuit-breaker")))
-        .toManaged_
-        .flatMap(CircuitBreaker.fromConfig(_))
-        .use { cb =>
-          for {
-            _ <- cb(ZIO.fail(())).ignore
-            _ <- cb(ZIO.fail(())).ignore
-            _ <- cb(ZIO.succeed(()))
-            _ <- cb(ZIO.fail(())).ignore
+      val configSource = TypesafeConfigSource.fromTypesafeConfig(ZIO.succeed(config.getConfig("my-circuit-breaker")))
 
-            _       <- TestClock.adjust(2.seconds)
-            result1 <- cb(ZIO.succeed(123)).either
+      CircuitBreaker.fromConfig(configSource).use { cb =>
+        for {
+          _ <- cb(ZIO.fail(())).ignore
+          _ <- cb(ZIO.fail(())).ignore
+          _ <- cb(ZIO.succeed(()))
+          _ <- cb(ZIO.fail(())).ignore
 
-            _ <- cb(ZIO.fail(())).ignore
-            _ <- cb(ZIO.fail(())).ignore
-            _ <- cb(ZIO.fail(())).ignore
-            _ <- cb(ZIO.fail(())).ignore
+          _       <- TestClock.adjust(2.seconds)
+          result1 <- cb(ZIO.succeed(123)).either
 
-            _       <- TestClock.adjust(2.seconds)
-            result2 <- cb(ZIO.succeed(123)).either
-          } yield assert(result1)(isRight(anything)) && assert(result2)(
-            isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen))
-          )
-        }
+          _ <- cb(ZIO.fail(())).ignore
+          _ <- cb(ZIO.fail(())).ignore
+          _ <- cb(ZIO.fail(())).ignore
+          _ <- cb(ZIO.fail(())).ignore
+
+          _       <- TestClock.adjust(2.seconds)
+          result2 <- cb(ZIO.succeed(123)).either
+        } yield assert(result1)(isRight(anything)) && assert(result2)(
+          isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen))
+        )
+      }
     }
   )
 

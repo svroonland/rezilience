@@ -27,9 +27,9 @@ object CircuitBreakerConfig {
     (int("max-failures")).to[TrippingStrategy.FailureCount]
 
   val failureRateDescriptor: ConfigDescriptor[TrippingStrategy.FailureRate] =
-    (double("failure-rate-threshold") |@|
-      zioDuration("sample-duration").default(1.minute) |@|
-      int("min-throughput").default(10) |@|
+    (double("failure-rate-threshold") zip
+      zioDuration("sample-duration").default(1.minute) zip
+      int("min-throughput").default(10) zip
       int("nr-sample-buckets").default(10)).to[TrippingStrategy.FailureRate]
 
   val trippingStrategyDescriptor: ConfigDescriptor[TrippingStrategy] =
@@ -42,12 +42,12 @@ object CircuitBreakerConfig {
     )
 
   val resetScheduleDescriptor: ConfigDescriptor[ResetSchedule] =
-    (zioDuration("min").default(1.second) |@|
-      zioDuration("max").default(1.minute) |@|
+    (zioDuration("min").default(1.second) zip
+      zioDuration("max").default(1.minute) zip
       double("factor").default(2.0)).to[ResetSchedule.ExponentialBackoff].asInstanceOf[ConfigDescriptor[ResetSchedule]]
 
   val descriptor: ConfigDescriptor[Config] =
-    (nested("tripping-strategy")(trippingStrategyDescriptor) |@| nested("reset-schedule")(resetScheduleDescriptor))
+    (nested("tripping-strategy")(trippingStrategyDescriptor) zip nested("reset-schedule")(resetScheduleDescriptor))
       .to[Config]
 
 }

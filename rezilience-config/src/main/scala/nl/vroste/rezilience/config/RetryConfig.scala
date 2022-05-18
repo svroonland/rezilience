@@ -15,11 +15,11 @@ object RetryConfig {
   )
 
   val descriptor: ConfigDescriptor[Config] = (
-    zioDuration("min-delay") |@|
-      zioDuration("max-delay").optional |@|
-      double("factor").default(2.0) |@|
-      boolean("retry-immediately").default(false) |@|
-      int("max-retries").optional |@|
+    zioDuration("min-delay") zip
+      zioDuration("max-delay").optional zip
+      double("factor").default(2.0) zip
+      boolean("retry-immediately").default(false) zip
+      int("max-retries").optional zip
       double("jitter").default(0.0)
   )
     .to[Config]

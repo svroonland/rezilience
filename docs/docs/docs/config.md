@@ -1,8 +1,7 @@
-
 ---
 layout: docs
 title: zio-config integration
-permalink: docs/config/
+permalink: docs/zio-config/
 ---
 
 Rezilience has an optional module `rezilience-config` for integration with `zio-config` to create policies from config files.
@@ -21,7 +20,7 @@ import nl.vroste.rezilience.config._
 
 Now you can use the `fromConfig` method on any of the rezilience policies like so:
 
-```scala
+```scala mdoc:silent
 import nl.vroste.rezilience._
 import nl.vroste.rezilience.config._
 
@@ -45,12 +44,10 @@ val config = ConfigFactory.parseString(s"""
                                           | }
                                           |""".stripMargin)
 
-val configSource = TypesafeConfigSource.fromTypesafeConfig(config.getConfig("my-circuit-breaker"))
+val configSource = TypesafeConfigSource.fromTypesafeConfig(ZIO.succeed(config.getConfig("my-circuit-breaker")))
 
-ZIO
-  .fromEither(configSource)
-  .toManaged_
-  .flatMap(CircuitBreaker.fromConfig(_))
+CircuitBreaker
+  .fromConfig(configSource)
   .use { cb =>
     cb(ZIO.unit)
   }
