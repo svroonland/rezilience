@@ -14,16 +14,15 @@ permalink: docs/switching_policies/
 import zio._
 import nl.vroste.rezilience._
 
-val initialPolicy: ZIO[Scope, Nothing, Policy[Any]] = RateLimiter.make(1, 1.seconds).map(_.toPolicy)
-val newPolicy: ZIO[Scope, Nothing, Policy[Any]] = RateLimiter.make(10, 1.seconds).map(_.toPolicy)
+val initialPolicy: ZManaged[Clock, Nothing, Policy[Any]] = RateLimiter.make(1, 1.seconds).map(_.toPolicy)
+val newPolicy: ZManaged[Clock, Nothing, Policy[Any]] = RateLimiter.make(10, 1.seconds).map(_.toPolicy)
 
-val makePolicy: ZIO[Scope, Nothing, SwitchablePolicy[Any]] = 
+val policy: ZManaged[Clock, Nothing, SwitchablePolicy[Any]] =
   SwitchablePolicy.make(initialPolicy)
 
-ZIO.scoped {
+policy.use { policy =>
   for {
-    policy <- makePolicy
-    _ <- policy.apply(ZIO.attempt("Something"))
+    _ <- policy.apply(ZIO.effect("Something"))
     switchComplete <- policy.switch(newPolicy, mode = SwitchablePolicy.Mode.Transition)
 
     // At this moment, any new calls will run with the new policy
