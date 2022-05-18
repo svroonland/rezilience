@@ -4,6 +4,8 @@ title: zio-config integration
 permalink: docs/zio-config/
 ---
 
+# zio-config Integration
+
 Rezilience has an optional module `rezilience-config` for integration with `zio-config` to create policies from config files.
 
 Add to your build.sbt:
