@@ -11,7 +11,16 @@ import zio._
  * Custom implementations are supported
  */
 trait TrippingStrategy {
+
+  /**
+   * Called for every successful or failed call
+   *
+   * @param callSuccessful
+   * @return
+   *   If the CircuitBreaker should trip because of too many failures
+   */
   def shouldTrip(callSuccessful: Boolean): UIO[Boolean]
+
   def onReset: UIO[Unit]
 }
 
