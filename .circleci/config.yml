@@ -169,6 +169,8 @@ workflows:
             branches:
               only:
                 - master
+            tags:
+              only: /^v.*/
       - publish_docs:
           requires:
              - release
