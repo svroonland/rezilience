@@ -129,5 +129,5 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
         } yield assert(s1)(equalTo(State.HalfOpen))
       }
     }
-  ) @@ nonFlaky(20)
+  ) @@ nonFlaky
 }

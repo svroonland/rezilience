@@ -31,7 +31,7 @@ object TrippingStrategy {
           nrFailedCalls.set(0).as(false)
         else
           nrFailedCalls.modify { case nrFailures =>
-            (nrFailures >= maxFailures, nrFailures + 1)
+            (nrFailures + 1 == maxFailures, nrFailures + 1)
           }
         override def onReset: UIO[Unit]                                = nrFailedCalls.set(0)
       }
