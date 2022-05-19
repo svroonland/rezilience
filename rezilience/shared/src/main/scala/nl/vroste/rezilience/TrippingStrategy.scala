@@ -11,9 +11,7 @@ import zio._
  * Custom implementations are supported
  */
 trait TrippingStrategy {
-  def onSuccess: UIO[Unit]
-  def onFailure: UIO[Unit]
-  def shouldTrip: UIO[Boolean]
+  def shouldTrip(callSuccessful: Boolean): UIO[Boolean]
   def onReset: UIO[Unit]
 }
 
@@ -29,10 +27,13 @@ object TrippingStrategy {
   def failureCount(maxFailures: Int): ZManaged[Any, Nothing, TrippingStrategy] =
     Ref.make[Int](0).toManaged_.map { nrFailedCalls =>
       new TrippingStrategy {
-        override def onSuccess: UIO[Unit]     = nrFailedCalls.set(0)
-        override def onFailure: UIO[Unit]     = nrFailedCalls.update(_ + 1)
-        override def shouldTrip: UIO[Boolean] = nrFailedCalls.get.map(_ >= maxFailures)
-        override def onReset: UIO[Unit]       = nrFailedCalls.set(0)
+        override def shouldTrip(callSuccessful: Boolean): UIO[Boolean] = if (callSuccessful)
+          nrFailedCalls.set(0).as(false)
+        else
+          nrFailedCalls.modify { case nrFailures =>
+            (nrFailures >= maxFailures, nrFailures + 1)
+          }
+        override def onReset: UIO[Unit]                                = nrFailedCalls.set(0)
       }
     }
 
@@ -77,24 +78,24 @@ object TrippingStrategy {
                                  .delay(bucketRotationInterval)
                                  .forkManaged
     } yield new TrippingStrategy {
-      override def onSuccess: UIO[Unit] = updateSamples(true)
-      override def onFailure: UIO[Unit] = updateSamples(false)
-      override def onReset: UIO[Unit]   = samplesRef.set(List(Bucket.empty))
+      override def shouldTrip(callSuccessful: Boolean): UIO[Boolean] = samplesRef.modify { case oldSamples =>
+        val samples = updateSamples(oldSamples, success = callSuccessful)
 
-      def updateSamples(success: Boolean): UIO[Unit] =
-        samplesRef.get.flatMap {
-          case (bucket @ Bucket(successes, failures)) :: remainingSamples =>
-            val updatedBucket =
-              if (success) bucket.copy(successes = successes + 1) else bucket.copy(failures = failures + 1)
+        shouldTrip(samples) -> samples
+      }
+      override def onReset: UIO[Unit]                                = samplesRef.set(List(Bucket.empty))
 
-            val updatedSamples = updatedBucket +: remainingSamples
+      private def updateSamples(samples: List[Bucket], success: Boolean): List[Bucket] = samples match {
+        case (bucket @ Bucket(successes, failures)) :: remainingSamples =>
+          val updatedBucket =
+            if (success) bucket.copy(successes = successes + 1) else bucket.copy(failures = failures + 1)
 
-            samplesRef.set(updatedSamples)
-          case Nil                                                        =>
-            throw new IllegalArgumentException("Samples is supposed to be a NEL")
-        }
+          updatedBucket +: remainingSamples
+        case Nil                                                        =>
+          throw new IllegalArgumentException("Samples is supposed to be a NEL")
+      }
 
-      override def shouldTrip: UIO[Boolean] = samplesRef.get.map { samples =>
+      private def shouldTrip(samples: List[Bucket]): Boolean = {
         val total              = samples.map(_.total).sum
         val minThroughputMet   = total >= minThroughput
         val minSamplePeriod    = samples.length == nrSampleBuckets

@@ -196,11 +196,12 @@ object CircuitBreaker {
                           case Closed   =>
                             // The state may have already changed to Open or even HalfOpen.
                             // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
-                            def onFail =
-                              (strategy.onFailure *>
-                                ZIO.whenM(state.get.flatMap(s => strategy.shouldTrip.map(_ && (s == Closed)))) {
-                                  changeToOpen
-                                }).uninterruptible
+                            def onComplete(callSuccessful: Boolean) =
+                              (for {
+                                shouldTrip   <- strategy.shouldTrip(callSuccessful)
+                                currentState <- state.get
+                                _            <- changeToOpen.when(currentState == Closed && shouldTrip)
+                              } yield ()).uninterruptible
 
                             f.either.flatMap {
                               case Left(e) if isFailure.isDefinedAt(e) => ZIO.fail(e)
@@ -208,7 +209,7 @@ object CircuitBreaker {
                               case Right(e)                            => ZIO.right(e)
 
                             }
-                              .tapBoth(_ => onFail, _ => strategy.onSuccess)
+                              .tapBoth(_ => onComplete(callSuccessful = false), _ => onComplete(callSuccessful = true))
                               .mapError(WrappedError(_))
                               .absolve
                           case Open     =>
@@ -219,7 +220,7 @@ object CircuitBreaker {
                               result      <- if (isFirstCall) {
                                                f.mapError(WrappedError(_))
                                                  .tapBoth(
-                                                   _ => (strategy.onFailure *> changeToOpen).uninterruptible,
+                                                   _ => (strategy.shouldTrip(false) *> changeToOpen).uninterruptible,
                                                    _ => (changeToClosed *> strategy.onReset).uninterruptible
                                                  )
                                              } else {

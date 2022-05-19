@@ -25,16 +25,12 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
     },
     testM("fails fast after max nr failures calls") {
       CircuitBreaker
-        .withMaxFailures(100, Schedule.exponential(1.second), onStateChange = state => ZIO.debug(state))
+        .withMaxFailures(100, Schedule.exponential(1.second))
         .use { cb =>
           for {
             _      <-
-              ZIO.foreachPar_(1 to 105)(i =>
-                cb(ZIO.fail(MyCallError)).either.debug(s"${i}").tapCause(c => ZIO.debug(c))
-              )
-            _      <- ZIO.debug("Step 2")
+              ZIO.foreachPar_(1 to 105)(_ => cb(ZIO.fail(MyCallError)).either.tapCause(c => ZIO.debug(c)))
             result <- cb(ZIO.fail(MyCallError)).either
-            _      <- ZIO.debug("Step 3")
           } yield assert(result)(isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen)))
         }
     } @@ TestAspect.diagnose(20.seconds),
@@ -133,5 +129,5 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
         } yield assert(s1)(equalTo(State.HalfOpen))
       }
     }
-  ) @@ nonFlaky
+  ) @@ nonFlaky(20)
 }
