@@ -149,6 +149,7 @@ object CircuitBreaker {
       resetRequests  <- ZQueue.bounded[Unit](1).toManaged_
       _              <- ZStream
                           .fromQueue(resetRequests)
+                          .bufferDropping(1)
                           .mapM { _ =>
                             for {
                               _ <- schedule.next(())            // TODO handle schedule completion?
