@@ -31,7 +31,7 @@ object TrippingStrategy {
       new TrippingStrategy {
         override def onSuccess: UIO[Unit]     = nrFailedCalls.set(0)
         override def onFailure: UIO[Unit]     = nrFailedCalls.update(_ + 1)
-        override def shouldTrip: UIO[Boolean] = nrFailedCalls.get.map(_ == maxFailures)
+        override def shouldTrip: UIO[Boolean] = nrFailedCalls.get.map(_ >= maxFailures)
         override def onReset: UIO[Unit]       = nrFailedCalls.set(0)
       }
     }
