@@ -1,4 +1,8 @@
 version: 2.1
+parameters:
+  tag_regex:
+    type: string
+    default: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
 jobs:
   lint:
     docker:
@@ -142,7 +146,7 @@ workflows:
               only:
                 - master
             tags:
-              only: /^v.*/
+              only: << pipeline.parameters.tag_regex >>
       - publish_docs:
           requires:
              - release
