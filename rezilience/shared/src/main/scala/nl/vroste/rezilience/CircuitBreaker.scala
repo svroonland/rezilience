@@ -35,7 +35,8 @@ import zio.stream.ZStream
  * TODO what to do if you want this kind of behavior, or should we make it an option?
  *
  * 2) Failure rate. When the fraction of failed calls in some sample period exceeds a threshold (between 0 and 1), the
- * circuit breaker is tripped.
+ * circuit breaker is tripped. The decision to trip the Circuit Breaker is made after every call (including successful
+ * ones!)
  */
 trait CircuitBreaker[-E] {
   self =>
