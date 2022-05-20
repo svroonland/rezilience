@@ -11,7 +11,7 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
   override def spec = suite("Bulkhead")(
     suite("preserves Bulkhead behavior")(
       testM("will interrupt the effect when a call is interrupted") {
-        BulkheadPlatformSpecificObj.makeWithMetrics(10, 5, _ => UIO.unit).use { bulkhead =>
+        Bulkhead.make(10, 5).flatMap(Bulkhead.makeWithMetrics(_, _ => UIO.unit)).use { bulkhead =>
           for {
             latch       <- Promise.make[Nothing, Unit]
             interrupted <- Promise.make[Nothing, Unit]
@@ -27,8 +27,12 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
       testM("emits metrics after use") {
         withMetricsCollection { onMetrics =>
           for {
-            fib <- BulkheadPlatformSpecificObj
-                     .makeWithMetrics(10, 5, onMetrics, metricsInterval = 5.second)
+            fib <- Bulkhead
+                     .make(10, 5)
+                     .flatMap(
+                       Bulkhead
+                         .makeWithMetrics(_, onMetrics, metricsInterval = 5.second)
+                     )
                      .use { rl =>
                        rl(ZIO.sleep(4.seconds))
                      }
@@ -42,12 +46,15 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
       },
       testM("emits metrics at the interval") {
         withMetricsCollection { onMetrics =>
-          BulkheadPlatformSpecificObj
-            .makeWithMetrics(
-              10,
-              5,
-              onMetrics,
-              metricsInterval = 1.second
+          Bulkhead
+            .make(10, 50)
+            .flatMap(
+              Bulkhead
+                .makeWithMetrics(
+                  _,
+                  onMetrics,
+                  metricsInterval = 1.second
+                )
             )
             .use { rl =>
               for {
@@ -61,12 +68,15 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
       },
       testM("can sum metrics") {
         withMetricsCollection { onMetrics =>
-          BulkheadPlatformSpecificObj
-            .makeWithMetrics(
-              10,
-              5,
-              onMetrics,
-              metricsInterval = 1.second
+          Bulkhead
+            .make(10, 50)
+            .flatMap(
+              Bulkhead
+                .makeWithMetrics(
+                  _,
+                  onMetrics,
+                  metricsInterval = 1.second
+                )
             )
             .use { rl =>
               for {
@@ -82,24 +92,27 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
       },
       testM("emits correct currently in flight metrics") {
         withMetricsCollection { onMetrics =>
-          BulkheadPlatformSpecificObj.makeWithMetrics(10, 5, onMetrics, metricsInterval = 1.second).use { bulkhead =>
-            for {
-              latch1   <- Promise.make[Nothing, Unit]
-              latch2   <- Promise.make[Nothing, Unit]
-              continue <- Promise.make[Nothing, Unit]
-              _        <- TestClock.adjust(1.second)
-              fib      <- bulkhead(latch1.succeed(()) *> continue.await).fork
-              _        <- latch1.await
-              _        <- TestClock.adjust(1.second)
-              fib2     <- bulkhead(latch2.succeed(()) *> continue.await).fork
-              _        <- latch2.await
-              _        <- TestClock.adjust(1.second)
-              _        <- continue.succeed(())
-              _        <- TestClock.adjust(1.second)
-              _        <- fib.join
-              _        <- fib2.join
-            } yield ()
-          }
+          Bulkhead
+            .make(10, 5)
+            .flatMap(Bulkhead.makeWithMetrics(_, onMetrics, metricsInterval = 1.second))
+            .use { bulkhead =>
+              for {
+                latch1   <- Promise.make[Nothing, Unit]
+                latch2   <- Promise.make[Nothing, Unit]
+                continue <- Promise.make[Nothing, Unit]
+                _        <- TestClock.adjust(1.second)
+                fib      <- bulkhead(latch1.succeed(()) *> continue.await).fork
+                _        <- latch1.await
+                _        <- TestClock.adjust(1.second)
+                fib2     <- bulkhead(latch2.succeed(()) *> continue.await).fork
+                _        <- latch2.await
+                _        <- TestClock.adjust(1.second)
+                _        <- continue.succeed(())
+                _        <- TestClock.adjust(1.second)
+                _        <- fib.join
+                _        <- fib2.join
+              } yield ()
+            }
         } { (metrics, _) =>
           UIO(
             assertTrue(metrics.map(_.currentlyInFlight) == Chunk(0L, 1, 2, 0, 0)) &&

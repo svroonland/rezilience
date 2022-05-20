@@ -19,16 +19,15 @@ trait BulkheadPlatformSpecificObj {
    * @return
    */
   def makeWithMetrics[R1](
-    maxInFlightCalls: Int,
-    maxQueueing: Int = 32,
+    inner: Bulkhead,
     onMetrics: BulkheadMetrics => URIO[R1, Any],
     metricsInterval: Duration = 10.seconds,
     sampleInterval: Duration = 1.seconds,
-    latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings(1.milli, 2.minutes)
+    // TODO automatically growing histograms, with some sensible defaults
+    latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings(1.milli, 2.minutes),
+    inFlightHistogramSettings: HistogramSettings[Long] = HistogramSettings(1, 100, 2),
+    enqueuedHistogramSettings: HistogramSettings[Long] = HistogramSettings(1, 32, 2)
   ): ZManaged[Clock with R1, Nothing, Bulkhead] = {
-    val inFlightHistogramSettings = HistogramSettings[Long](1, maxInFlightCalls.toLong, 2)
-    val enqueuedHistogramSettings = HistogramSettings[Long](1, maxQueueing.toLong, 2)
-
     def makeNewMetrics = clock.instant
       .flatMap(BulkheadMetricsInternal.makeEmpty(_).commit)
 
@@ -58,7 +57,6 @@ trait BulkheadPlatformSpecificObj {
       } yield ()
 
     for {
-      inner   <- Bulkhead.make(maxInFlightCalls, maxQueueing)
       metrics <- makeNewMetrics.toManaged_
       _       <- MetricsUtil.runCollectMetricsLoop(metricsInterval)(collectMetrics(metrics))
       _       <- metrics.sampleCurrently.commit
