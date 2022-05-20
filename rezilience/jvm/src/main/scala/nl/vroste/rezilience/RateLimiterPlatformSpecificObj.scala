@@ -8,7 +8,7 @@ import zio.{ clock, Ref, URIO, ZIO, ZManaged }
 trait RateLimiterPlatformSpecificObj {
 
   /**
-   * Create a RateLimiter with metrics
+   * Add metrics collection to a RateLimiter
    *
    * Metrics are emitted at a regular interval. When the RateLimiter is released, metrics for the final interval are
    * emitted.
@@ -19,8 +19,9 @@ trait RateLimiterPlatformSpecificObj {
    * @param metricsInterval
    * @param latencyHistogramSettings
    * @return
+   *   A wrapped RateLimiter that collects metrics
    */
-  def makeWithMetrics[R1](
+  def adMetrics[R1](
     inner: RateLimiter,
     onMetrics: RateLimiterMetrics => URIO[R1, Any],
     metricsInterval: Duration = 10.seconds,

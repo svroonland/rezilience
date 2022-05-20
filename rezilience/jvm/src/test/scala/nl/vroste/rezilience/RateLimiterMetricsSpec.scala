@@ -13,7 +13,7 @@ object RateLimiterMetricsSpec extends DefaultRunnableSpec {
       testM("will interrupt the effect when a call is interrupted") {
         RateLimiter
           .make(10, 1.second)
-          .flatMap(RateLimiterPlatformSpecificObj.makeWithMetrics(_, _ => UIO.unit))
+          .flatMap(RateLimiterPlatformSpecificObj.adMetrics(_, _ => UIO.unit))
           .use { rl =>
             for {
               latch       <- Promise.make[Nothing, Unit]
@@ -34,7 +34,7 @@ object RateLimiterMetricsSpec extends DefaultRunnableSpec {
                           .make(10, 1.second)
                           .flatMap(
                             RateLimiterPlatformSpecificObj
-                              .makeWithMetrics(_, onMetrics = metricsRef.succeed, metricsInterval = 5.second)
+                              .adMetrics(_, onMetrics = metricsRef.succeed, metricsInterval = 5.second)
                           )
                           .use { rl =>
                             rl(UIO.unit)
@@ -51,7 +51,7 @@ object RateLimiterMetricsSpec extends DefaultRunnableSpec {
                           .make(10, 1.second)
                           .flatMap(
                             RateLimiterPlatformSpecificObj
-                              .makeWithMetrics(
+                              .adMetrics(
                                 _,
                                 onMetrics = m => metricsRef.update(_ :+ m),
                                 metricsInterval = 1.second
@@ -75,7 +75,7 @@ object RateLimiterMetricsSpec extends DefaultRunnableSpec {
                           .make(10, 1.second)
                           .flatMap(
                             RateLimiterPlatformSpecificObj
-                              .makeWithMetrics(
+                              .adMetrics(
                                 _,
                                 onMetrics = m => metricsRef.update(_ + m),
                                 metricsInterval = 1.second

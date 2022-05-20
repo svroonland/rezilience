@@ -1,6 +1,6 @@
 package nl.vroste.rezilience
 
-import nl.vroste.rezilience.Bulkhead._
+import nl.vroste.rezilience.Bulkhead.BulkheadError
 import zio._
 import zio.stream.ZStream
 
@@ -34,7 +34,7 @@ trait Bulkhead { self =>
   }
 }
 
-object Bulkhead {
+object Bulkhead extends BulkheadPlatformSpecificObj {
   sealed trait BulkheadError[+E] { self =>
     final def toException: Exception = BulkheadException(self)
 

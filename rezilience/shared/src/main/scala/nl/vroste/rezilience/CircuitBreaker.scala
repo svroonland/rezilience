@@ -181,7 +181,15 @@ object CircuitBreaker {
       clock
     )
 
-  def makeWithMetrics[E, R1](
+  /**
+   * Add metrics collection to a Circuit Breaker
+   *
+   * @param cb
+   * @param onMetrics
+   * @param metricsInterval
+   * @return
+   */
+  def addMetrics[E, R1](
     cb: CircuitBreaker[E],
     onMetrics: CircuitBreakerMetrics => URIO[R1, Any],
     metricsInterval: Duration = 10.seconds

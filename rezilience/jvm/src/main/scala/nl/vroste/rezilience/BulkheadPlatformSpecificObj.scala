@@ -8,7 +8,7 @@ import zio.{ clock, Chunk, Ref, Schedule, URIO, ZIO, ZManaged }
 trait BulkheadPlatformSpecificObj {
 
   /**
-   * Create a Bulkhead that periodically emits metrics
+   * Add metrics collection to a Bulkhead
    *
    * @param maxInFlightCalls
    * @param maxQueueing
@@ -17,8 +17,9 @@ trait BulkheadPlatformSpecificObj {
    * @param sampleInterval
    *   Interval at which the number of in-flight calls is sampled
    * @return
+   *   A wrapped Bulkhead that collects metrics
    */
-  def makeWithMetrics[R1](
+  def addMetrics[R1](
     inner: Bulkhead,
     onMetrics: BulkheadMetrics => URIO[R1, Any],
     metricsInterval: Duration = 10.seconds,

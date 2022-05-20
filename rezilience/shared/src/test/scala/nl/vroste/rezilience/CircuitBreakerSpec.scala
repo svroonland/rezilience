@@ -146,7 +146,7 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
                           .withMaxFailures(3)
                           .flatMap(
                             CircuitBreaker
-                              .makeWithMetrics(_, onMetrics = m => metricsRef.update(_ + m), metricsInterval = 1.second)
+                              .addMetrics(_, onMetrics = m => metricsRef.update(_ + m), metricsInterval = 1.second)
                           )
                           .use { cb =>
                             for {
@@ -167,7 +167,7 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
                           .withMaxFailures(3)
                           .flatMap(
                             CircuitBreaker
-                              .makeWithMetrics(_, onMetrics = metricsRef.succeed, metricsInterval = 5.second)
+                              .addMetrics(_, onMetrics = metricsRef.succeed, metricsInterval = 5.second)
                           )
                           .use { cb =>
                             cb(UIO.unit)
@@ -183,7 +183,7 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
                           .withMaxFailures(3)
                           .flatMap(
                             CircuitBreaker
-                              .makeWithMetrics(_, onMetrics = m => metricsRef.update(_ :+ m), metricsInterval = 5.second)
+                              .addMetrics(_, onMetrics = m => metricsRef.update(_ :+ m), metricsInterval = 5.second)
                           )
                           .use { cb =>
                             for {
@@ -205,7 +205,7 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
                           .withMaxFailures(3)
                           .flatMap(
                             CircuitBreaker
-                              .makeWithMetrics(_, onMetrics = m => metricsRef.update(_ :+ m), metricsInterval = 5.second)
+                              .addMetrics(_, onMetrics = m => metricsRef.update(_ :+ m), metricsInterval = 5.second)
                           )
                           .use { cb =>
                             for {
@@ -229,7 +229,7 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
                 .withMaxFailures(10, Schedule.exponential(1.second))
                 .flatMap(
                   CircuitBreaker
-                    .makeWithMetrics(_, onMetrics, metricsInterval = 5.second)
+                    .addMetrics(_, onMetrics, metricsInterval = 5.second)
                 )
                 .use { cb =>
                   for {
@@ -262,7 +262,7 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
                 .withMaxFailures(10, Schedule.exponential(1.second))
                 .flatMap(
                   CircuitBreaker
-                    .makeWithMetrics(_, onMetrics, metricsInterval = 5.second)
+                    .addMetrics(_, onMetrics, metricsInterval = 5.second)
                 )
                 .use { cb =>
                   for {

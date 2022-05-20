@@ -11,7 +11,7 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
   override def spec = suite("Bulkhead")(
     suite("preserves Bulkhead behavior")(
       testM("will interrupt the effect when a call is interrupted") {
-        Bulkhead.make(10, 5).flatMap(Bulkhead.makeWithMetrics(_, _ => UIO.unit)).use { bulkhead =>
+        Bulkhead.make(10, 5).flatMap(Bulkhead.addMetrics(_, _ => UIO.unit)).use { bulkhead =>
           for {
             latch       <- Promise.make[Nothing, Unit]
             interrupted <- Promise.make[Nothing, Unit]
@@ -31,7 +31,7 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
                      .make(10, 5)
                      .flatMap(
                        Bulkhead
-                         .makeWithMetrics(_, onMetrics, metricsInterval = 5.second)
+                         .addMetrics(_, onMetrics, metricsInterval = 5.second)
                      )
                      .use { rl =>
                        rl(ZIO.sleep(4.seconds))
@@ -50,7 +50,7 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
             .make(10, 50)
             .flatMap(
               Bulkhead
-                .makeWithMetrics(
+                .addMetrics(
                   _,
                   onMetrics,
                   metricsInterval = 1.second
@@ -72,7 +72,7 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
             .make(10, 50)
             .flatMap(
               Bulkhead
-                .makeWithMetrics(
+                .addMetrics(
                   _,
                   onMetrics,
                   metricsInterval = 1.second
@@ -94,7 +94,7 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
         withMetricsCollection { onMetrics =>
           Bulkhead
             .make(10, 5)
-            .flatMap(Bulkhead.makeWithMetrics(_, onMetrics, metricsInterval = 1.second))
+            .flatMap(Bulkhead.addMetrics(_, onMetrics, metricsInterval = 1.second))
             .use { bulkhead =>
               for {
                 latch1   <- Promise.make[Nothing, Unit]
