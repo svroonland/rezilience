@@ -1,4 +1,8 @@
 version: 2.1
+parameters:
+  tag_regex:
+    type: string
+    default: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
 jobs:
   lint:
     docker:
@@ -14,6 +18,14 @@ jobs:
             - "~/.cache/coursier/"
             - "~/.sbt"
             - "~/.m2"
+  check_docs:
+    docker:
+      - image: hseeberger/scala-sbt:8u312_1.6.2_2.13.8
+    steps:
+      - checkout
+      - restore_cache:
+          key: sbt-cache-3
+      - run: sbt ++2.12.15! docs/makeMdoc
   test213_jdk17:
     docker:
       - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
@@ -21,7 +33,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.8! compile rezilienceJVM/test
+      - run: sbt ++2.13.8! compile rezilienceJVM/test config/test
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -98,6 +110,16 @@ jobs:
       - run: echo "credentials += Credentials(\"Sonatype Nexus Repository Manager\", \"oss.sonatype.org\", \"$SONATYPE_USER\", \"$SONATYPE_PASSWORD\")" > ~/.sbt/1.0/sonatype.sbt
       - run: sbt ci-release
 
+  publish_docs:
+    docker:
+      - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
+    steps:
+      - checkout
+      - run: apt-get update
+      - run: apt-get install -y ruby-full build-essential zlib1g-dev
+      - run: gem install jekyll bundler
+      - run: sbt ++2.12.15! publishLocal docs/publishMicrosite
+
 workflows:
   version: 2
   build:
@@ -105,37 +127,33 @@ workflows:
       - lint:
           filters:
             tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+              only: << pipeline.parameters.tag_regex >>
+      - check_docs:
+          requires:
+            - lint
+          filters:
+            tags:
+              only: << pipeline.parameters.tag_regex >>
       - test213_jdk17:
-          requires:
-            - lint
           filters:
             tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+              only: << pipeline.parameters.tag_regex >>
       - test213_jdk11:
-          requires:
-            - lint
           filters:
             tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+              only: << pipeline.parameters.tag_regex >>
       - test212_jdk17:
-          requires:
-            - lint
           filters:
             tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+              only: << pipeline.parameters.tag_regex >>
       - test212_jdk11:
-          requires:
-            - lint
           filters:
             tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+              only: << pipeline.parameters.tag_regex >>
       - test_dotty_jdk17:
-          requires:
-            - lint
           filters:
             tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+              only: << pipeline.parameters.tag_regex >>
       - release:
           requires:
             - test213_jdk17
@@ -143,6 +161,16 @@ workflows:
             - test212_jdk17
             - test212_jdk11
             - test_dotty_jdk17
+            - check_docs
+          filters:
+            branches:
+              only:
+                - master
+            tags:
+              only: << pipeline.parameters.tag_regex >>
+      - publish_docs:
+          requires:
+             - release
           filters:
             branches:
               only:
