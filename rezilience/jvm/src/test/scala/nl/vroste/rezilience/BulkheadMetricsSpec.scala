@@ -2,7 +2,7 @@ package nl.vroste.rezilience
 
 import zio.duration._
 import zio.test.Assertion._
-import zio.test.TestAspect.nonFlaky
+// import zio.test.TestAspect.nonFlaky
 import zio.test._
 import zio.test.environment.TestClock
 import zio.{ Chunk, Promise, Ref, UIO, ZIO }
@@ -119,8 +119,38 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
               assertTrue(metrics.reduce(_ + _).inFlight.getMaxValue == 2L)
           )
         }
+      },
+      testM("can sum metrics with different ranges") {
+        withMetricsCollection { onMetrics =>
+          Bulkhead
+            .make(1, 5)
+            .flatMap(
+              Bulkhead.addMetrics(
+                _,
+                onMetrics,
+                metricsInterval = 30.second,
+                latencyHistogramSettings = HistogramSettings(min = Some(1.milli), max = Some(2.minutes))
+              )
+            )
+            .use { bulkhead =>
+              for {
+                latch0 <- Promise.make[Nothing, Unit]
+                latch1 <- Promise.make[Nothing, Unit]
+                _      <- bulkhead(
+                            latch0.succeed(()) *> latch1.await
+                          ).fork
+                _      <- latch0.await
+                _      <- bulkhead(ZIO.unit) zipPar (TestClock.adjust(5.minutes) *> latch1.succeed(()))
+              } yield ()
+            }
+        } { (metrics, _) =>
+          val total      = metrics.reduce(_ + _)
+          val maxLatency = total.latency.getMaxValue()
+          UIO(assertTrue((299L to 301L) contains (maxLatency / 1000)))
+        }
+
       }
-    ) @@ nonFlaky
+    ) // @@ nonFlaky
   )
 
   def withMetricsCollection[R, E, A](

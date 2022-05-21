@@ -20,7 +20,15 @@ private[rezilience] final case class RateLimiterMetricsInternal(
       currentlyEnqueued <- currentlyEnqueued.get
     } yield {
       val latencyHistogram =
-        new IntCountsHistogram(settings.min.toMillis, settings.max.toMillis, settings.significantDigits)
+        (settings.min zip settings.max).fold(new IntCountsHistogram(settings.significantDigits)) { case (min, max) =>
+          val hist = new IntCountsHistogram(
+            min.toMillis,
+            max.toMillis,
+            settings.significantDigits
+          )
+          if (settings.autoResize) hist.setAutoResize(true)
+          hist
+        }
       latency.foreach(latencyHistogram.recordValue)
       RateLimiterMetrics(interval, latencyHistogram, tasksEnqueued, currentlyEnqueued)
     }

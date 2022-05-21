@@ -42,18 +42,42 @@ private[rezilience] final case class BulkheadMetricsInternal(
     currentlyEnqueued <- currentlyEnqueued.get
   } yield {
     val inFlightHistogram =
-      new IntCountsHistogram(inFlightSettings.min, inFlightSettings.max, inFlightSettings.significantDigits)
+      (inFlightSettings.min zip inFlightSettings.max).fold(new IntCountsHistogram(inFlightSettings.significantDigits)) {
+        case (min, max) =>
+          val hist = new IntCountsHistogram(
+            min,
+            max,
+            inFlightSettings.significantDigits
+          )
+          if (inFlightSettings.autoResize) hist.setAutoResize(true)
+          hist
+      }
     inFlight.foreach(inFlightHistogram.recordValue)
 
     val enqueuedHistogram =
-      new IntCountsHistogram(enqueuedSettings.min, enqueuedSettings.max, enqueuedSettings.significantDigits)
+      (enqueuedSettings.min zip enqueuedSettings.max).fold(new IntCountsHistogram(enqueuedSettings.significantDigits)) {
+        case (min, max) =>
+          val hist = new IntCountsHistogram(
+            min,
+            max,
+            enqueuedSettings.significantDigits
+          )
+          if (enqueuedSettings.autoResize) hist.setAutoResize(true)
+          hist
+      }
     enqueued.foreach(enqueuedHistogram.recordValue)
 
-    val latencyHistogram = new IntCountsHistogram(
-      latencySettings.min.toMillis,
-      latencySettings.max.toMillis,
-      latencySettings.significantDigits
-    )
+    val latencyHistogram =
+      (latencySettings.min zip latencySettings.max).fold(new IntCountsHistogram(latencySettings.significantDigits)) {
+        case (min, max) =>
+          val hist = new IntCountsHistogram(
+            min.toMillis,
+            max.toMillis,
+            latencySettings.significantDigits
+          )
+          if (latencySettings.autoResize) hist.setAutoResize(true)
+          hist
+      }
     latency.foreach(latencyHistogram.recordValue)
 
     BulkheadMetrics(

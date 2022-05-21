@@ -25,7 +25,7 @@ trait RateLimiterPlatformSpecificObj {
     inner: RateLimiter,
     onMetrics: RateLimiterMetrics => URIO[R1, Any],
     metricsInterval: Duration = 10.seconds,
-    latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings(1.milli, 2.minutes)
+    latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings.default
   ): ZManaged[Clock with R1, Nothing, RateLimiter] = {
 
     def makeNewMetrics = clock.instant.flatMap(RateLimiterMetricsInternal.makeEmpty(_).commit)

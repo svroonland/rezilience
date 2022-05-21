@@ -50,7 +50,7 @@ final case class RateLimiterMetrics(
 }
 
 object RateLimiterMetrics {
-  private val emptyLatency = new IntCountsHistogram(1, 6000000, 2)
+  private val emptyLatency = new IntCountsHistogram(HistogramSettings.default.significantDigits)
 
   val empty = RateLimiterMetrics(0.seconds, emptyLatency, 0, 0)
 

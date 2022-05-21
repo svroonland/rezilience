@@ -75,9 +75,9 @@ final case class BulkheadMetrics(
 }
 
 object BulkheadMetrics {
-  private val emptyInFlight = new IntCountsHistogram(1, 10, 2)
-  private val emptyEnqueued = new IntCountsHistogram(1, 10, 2)
-  private val emptyLatency  = new IntCountsHistogram(1, 60000, 2)
+  private val emptyInFlight = new IntCountsHistogram(HistogramSettings.default.significantDigits)
+  private val emptyEnqueued = new IntCountsHistogram(HistogramSettings.default.significantDigits)
+  private val emptyLatency  = new IntCountsHistogram(HistogramSettings.default.significantDigits)
 
   val empty = BulkheadMetrics(0.seconds, emptyInFlight, emptyEnqueued, emptyLatency, 0, 0)
 }

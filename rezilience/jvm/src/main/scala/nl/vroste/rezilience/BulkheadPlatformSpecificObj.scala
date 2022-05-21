@@ -16,6 +16,8 @@ trait BulkheadPlatformSpecificObj {
    *   Interval at which metrics are emitted
    * @param sampleInterval
    *   Interval at which the number of in-flight calls is sampled
+   * @param latencyHistogramSettings
+   *   Default settings
    * @return
    *   A wrapped Bulkhead that collects metrics
    */
@@ -24,10 +26,9 @@ trait BulkheadPlatformSpecificObj {
     onMetrics: BulkheadMetrics => URIO[R1, Any],
     metricsInterval: Duration = 10.seconds,
     sampleInterval: Duration = 1.seconds,
-    // TODO automatically growing histograms, with some sensible defaults
-    latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings(1.milli, 2.minutes),
-    inFlightHistogramSettings: HistogramSettings[Long] = HistogramSettings(1, 100, 2),
-    enqueuedHistogramSettings: HistogramSettings[Long] = HistogramSettings(1, 32, 2)
+    latencyHistogramSettings: HistogramSettings[Duration] = HistogramSettings.default,
+    inFlightHistogramSettings: HistogramSettings[Long] = HistogramSettings.default,
+    enqueuedHistogramSettings: HistogramSettings[Long] = HistogramSettings.default
   ): ZManaged[Clock with R1, Nothing, Bulkhead] = {
     def makeNewMetrics = clock.instant
       .flatMap(BulkheadMetricsInternal.makeEmpty(_).commit)
