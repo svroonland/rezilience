@@ -1,6 +1,5 @@
 package nl.vroste.rezilience
 
-import org.HdrHistogram.IntCountsHistogram
 import zio.Chunk
 import zio.duration.Duration
 import zio.stm.{ TRef, USTM, ZSTM }
@@ -19,16 +18,14 @@ private[rezilience] final case class RateLimiterMetricsInternal(
       tasksEnqueued     <- tasksEnqueued.get
       currentlyEnqueued <- currentlyEnqueued.get
     } yield {
-      val latencyHistogram =
-        (settings.min zip settings.max).fold(new IntCountsHistogram(settings.significantDigits)) { case (min, max) =>
-          val hist = new IntCountsHistogram(
-            min.toMillis,
-            max.toMillis,
-            settings.significantDigits
-          )
-          if (settings.autoResize) hist.setAutoResize(true)
-          hist
-        }
+      val latencyHistogram = HistogramUtil.histogramFromSettings(
+        HistogramSettings(
+          settings.min.map(_.toMillis),
+          settings.max.map(_.toMillis),
+          settings.significantDigits,
+          settings.autoResize
+        )
+      )
       latency.foreach(latencyHistogram.recordValue)
       RateLimiterMetrics(interval, latencyHistogram, tasksEnqueued, currentlyEnqueued)
     }

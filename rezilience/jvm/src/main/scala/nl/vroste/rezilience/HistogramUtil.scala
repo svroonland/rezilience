@@ -1,6 +1,7 @@
 package nl.vroste.rezilience
 
 import org.HdrHistogram.AbstractHistogram
+import org.HdrHistogram.IntCountsHistogram
 
 object HistogramUtil {
   def mergeHistograms[T <: AbstractHistogram](h1: T, h2: T): T =
@@ -13,4 +14,16 @@ object HistogramUtil {
        newHist.add(h1)
        newHist
      }).asInstanceOf[T]
+
+  def histogramFromSettings(latencySettings: HistogramSettings[Long]): IntCountsHistogram =
+    (latencySettings.min zip latencySettings.max).fold(new IntCountsHistogram(latencySettings.significantDigits)) {
+      case (min, max) =>
+        val hist = new IntCountsHistogram(
+          min,
+          max,
+          latencySettings.significantDigits
+        )
+        if (latencySettings.autoResize) hist.setAutoResize(true)
+        hist
+    }
 }

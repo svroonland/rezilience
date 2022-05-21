@@ -109,9 +109,6 @@ object TrippingStrategy {
         val minThroughputMet   = total >= minThroughput
         val minSamplePeriod    = samples.length == nrSampleBuckets
         val currentFailureRate = if (total > 0) samples.map(_.failures).sum * 1.0d / total else 0
-//        println(
-//          s"should trip? total=${total}, minThroughputMet=${minThroughputMet}, nr samples=${samples.length}, minSamplePeriod=${minSamplePeriod}, currentFailureRate=${currentFailureRate}"
-//        )
         minThroughputMet && minSamplePeriod && (currentFailureRate >= failureRateThreshold)
       }
     }

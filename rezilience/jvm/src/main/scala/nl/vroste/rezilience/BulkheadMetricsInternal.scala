@@ -1,6 +1,5 @@
 package nl.vroste.rezilience
 
-import org.HdrHistogram.IntCountsHistogram
 import zio.Chunk
 import zio.duration.Duration
 import zio.stm.{ TRef, USTM }
@@ -41,43 +40,20 @@ private[rezilience] final case class BulkheadMetricsInternal(
     currentlyInFlight <- currentlyInFlight.get
     currentlyEnqueued <- currentlyEnqueued.get
   } yield {
-    val inFlightHistogram =
-      (inFlightSettings.min zip inFlightSettings.max).fold(new IntCountsHistogram(inFlightSettings.significantDigits)) {
-        case (min, max) =>
-          val hist = new IntCountsHistogram(
-            min,
-            max,
-            inFlightSettings.significantDigits
-          )
-          if (inFlightSettings.autoResize) hist.setAutoResize(true)
-          hist
-      }
+    val inFlightHistogram = HistogramUtil.histogramFromSettings(inFlightSettings)
     inFlight.foreach(inFlightHistogram.recordValue)
 
-    val enqueuedHistogram =
-      (enqueuedSettings.min zip enqueuedSettings.max).fold(new IntCountsHistogram(enqueuedSettings.significantDigits)) {
-        case (min, max) =>
-          val hist = new IntCountsHistogram(
-            min,
-            max,
-            enqueuedSettings.significantDigits
-          )
-          if (enqueuedSettings.autoResize) hist.setAutoResize(true)
-          hist
-      }
+    val enqueuedHistogram = HistogramUtil.histogramFromSettings(enqueuedSettings)
     enqueued.foreach(enqueuedHistogram.recordValue)
 
-    val latencyHistogram =
-      (latencySettings.min zip latencySettings.max).fold(new IntCountsHistogram(latencySettings.significantDigits)) {
-        case (min, max) =>
-          val hist = new IntCountsHistogram(
-            min.toMillis,
-            max.toMillis,
-            latencySettings.significantDigits
-          )
-          if (latencySettings.autoResize) hist.setAutoResize(true)
-          hist
-      }
+    val latencyHistogram = HistogramUtil.histogramFromSettings(
+      HistogramSettings(
+        latencySettings.min.map(_.toMillis),
+        latencySettings.max.map(_.toMillis),
+        latencySettings.significantDigits,
+        latencySettings.autoResize
+      )
+    )
     latency.foreach(latencyHistogram.recordValue)
 
     BulkheadMetrics(
