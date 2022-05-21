@@ -10,14 +10,15 @@ trait BulkheadPlatformSpecificObj {
   /**
    * Add metrics collection to a Bulkhead
    *
-   * @param maxInFlightCalls
-   * @param maxQueueing
+   * Metrics are emitted at a regular interval. When the Bulkhead is released, metrics for the final interval are
+   * emitted.
+   *
+   * @param inner
+   *   Bulkhead to wrap
    * @param metricsInterval
    *   Interval at which metrics are emitted
    * @param sampleInterval
    *   Interval at which the number of in-flight calls is sampled
-   * @param latencyHistogramSettings
-   *   Default settings
    * @return
    *   A wrapped Bulkhead that collects metrics
    */
