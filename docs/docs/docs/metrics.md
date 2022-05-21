@@ -38,7 +38,7 @@ val bulkhead: ZManaged[Clock with Console, Nothing, Bulkhead] = for {
     bulkhead <- Bulkhead.addMetrics(innerBulkhead, onMetrics, metricsInterval = 10.seconds)
 } yield bulkhead
 
-val program: ZIO[Clock with Console, Nothing, Any] = bulkhead.use { bulkhead =>
+val program: ZIO[Clock with Console, BulkheadError[Nothing], Any] = bulkhead.use { bulkhead =>
     bulkhead(callExternalSystem)
 }
 
