@@ -35,7 +35,7 @@ def callExternalSystem = ZIO.unit
 val bulkhead: ZManaged[Clock, Nothing, Bulkhead] = for {
     innerBulkhead <- Bulkhead.make(maxInFlightCalls = 10)
     bulkhead <- Bulkhead.addMetrics(innerBulkhead, onMetrics, metricsInterval = 10.seconds)
-} yield ()
+} yield bulkhead
 
 val program: ZIO[Clock, Nothing, Any] = bulkhead.use { bulkhead =>
     bulkhead(callExternalSystem)
