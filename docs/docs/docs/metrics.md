@@ -22,6 +22,8 @@ Finally, during the release of a policy's `ZManaged`, metrics for the final inte
 
 ```scala mdoc:silent
 import nl.vroste.rezilience._
+import zio._
+import zio.console.Console
 
 def onMetrics(metrics: BulkheadMetrics): ZIO[Console, Nothing, Any] = {
     Console.putStrLn(metrics.toString)
@@ -29,7 +31,7 @@ def onMetrics(metrics: BulkheadMetrics): ZIO[Console, Nothing, Any] = {
 
 def callExternalSystem = ZIO.unit
 
-val bulkhead = for {
+val bulkhead: ZManaged[Clock, Nothing, Bulkhead] = for {
     innerBulkhead <- Bulkhead.make(maxInFlightCalls = 10)
     bulkhead <- Bulkhead.addMetrics(innerBulkhead, onMetrics, metricsInterval = 10.seconds)
 } yield ()
