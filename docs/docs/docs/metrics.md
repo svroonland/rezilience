@@ -28,12 +28,12 @@ import zio.console._
 import zio.clock.Clock
 
 def onMetrics(metrics: BulkheadMetrics): ZIO[Console, Nothing, Any] = {
-    console.putStrLn(metrics.toString)
+    console.putStrLn(metrics.toString).orDie
 }
 
 def callExternalSystem = ZIO.unit
 
-val bulkhead: ZManaged[Clock, Nothing, Bulkhead] = for {
+val bulkhead: ZManaged[Clock with Console, Nothing, Bulkhead] = for {
     innerBulkhead <- Bulkhead.make(maxInFlightCalls = 10)
     bulkhead <- Bulkhead.addMetrics(innerBulkhead, onMetrics, metricsInterval = 10.seconds)
 } yield bulkhead
