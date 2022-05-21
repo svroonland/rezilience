@@ -16,15 +16,19 @@ object HistogramUtil {
      }).asInstanceOf[T]
 
   def histogramFromSettings(latencySettings: HistogramSettings[Long]): IntCountsHistogram = {
-    val histOpt: Option[IntCountsHistogram] = (latencySettings.min zip latencySettings.max).map { case (min, max) =>
-      val hist = new IntCountsHistogram(
-        min,
-        max,
-        latencySettings.significantDigits
-      )
-      if (latencySettings.autoResize) hist.setAutoResize(true)
-      hist
-    }
+    val histOpt: Option[IntCountsHistogram] =
+      for {
+        min <- latencySettings.min
+        max <- latencySettings.max
+      } yield {
+        val hist = new IntCountsHistogram(
+          min,
+          max,
+          latencySettings.significantDigits
+        )
+        if (latencySettings.autoResize) hist.setAutoResize(true)
+        hist
+      }
     histOpt.getOrElse(new IntCountsHistogram(latencySettings.significantDigits))
   }
 }
