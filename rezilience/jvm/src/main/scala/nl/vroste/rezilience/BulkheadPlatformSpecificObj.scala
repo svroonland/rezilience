@@ -3,7 +3,7 @@ package nl.vroste.rezilience
 import zio.clock.Clock
 import zio.duration._
 import zio.stm.ZSTM
-import zio.{ clock, Chunk, Ref, Schedule, URIO, ZIO, ZManaged }
+import zio.{ clock, Chunk, Schedule, URIO, ZIO, ZManaged }
 
 trait BulkheadPlatformSpecificObj {
 
@@ -70,20 +70,19 @@ trait BulkheadPlatformSpecificObj {
     } yield new Bulkhead {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, Bulkhead.BulkheadError[E], A] = for {
         enqueueTime <- clock.instant.provide(env)
-        // Keep track of whether the task was started to have correct statistics under interruption
-        started     <- Ref.make(false)
-        result      <- metrics.enqueueTask.commit
-                         .toManaged(_ => metrics.taskInterrupted.commit.unlessM(started.get))
-                         .use_ {
-                           inner.apply {
-                             for {
-                               startTime <- clock.instant.provide(env)
-                               latency    = java.time.Duration.between(enqueueTime, startTime)
-                               _         <- metrics.taskStarted(latency).commit.ensuring(started.set(true))
-                               result    <- task.ensuring(metrics.taskCompleted.commit)
-                             } yield result
-                           }
-                         }
+        result      <- ZIO.uninterruptibleMask { restore =>
+                         metrics.enqueueTask.commit *>
+                           restore {
+                             inner.apply {
+                               for {
+                                 startTime <- clock.instant.provide(env)
+                                 latency    = java.time.Duration.between(enqueueTime, startTime)
+                                 _         <- metrics.taskStarted(latency).commit
+                                 result    <- task.ensuring(metrics.taskCompleted.commit)
+                               } yield result
+                             }
+                           }.onInterrupt(metrics.taskInterrupted.commit)
+                       }
       } yield result
     }
   }

@@ -2,7 +2,7 @@ package nl.vroste.rezilience
 
 import zio.duration._
 import zio.test.Assertion._
-// import zio.test.TestAspect.nonFlaky
+import zio.test.TestAspect.nonFlaky
 import zio.test._
 import zio.test.environment.TestClock
 import zio.{ Chunk, Promise, Ref, UIO, ZIO }
@@ -150,7 +150,7 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
         }
 
       }
-    ) // @@ nonFlaky
+    ) @@ nonFlaky
   )
 
   def withMetricsCollection[R, E, A](
