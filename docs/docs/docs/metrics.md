@@ -23,6 +23,7 @@ Finally, during the release of a policy's `ZManaged`, metrics for the final inte
 ```scala mdoc:silent
 import nl.vroste.rezilience._
 import zio._
+import zio.duration._
 import zio.console.Console
 
 def onMetrics(metrics: BulkheadMetrics): ZIO[Console, Nothing, Any] = {
