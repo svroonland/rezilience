@@ -25,6 +25,7 @@ import nl.vroste.rezilience._
 import zio._
 import zio.duration._
 import zio.console.Console
+import zio.clock.Clock
 
 def onMetrics(metrics: BulkheadMetrics): ZIO[Console, Nothing, Any] = {
     Console.putStrLn(metrics.toString)
