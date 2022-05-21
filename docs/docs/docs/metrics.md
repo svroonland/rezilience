@@ -22,6 +22,7 @@ Finally, during the release of a policy's `ZManaged`, metrics for the final inte
 
 ```scala mdoc:silent
 import nl.vroste.rezilience._
+import nl.vroste.rezilience.Bulkhead.BulkheadError
 import zio._
 import zio.duration._
 import zio.console._
