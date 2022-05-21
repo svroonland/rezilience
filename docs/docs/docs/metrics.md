@@ -24,11 +24,11 @@ Finally, during the release of a policy's `ZManaged`, metrics for the final inte
 import nl.vroste.rezilience._
 import zio._
 import zio.duration._
-import zio.console.Console
+import zio.console._
 import zio.clock.Clock
 
 def onMetrics(metrics: BulkheadMetrics): ZIO[Console, Nothing, Any] = {
-    Console.putStrLn(metrics.toString)
+    console.putStrLn(metrics.toString)
 }
 
 def callExternalSystem = ZIO.unit
