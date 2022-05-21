@@ -86,7 +86,6 @@ trait BulkheadPlatformSpecificObj {
       } yield result
     }
   }
-
 }
 
 private[rezilience] object BulkheadPlatformSpecificObj extends BulkheadPlatformSpecificObj

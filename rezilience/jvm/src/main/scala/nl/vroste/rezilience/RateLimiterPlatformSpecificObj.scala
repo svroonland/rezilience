@@ -3,7 +3,7 @@ package nl.vroste.rezilience
 import zio.clock.Clock
 import zio.duration.{ durationInt, Duration }
 import zio.stm.ZSTM
-import zio.{ clock, Ref, URIO, ZIO, ZManaged }
+import zio.{ clock, URIO, ZIO, ZManaged }
 
 trait RateLimiterPlatformSpecificObj {
 
@@ -51,20 +51,19 @@ trait RateLimiterPlatformSpecificObj {
     } yield new RateLimiter {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {
         enqueueTime <- clock.instant.provide(env)
-        // Keep track of whether the task was started to have correct statistics under interruption
-        started     <- Ref.make(false)
-        result      <- metrics.enqueueTask.commit
-                         .toManaged(_ => metrics.taskInterrupted.commit.unlessM(started.get))
-                         .use_ {
-                           inner.apply {
-                             for {
-                               startTime <- clock.instant.provide(env)
-                               latency    = java.time.Duration.between(enqueueTime, startTime)
-                               _         <- metrics.taskStarted(latency).commit.ensuring(started.set(true))
-                               result    <- task
-                             } yield result
-                           }
-                         }
+        result      <- ZIO.interruptibleMask { restore =>
+                         metrics.enqueueTask.commit *>
+                           restore {
+                             inner.apply {
+                               for {
+                                 startTime <- clock.instant.provide(env)
+                                 latency    = java.time.Duration.between(enqueueTime, startTime)
+                                 _         <- metrics.taskStarted(latency).commit
+                                 result    <- task
+                               } yield result
+                             }
+                           }.onInterrupt(metrics.taskInterrupted.commit)
+                       }
       } yield result
     }
   }
