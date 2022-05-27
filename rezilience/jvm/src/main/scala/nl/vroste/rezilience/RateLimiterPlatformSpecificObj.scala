@@ -21,7 +21,7 @@ trait RateLimiterPlatformSpecificObj {
    * @return
    *   A wrapped RateLimiter that collects metrics
    */
-  def adMetrics[R1](
+  def addMetrics[R1](
     inner: RateLimiter,
     onMetrics: RateLimiterMetrics => URIO[R1, Any],
     metricsInterval: Duration = 10.seconds,
