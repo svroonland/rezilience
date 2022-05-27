@@ -7,6 +7,7 @@ jobs:
   lint:
     docker:
       - image: hseeberger/scala-sbt:8u312_1.6.2_2.13.8
+    resource_class: large
     steps:
       - checkout
       - restore_cache:
@@ -21,6 +22,7 @@ jobs:
   check_docs:
     docker:
       - image: hseeberger/scala-sbt:8u312_1.6.2_2.13.8
+    resource_class: large
     steps:
       - checkout
       - restore_cache:
@@ -29,6 +31,7 @@ jobs:
   test213_jdk17:
     docker:
       - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
+    resource_class: large
     steps:
       - checkout
       - restore_cache:
@@ -58,6 +61,7 @@ jobs:
   test_dotty_jdk17:
     docker:
       - image: hseeberger/scala-sbt:17.0.2_1.6.2_3.1.1
+    resource_class: large
     steps:
       - checkout
       - restore_cache:
@@ -72,6 +76,7 @@ jobs:
   test212_jdk17:
     docker:
       - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.12.15
+    resource_class: large
     steps:
       - checkout
       - restore_cache:
@@ -86,6 +91,7 @@ jobs:
   test212_jdk11:
     docker:
       - image: hseeberger/scala-sbt:11.0.14.1_1.6.2_2.12.15
+    resource_class: large
     steps:
       - checkout
       - restore_cache:
@@ -100,6 +106,7 @@ jobs:
   release:
     docker:
       - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
+    resource_class: large
     steps:
       - checkout
       - run: git fetch --tags
@@ -114,6 +121,7 @@ jobs:
   publish_docs:
     docker:
       - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
+    resource_class: large
     steps:
       - checkout
       - run: apt-get update
