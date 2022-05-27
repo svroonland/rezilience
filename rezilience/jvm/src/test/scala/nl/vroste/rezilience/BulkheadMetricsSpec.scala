@@ -122,13 +122,14 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
       },
       testM("can sum metrics with different ranges") {
         withMetricsCollection { onMetrics =>
+          println("running")
           Bulkhead
             .make(1, 5)
             .flatMap(
               Bulkhead.addMetrics(
                 _,
                 onMetrics,
-                metricsInterval = 30.second,
+                metricsInterval = 1.second,
                 latencyHistogramSettings = HistogramSettings(min = Some(1.milli), max = Some(2.minutes))
               )
             )
@@ -140,17 +141,17 @@ object BulkheadMetricsSpec extends DefaultRunnableSpec {
                             latch0.succeed(()) *> latch1.await
                           ).fork
                 _      <- latch0.await
-                _      <- bulkhead(ZIO.unit) zipPar (TestClock.adjust(5.minutes) *> latch1.succeed(()))
+                _      <- bulkhead(ZIO.unit) zipPar (TestClock.adjust(10.seconds) *> latch1.succeed(()))
               } yield ()
             }
         } { (metrics, _) =>
           val total      = metrics.reduce(_ + _)
           val maxLatency = total.latency.getMaxValue()
-          UIO(assertTrue((299L to 301L) contains (maxLatency / 1000)))
+          UIO(assertTrue((9L to 11L) contains (maxLatency / 1000)))
         }
 
       }
-    ) @@ nonFlaky
+    ) @@ nonFlaky(50)
   )
 
   def withMetricsCollection[R, E, A](
