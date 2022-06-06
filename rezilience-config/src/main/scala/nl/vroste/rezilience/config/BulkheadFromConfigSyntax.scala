@@ -1,13 +1,13 @@
 package nl.vroste.rezilience.config
 
 import nl.vroste.rezilience
-import nl.vroste.rezilience.{ Bulkhead, RateLimiter }
+import nl.vroste.rezilience.Bulkhead
 import zio.ZManaged
 import zio.clock.Clock
 import zio.config._
 
 trait BulkheadFromConfigSyntax {
-  implicit class BulkheadExtensions(self: RateLimiter.type) {
+  implicit class BulkheadExtensions(self: Bulkhead.type) {
     def fromConfig(source: ConfigSource): ZManaged[Clock, ReadError[String], Bulkhead] =
       for {
         config <- read(BulkheadConfig.descriptor from source).toManaged_
