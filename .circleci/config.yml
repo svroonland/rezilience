@@ -25,7 +25,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.12.15! docs/makeMdoc
+      - run: sbt ++2.13.18! docs/makeMdoc
   test213_jdk17:
     docker:
       - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
