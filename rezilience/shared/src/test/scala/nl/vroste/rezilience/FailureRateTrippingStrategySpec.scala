@@ -28,7 +28,7 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
       test("does not trip initially") {
         for {
           strategy   <- TrippingStrategy.failureRate()
-          shouldTrip <- strategy.shouldTrip
+          shouldTrip <- strategy.shouldTrip(true)
         } yield assert(shouldTrip)(isFalse)
       } @@ nonFlaky,
       test("does not trip when all calls are successful") {
@@ -42,7 +42,7 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
             for {
               strategy         <- TrippingStrategy.failureRate(rate, sampleDuration, minThroughput)
               shouldTripChecks <- ZIO.foreach(callIntervals) { d =>
-                                    (TestClock.adjust(d.duration) <* strategy.onSuccess) *> strategy.shouldTrip
+                                    TestClock.adjust(d.duration) *> strategy.shouldTrip(true)
                                   }
             } yield assert(shouldTripChecks)(forall(isFalse))
           }
@@ -144,8 +144,7 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
                 ZIO.foreach((callIntervals zip totalTimes) zip totalCalls) { case ((d, totalTime), totalCalls) =>
                   for {
                     _         <- TestClock.adjust(d.duration)
-                    _         <- strategy.onFailure
-                    wouldTrip <- strategy.shouldTrip
+                    wouldTrip <- strategy.shouldTrip(false)
                   } yield
                     if (wouldTrip)
                       totalTime.duration >= sampleDuration.duration && totalCalls >= minThroughput

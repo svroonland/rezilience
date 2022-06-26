@@ -1,10 +1,10 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 import sbt.Keys.resolvers
 val mainScala        = "2.13.8"
-val dottyVersion     = "3.1.1"
-val allScala         = Seq(mainScala, dottyVersion)
-val zioVersion       = "2.0.0-RC6"
-val zioConfigVersion = "3.0.0-RC9"
+val scala3Version    = "3.1.2"
+val allScala         = Seq(mainScala, scala3Version)
+val zioVersion       = "2.0.0"
+val zioConfigVersion = "3.0.1"
 
 val excludeInferAny        = { options: Seq[String] => options.filterNot(Set("-Xlint:infer-any")) }
 lazy val commonJvmSettings = Seq(crossScalaVersions := allScala, Compile / scalacOptions ~= excludeInferAny)

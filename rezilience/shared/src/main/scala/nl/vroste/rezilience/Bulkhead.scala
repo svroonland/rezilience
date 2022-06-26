@@ -77,7 +77,7 @@ object Bulkhead {
   def make(maxInFlightCalls: Int, maxQueueing: Int = 32): ZIO[Scope, Nothing, Bulkhead] =
     for {
       queue             <- Queue
-                             .bounded[UIO[Unit]](zio.internal.RingBuffer.nextPow2(maxQueueing))
+                             .bounded[UIO[Unit]](Util.nextPow2(maxQueueing))
       inFlightAndQueued <- Ref.make(State(0, 0))
       onStart            = inFlightAndQueued.update(_.startProcess)
       onEnd              = inFlightAndQueued.update(_.endProcess)

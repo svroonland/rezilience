@@ -21,12 +21,14 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
       } yield assertCompletes
     },
     test("fails fast after max nr failures calls") {
+
       for {
-        cb     <- CircuitBreaker.withMaxFailures(10, Schedule.exponential(1.second))
-        _      <- ZIO.foreachDiscard(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
+        cb     <- CircuitBreaker.withMaxFailures(100, Schedule.exponential(1.second))
+        _      <-
+          ZIO.foreachParDiscard(1 to 105)(_ => cb(ZIO.fail(MyCallError)).either.tapErrorCause(c => ZIO.debug(c)))
         result <- cb(ZIO.fail(MyCallError)).either
       } yield assert(result)(isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen)))
-    },
+    } @@ TestAspect.diagnose(20.seconds),
     test("ignore failures that should not be considered a failure") {
       val isFailure: PartialFunction[Error, Boolean] = {
         case MyNotFatalError => false

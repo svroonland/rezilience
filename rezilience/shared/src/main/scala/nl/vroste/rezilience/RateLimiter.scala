@@ -54,7 +54,7 @@ object RateLimiter {
     for {
       q <- Queue
              .bounded[(Ref[Boolean], UIO[Any])](
-               zio.internal.RingBuffer.nextPow2(max)
+               Util.nextPow2(max)
              ) // Power of two because it is a more efficient queue implementation
       _ <- ZStream
              .fromQueue(q, maxChunkSize = 1)

@@ -1,4 +1,8 @@
 version: 2.1
+parameters:
+  tag_regex:
+    type: string
+    default: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
 jobs:
   lint:
     docker:
@@ -95,28 +99,33 @@ workflows:
       - lint:
           filters:
             tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+              only: << pipeline.parameters.tag_regex >>
       - check_docs:
           requires:
             - lint
+          filters:
+            tags:
+              only: << pipeline.parameters.tag_regex >>
       - test213_jdk17:
-          requires:
-            - lint
           filters:
             tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+              only: << pipeline.parameters.tag_regex >>
       - test213_jdk11:
-          requires:
-            - lint
           filters:
             tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+              only: << pipeline.parameters.tag_regex >>
+      - test212_jdk17:
+          filters:
+            tags:
+              only: << pipeline.parameters.tag_regex >>
+      - test212_jdk11:
+          filters:
+            tags:
+              only: << pipeline.parameters.tag_regex >>
       - test_dotty_jdk17:
-          requires:
-            - lint
           filters:
             tags:
-              only: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+              only: << pipeline.parameters.tag_regex >>
       - release:
           requires:
             - test213_jdk17
@@ -128,6 +137,8 @@ workflows:
               only:
                 - master
                 - zio-2.0
+            tags:
+              only: << pipeline.parameters.tag_regex >>
       - publish_docs:
           requires:
              - release
