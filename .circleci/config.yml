@@ -114,14 +114,6 @@ workflows:
           filters:
             tags:
               only: << pipeline.parameters.tag_regex >>
-      - test212_jdk17:
-          filters:
-            tags:
-              only: << pipeline.parameters.tag_regex >>
-      - test212_jdk11:
-          filters:
-            tags:
-              only: << pipeline.parameters.tag_regex >>
       - test_dotty_jdk17:
           filters:
             tags:
