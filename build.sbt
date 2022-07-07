@@ -68,8 +68,8 @@ lazy val config = project
     scalafmtOnCompile        := true,
     libraryDependencies ++= Seq(
       "dev.zio"                %%% "zio-streams"             % "1.0.14",
-      "dev.zio"                %%% "zio-config"              % "2.0.4",
-      "dev.zio"                %%% "zio-config-typesafe"     % "2.0.4"  % "test",
+      "dev.zio"                %%% "zio-config"              % "3.0.1",
+      "dev.zio"                %%% "zio-config-typesafe"     % "3.0.1"  % "test",
       "dev.zio"                %%% "zio-test"                % "1.0.14" % "test",
       "dev.zio"                %%% "zio-test-sbt"            % "1.0.14" % "test",
       "org.scala-lang.modules" %%% "scala-collection-compat" % "2.7.0"
@@ -111,7 +111,7 @@ lazy val docs = project
       "dev.zio"                %%% "zio-test"                % "1.0.14" % "test",
       "dev.zio"                %%% "zio-test-sbt"            % "1.0.14" % "test",
       "org.scala-lang.modules" %%% "scala-collection-compat" % "2.7.0",
-      "dev.zio"                %%% "zio-config-typesafe"     % "2.0.4"
+      "dev.zio"                %%% "zio-config-typesafe"     % "3.0.1"
     )
   )
   .dependsOn(rezilience.jvm, config)
