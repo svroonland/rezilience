@@ -1,6 +1,6 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 val mainScala     = "2.13.8"
-val allScala      = Seq("2.12.15", mainScala)
+val allScala      = Seq("2.12.16", mainScala)
 val scala3Version = "3.1.2"
 
 lazy val commonJvmSettings = Seq(
