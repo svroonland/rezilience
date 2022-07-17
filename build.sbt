@@ -49,9 +49,9 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
     Test / run / fork        := true,
     scalafmtOnCompile        := true,
     libraryDependencies ++= Seq(
-      "dev.zio"                %%% "zio-streams"             % "1.0.14",
-      "dev.zio"                %%% "zio-test"                % "1.0.14" % "test",
-      "dev.zio"                %%% "zio-test-sbt"            % "1.0.14" % "test",
+      "dev.zio"                %%% "zio-streams"             % "1.0.16",
+      "dev.zio"                %%% "zio-test"                % "1.0.16" % "test",
+      "dev.zio"                %%% "zio-test-sbt"            % "1.0.16" % "test",
       "org.scala-lang.modules" %%% "scala-collection-compat" % "2.7.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
@@ -67,11 +67,11 @@ lazy val config = project
     Test / run / fork        := true,
     scalafmtOnCompile        := true,
     libraryDependencies ++= Seq(
-      "dev.zio"                %%% "zio-streams"             % "1.0.14",
+      "dev.zio"                %%% "zio-streams"             % "1.0.16",
       "dev.zio"                %%% "zio-config"              % "2.0.4",
       "dev.zio"                %%% "zio-config-typesafe"     % "2.0.4"  % "test",
-      "dev.zio"                %%% "zio-test"                % "1.0.14" % "test",
-      "dev.zio"                %%% "zio-test-sbt"            % "1.0.14" % "test",
+      "dev.zio"                %%% "zio-test"                % "1.0.16" % "test",
+      "dev.zio"                %%% "zio-test-sbt"            % "1.0.16" % "test",
       "org.scala-lang.modules" %%% "scala-collection-compat" % "2.7.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
@@ -107,9 +107,9 @@ lazy val docs = project
     micrositeDataDirectory                     := file("docs/src/microsite/data"),
     micrositeFooterText                        := None,
     libraryDependencies ++= Seq(
-      "dev.zio"                %%% "zio-streams"             % "1.0.14",
-      "dev.zio"                %%% "zio-test"                % "1.0.14" % "test",
-      "dev.zio"                %%% "zio-test-sbt"            % "1.0.14" % "test",
+      "dev.zio"                %%% "zio-streams"             % "1.0.16",
+      "dev.zio"                %%% "zio-test"                % "1.0.16" % "test",
+      "dev.zio"                %%% "zio-test-sbt"            % "1.0.16" % "test",
       "org.scala-lang.modules" %%% "scala-collection-compat" % "2.7.0",
       "dev.zio"                %%% "zio-config-typesafe"     % "2.0.4"
     )
