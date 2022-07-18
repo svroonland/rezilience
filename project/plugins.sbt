@@ -1,9 +1,9 @@
 addSbtPlugin("org.scalameta"             % "sbt-scalafmt"             % "2.4.6")
-addSbtPlugin("io.github.davidgregory084" % "sbt-tpolecat"             % "0.3.1")
+addSbtPlugin("io.github.davidgregory084" % "sbt-tpolecat"             % "0.3.3")
 addSbtPlugin("com.eed3si9n"              % "sbt-assembly"             % "1.2.0")
-addSbtPlugin("org.scala-js"              % "sbt-scalajs"              % "1.10.0")
+addSbtPlugin("org.scala-js"              % "sbt-scalajs"              % "1.10.1")
 addSbtPlugin("org.portable-scala"        % "sbt-scalajs-crossproject" % "1.2.0")
-addSbtPlugin("io.shiftleft"              % "sbt-ci-release-early"     % "2.0.30")
+addSbtPlugin("io.shiftleft"              % "sbt-ci-release-early"     % "2.0.32")
 addSbtPlugin("com.47deg"                 % "sbt-microsites"           % "1.3.4")
 addSbtPlugin("com.github.sbt"            % "sbt-unidoc"               % "0.5.0")
 
