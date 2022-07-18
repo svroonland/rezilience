@@ -109,6 +109,7 @@ lazy val docs = project
     micrositeGitterChannel                     := false,
     micrositeDataDirectory                     := file("docs/src/microsite/data"),
     micrositeFooterText                        := None,
+    micrositeVersionList                       := List("v0.8.2", "v0.8.3"),
     libraryDependencies ++= Seq(
       "dev.zio"                %%% "zio-streams"             % zioVersion,
       "dev.zio"                %%% "zio-test"                % zioVersion % "test",
