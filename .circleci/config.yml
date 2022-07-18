@@ -90,7 +90,7 @@ jobs:
       - run: apt-get update
       - run: apt-get install -y ruby-full build-essential zlib1g-dev
       - run: gem install jekyll bundler
-      - run: sbt ++2.12.15! publishLocal docs/publishMicrosite
+      - run: sbt ++2.12.15! publishLocal docs/publishMultiversionMicrosite
 
 workflows:
   version: 2
