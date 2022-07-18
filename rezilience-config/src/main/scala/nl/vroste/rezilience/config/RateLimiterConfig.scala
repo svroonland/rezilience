@@ -2,7 +2,7 @@ package nl.vroste.rezilience.config
 
 import zio.config._
 import ConfigDescriptor._
-import zio.duration.Duration
+import zio.Duration
 
 object RateLimiterConfig {
   case class Config(max: Int, interval: Duration)

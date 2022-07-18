@@ -4,9 +4,8 @@ import nl.vroste.rezilience
 import nl.vroste.rezilience.CircuitBreaker.{ isFailureAny, State }
 import nl.vroste.rezilience.config.CircuitBreakerConfig.{ ResetSchedule, TrippingStrategy }
 import nl.vroste.rezilience.{ CircuitBreaker, Retry }
-import zio.clock.Clock
 import zio.config._
-import zio.{ UIO, ZIO, ZManaged }
+import zio.{ Scope, UIO, ZIO }
 
 trait CircuitBreakerFromConfigSyntax {
   implicit class CircuitBreakerExtensions(self: CircuitBreaker.type) {
@@ -14,9 +13,9 @@ trait CircuitBreakerFromConfigSyntax {
       source: ConfigSource,
       isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
       onStateChange: State => UIO[Unit] = _ => ZIO.unit
-    ): ZManaged[Clock, ReadError[String], CircuitBreaker[E]] =
+    ): ZIO[Scope, ReadError[String], CircuitBreaker[E]] =
       for {
-        config          <- read(CircuitBreakerConfig.descriptor from source).toManaged_
+        config          <- read(CircuitBreakerConfig.descriptor from source)
         trippingStrategy = config.strategy match {
                              case TrippingStrategy.FailureCount(maxFailures) =>
                                rezilience.TrippingStrategy.failureCount(maxFailures)

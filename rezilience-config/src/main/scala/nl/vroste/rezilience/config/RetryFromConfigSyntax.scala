@@ -2,16 +2,14 @@ package nl.vroste.rezilience.config
 
 import nl.vroste.rezilience
 import nl.vroste.rezilience.Retry
-import zio.clock.Clock
 import zio.config._
-import zio.random.Random
-import zio.{ Schedule, ZManaged }
+import zio.{ Schedule, Scope, ZIO }
 
 trait RetryFromConfigSyntax {
   implicit class RetryExtensions(self: Retry.type) {
-    def fromConfig[E](source: ConfigSource): ZManaged[Clock with Random, ReadError[String], Retry[Any]] =
+    def fromConfig[E](source: ConfigSource): ZIO[Scope, ReadError[String], Retry[Any]] =
       for {
-        config  <- read(RetryConfig.descriptor from source).toManaged_
+        config  <- read(RetryConfig.descriptor from source)
         schedule = config match {
                      case RetryConfig.Config(minDelay, None, _, retryImmediately, maxRetries, jitterFactor) =>
                        val baseSchedule = Schedule.spaced(minDelay)
@@ -37,7 +35,7 @@ trait RetryFromConfigSyntax {
     retryImmediately: Boolean,
     maxRetries: Option[Int],
     jitterFactor: Double
-  ): Schedule[Random, Any, Any] =
+  ): Schedule[Any, Any, Any] =
     (if (retryImmediately) Schedule.once else Schedule.stop) andThen
       baseSchedule.jittered(1.0 - jitterFactor, 1.0 + jitterFactor) &&
       maxRetries.fold(zio.Schedule.forever)(zio.Schedule.recurs)

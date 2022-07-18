@@ -1,68 +1,66 @@
 package nl.vroste.rezilience
 import nl.vroste.rezilience.Policy.WrappedError
-import zio.duration.durationInt
 import zio.test.Assertion._
 import zio.test.TestAspect.{ nonFlaky, timeout }
-import zio.test.environment.TestClock
-import zio.test.{ DefaultRunnableSpec, _ }
-import zio.{ Fiber, Promise, ZIO, ZManaged }
+import zio.test._
+import zio.{ durationInt, Fiber, Promise, ZIO }
 
-object PolicySpec extends DefaultRunnableSpec {
+object PolicySpec extends ZIOSpecDefault {
   sealed trait Error
   case object MyCallError     extends Error
   case object MyNotFatalError extends Error
 
   override def spec = suite("Policy")(
-    testM("succeeds the first call immediately regardless of the policies") {
+    test("succeeds the first call immediately regardless of the policies") {
       val policy =
-        ZManaged.mapN(RateLimiter.make(1), Bulkhead.make(100), CircuitBreaker.withMaxFailures(10))(
-          Policy.common(_, _, _)
-        )
+        (RateLimiter.make(1) zip
+          Bulkhead.make(100) zip
+          CircuitBreaker.withMaxFailures(10)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
-      policy.use { policy =>
+      ZIO.scoped {
         for {
+          policy <- policy
           result <- policy(ZIO.succeed(123))
         } yield assert(result)(equalTo(123))
 
       }
     },
-    testM("fails the first call when retry is disabled") {
+    test("fails the first call when retry is disabled") {
       val policy =
-        ZManaged.mapN(RateLimiter.make(1), Bulkhead.make(100), CircuitBreaker.withMaxFailures(10))(
-          Policy.common(_, _, _)
-        )
+        (RateLimiter.make(1) zip
+          Bulkhead.make(100) zip
+          CircuitBreaker.withMaxFailures(10)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
-      policy.use { policy =>
+      ZIO.scoped {
         for {
+          policy <- policy
           result <- policy(ZIO.fail(MyCallError)).flip
         } yield assert(result)(equalTo(WrappedError(MyCallError)))
       }
     },
-    testM("fail with a circuit breaker error after too many failed calls") {
+    test("fail with a circuit breaker error after too many failed calls") {
       val policy =
-        ZManaged.mapN(
-          RateLimiter.make(2),
-          Bulkhead.make(100),
-          CircuitBreaker.withMaxFailures(1)
-        )(Policy.common(_, _, _))
+        (RateLimiter.make(2) zip
+          Bulkhead.make(100) zip
+          CircuitBreaker.withMaxFailures(1)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
-      policy.use { policy =>
+      ZIO.scoped {
         for {
+          policy <- policy
           _      <- policy(ZIO.fail(MyCallError)).flip
           result <- policy(ZIO.fail(MyCallError)).flip
         } yield assert(result)(equalTo(Policy.CircuitBreakerOpen))
       }
     },
-    testM("fail with a bulkhead error after too many calls in progress") {
+    test("fail with a bulkhead error after too many calls in progress") {
       val policy =
-        ZManaged.mapN(
-          RateLimiter.make(10),
-          Bulkhead.make(1, maxQueueing = 1),
-          CircuitBreaker.withMaxFailures(1)
-        )(Policy.common(_, _, _))
+        (RateLimiter.make(10) zip
+          Bulkhead.make(1, maxQueueing = 1) zip
+          CircuitBreaker.withMaxFailures(1)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
-      policy.use { policy =>
+      ZIO.scoped {
         for {
+          policy <- policy
           latch  <- Promise.make[Nothing, Unit]
           latch3 <- Promise.make[Nothing, Unit]
           _      <- policy(latch.succeed(()) *> latch3.await).fork // This one will go in-flight immediately
@@ -72,16 +70,15 @@ object PolicySpec extends DefaultRunnableSpec {
         } yield assert(result)(equalTo(Policy.BulkheadRejection))
       }
     },
-    testM("rate limit") {
+    test("rate limit") {
       val policy =
-        ZManaged.mapN(
-          RateLimiter.make(2),
-          Bulkhead.make(10),
-          CircuitBreaker.withMaxFailures(1)
-        )(Policy.common(_, _, _))
+        (RateLimiter.make(2) zip
+          Bulkhead.make(10) zip
+          CircuitBreaker.withMaxFailures(1)).map { case (rl, bh, cb) => Policy.common(rl, bh, cb) }
 
-      policy.use { policy =>
+      ZIO.scoped {
         for {
+          policy        <- policy
           _             <- policy(ZIO.unit)
           _             <- policy(ZIO.unit)
           fib           <- policy(ZIO.succeed(123)).fork

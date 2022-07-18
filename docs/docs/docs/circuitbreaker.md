@@ -30,30 +30,29 @@ Custom tripping strategies can be implemented by extending `TrippingStrategy`.
 import nl.vroste.rezilience.CircuitBreaker._
 import nl.vroste.rezilience._
 import zio._
-import zio.clock.Clock
-import zio.console.putStrLn
-import zio.duration._
 
 object CircuitBreakerExample {
   // We use Throwable as error type in this example
   def callExternalSystem(someInput: String): ZIO[Any, Throwable, Int] = ZIO.succeed(someInput.length)
 
-  val circuitBreaker: ZManaged[Clock, Nothing, CircuitBreaker[Any]] = CircuitBreaker.make(
+  val circuitBreaker: ZIO[Scope, Nothing, CircuitBreaker[Any]] = CircuitBreaker.make(
     trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
     resetPolicy = Retry.Schedules.exponentialBackoff(min = 1.second, max = 1.minute)
   )
 
-  circuitBreaker.use { cb =>
-    val result: ZIO[Any, CircuitBreakerCallError[Throwable], Int] = cb(callExternalSystem("some input"))
+  ZIO.scoped {
+    circuitBreaker.flatMap { cb =>
+      val result: ZIO[Any, CircuitBreakerCallError[Throwable], Int] = cb(callExternalSystem("some input"))
 
-    result
-      .flatMap(r => putStrLn(s"External system returned $r"))
-      .catchSome {
-        case CircuitBreakerOpen =>
-          putStrLn("Circuit breaker blocked the call to our external system")
-        case WrappedError(e)    =>
-          putStrLn(s"External system threw an exception: $e")
-      }
+      result
+        .flatMap(r => ZIO.debug(s"External system returned $r"))
+        .catchSome {
+          case CircuitBreakerOpen =>
+            ZIO.debug("Circuit breaker blocked the call to our external system")
+          case WrappedError(e)    =>
+            ZIO.debug(s"External system threw an exception: $e")
+        }
+    }
   }
 }
 ```
@@ -74,14 +73,16 @@ val isFailure: PartialFunction[Error, Boolean] = {
 def callWithServiceError: ZIO[Any, Error, Unit] = ZIO.fail(ServiceError)
 def callWithUserError: ZIO[Any, Error, Unit] = ZIO.fail(UserError)
 
-CircuitBreaker.make(
-  trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
-  isFailure = isFailure
-).use { circuitBreaker =>
-  for {
-    _ <- circuitBreaker(callWithUserError) // Will not be counted as failure by the circuit breaker
-    _ <- circuitBreaker(callWithServiceError) // Will be counted as failure
-  } yield ()
+ZIO.scoped {
+  CircuitBreaker.make(
+    trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
+    isFailure = isFailure
+  ).flatMap { circuitBreaker =>
+    for {
+      _ <- circuitBreaker(callWithUserError) // Will not be counted as failure by the circuit breaker
+      _ <- circuitBreaker(callWithServiceError) // Will be counted as failure
+    } yield ()
+  }
 }
 ```
 
@@ -91,8 +92,8 @@ You may want to monitor circuit breaker failures and trigger alerts when the cir
 ```scala mdoc:silent
 CircuitBreaker.make(
   trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
-  onStateChange = (s: State) => ZIO(println(s"State changed to ${s}")).ignore
-).use { circuitBreaker =>
+  onStateChange = (s: State) => ZIO.debug(s"State changed to ${s}").ignore
+).flatMap { circuitBreaker =>
   // Make calls to an external system
   circuitBreaker(ZIO.unit) // etc
 }

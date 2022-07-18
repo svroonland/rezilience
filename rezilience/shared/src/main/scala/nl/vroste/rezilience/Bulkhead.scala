@@ -74,22 +74,20 @@ object Bulkhead {
    *   Maximum queueing calls
    * @return
    */
-  def make(maxInFlightCalls: Int, maxQueueing: Int = 32): ZManaged[Any, Nothing, Bulkhead] =
+  def make(maxInFlightCalls: Int, maxQueueing: Int = 32): ZIO[Scope, Nothing, Bulkhead] =
     for {
-      queue             <- ZQueue
-                             .bounded[UIO[Unit]](zio.internal.RingBuffer.nextPow2(maxQueueing))
-                             .toManaged_ // Power of two because it is a more efficient queue implementation
-      inFlightAndQueued <- Ref.make(State(0, 0)).toManaged_
+      queue             <- Queue
+                             .bounded[UIO[Unit]](Util.nextPow2(maxQueueing))
+      inFlightAndQueued <- Ref.make(State(0, 0))
       onStart            = inFlightAndQueued.update(_.startProcess)
       onEnd              = inFlightAndQueued.update(_.endProcess)
       _                 <- ZStream
                              .fromQueueWithShutdown(queue)
-                             .mapMPar(maxInFlightCalls) { task =>
-                               onStart.bracket_(onEnd, task)
+                             .mapZIOPar(maxInFlightCalls) { task =>
+                               ZIO.acquireReleaseWith(onStart)(_ => onEnd)(_ => task)
                              }
                              .runDrain
-                             .fork
-                             .toManaged_
+                             .forkScoped
     } yield new Bulkhead {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
@@ -106,11 +104,14 @@ object Bulkhead {
 
             }.flatten.uninterruptible
           onInterruptOrCompletion = done.succeed(())
-          result                 <- ZManaged
-                                      .makeInterruptible_(enqueueAction.onInterrupt(onInterruptOrCompletion))(onInterruptOrCompletion)
-                                      .use_(start.await *> task.mapError(WrappedError(_)))
+          result                 <- ZIO.scoped[R] {
+                                      ZIO
+                                        .acquireReleaseInterruptible(enqueueAction.onInterrupt(onInterruptOrCompletion))(
+                                          onInterruptOrCompletion
+                                        ) *> start.await *> task.mapError(WrappedError(_))
+                                    }
         } yield result
 
-      override def metrics: UIO[Metrics] = (inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued)))
+      override def metrics: UIO[Metrics] = inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued))
     }
 }

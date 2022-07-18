@@ -6,7 +6,7 @@ permalink: docs/general_usage/
 
 # General usage
 
-`rezilience` policies are created as [`ZManaged`](https://zio.dev/docs/datatypes/datatypes_managed) resources. This allows them to run background operations which are cleaned up safely after usage. Since these `ZManaged`s are just descriptions of the policy, they can be passed around to various call sites and `use`d to create many instances.
+`rezilience` policies are created as [`Scoped`](https://zio.dev/docs/datatypes/datatypes_managed) effects. This allows them to run background operations which are cleaned up safely after usage. Since these scoped effects are just descriptions of the policy, they can be passed around to various call sites and used to create many instances.
 
 All instantiated policies are defined as traits with an `apply` method that takes a ZIO effect as parameter:
 
@@ -20,8 +20,10 @@ trait Retry {
 Therefore a policy can be used as if it were a function taking a ZIO effect, eg:
 
 ```scala
-Retry.make(...).use { retry => 
-  retry(callToExternalSystem) // shorthand for retry.apply(callToExternalSystem) 
+ZIO.scoped {
+  Retry.make(...).flatMap { retry =>
+    retry(callToExternalSystem) // shorthand for retry.apply(callToExternalSystem) 
+  }
 }
 ```
 
@@ -82,17 +84,18 @@ You can apply `rezilience` policies at the level of an individual ZIO effect. Bu
 For example:
 
 ```scala
-val addRateLimiterToDatabase: ZLayer[Database with Clock, Nothing, Database] =
-ZLayer.fromServiceManaged { database: Database.Service =>
-  RateLimiter.make(10).map { rateLimiter =>
-    new Database.Service {
-      override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
-        rateLimiter(database.transfer(amount, from, to))
+val addRateLimiterToDatabase: ZLayer[Database, Nothing, Database] = {
+  ZLayer.scoped {
+    ZLayer.fromService { database: Database.Service =>
+      RateLimiter.make(10).map { rateLimiter =>
+        new Database.Service {
+          override def transfer(amount: Amount, from: Account, to: Account): ZIO[Any, Throwable, Unit] =
+            rateLimiter(database.transfer(amount, from, to))
+        }
+      }
     }
   }
 }
-
-val env: ZLayer[Clock, Nothing, Database] = (Clock.live ++ databaseLayer) >>> addRateLimiterToDatabase
 ```
 
 For policies where the result type has a different `E` you will need to map the error back to your own `E`. An option is to have something like a general `case class UnknownServiceError(e: Exception)` in your service error type, to which you can map the policy errors. If that is not possible for some reason, you can also define a new service type like `ResilientDatabase` where the error types are `PolicyError[E]`.

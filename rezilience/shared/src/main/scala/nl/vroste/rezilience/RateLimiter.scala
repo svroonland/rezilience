@@ -1,8 +1,6 @@
 package nl.vroste.rezilience
-import zio.duration.{ durationInt, Duration }
 import zio.stream.ZStream
-import zio._
-import zio.clock.Clock
+import zio.{ durationInt, Duration, _ }
 
 /**
  * Limits the number of calls to a resource to a maximum amount in some interval
@@ -52,18 +50,19 @@ object RateLimiter {
    * @return
    *   RateLimiter
    */
-  def make(max: Int, interval: Duration = 1.second): ZManaged[Clock, Nothing, RateLimiter] =
+  def make(max: Int, interval: Duration = 1.second): ZIO[Scope, Nothing, RateLimiter] =
     for {
       q <- Queue
-             .bounded[(Ref[Boolean], UIO[Any])](zio.internal.RingBuffer.nextPow2(max))
-             .toManaged_ // Power of two because it is a more efficient queue implementation
+             .bounded[(Ref[Boolean], UIO[Any])](
+               Util.nextPow2(max)
+             ) // Power of two because it is a more efficient queue implementation
       _ <- ZStream
-             .fromQueue(q, 1)
-             .filterM { case (interrupted, effect @ _) => interrupted.get.map(!_) }
+             .fromQueue(q, maxChunkSize = 1)
+             .filterZIO { case (interrupted, effect @ _) => interrupted.get.map(!_) }
              .throttleShape(max.toLong, interval, max.toLong)(_.size.toLong)
-             .mapMParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
+             .mapZIOParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
              .runDrain
-             .forkManaged
+             .forkScoped
     } yield new RateLimiter {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, E, A] = for {
         start                  <- Promise.make[Nothing, Unit]
@@ -71,11 +70,12 @@ object RateLimiter {
         interruptedRef         <- Ref.make(false)
         action                  = start.succeed(()) *> done.await
         onInterruptOrCompletion = interruptedRef.set(true) *> done.succeed(())
-        result                 <- ZManaged
-                                    .makeInterruptible_(q.offer((interruptedRef, action)).onInterrupt(onInterruptOrCompletion))(
-                                      onInterruptOrCompletion
-                                    )
-                                    .use_(start.await *> task)
+        result                 <-
+          ZIO.scoped[R] {
+            ZIO.acquireReleaseInterruptible(q.offer((interruptedRef, action)).onInterrupt(onInterruptOrCompletion))(
+              onInterruptOrCompletion
+            ) *> start.await *> task
+          }
       } yield result
     }
 }

@@ -25,7 +25,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.12.15! docs/makeMdoc
+      - run: sbt ++2.13.8! docs/makeMdoc
   test213_jdk17:
     docker:
       - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
@@ -62,35 +62,6 @@ jobs:
       - restore_cache:
           key: sbt-cache-3
       - run: sbt ++3.1.1! rezilienceJVM/test
-      - save_cache:
-          key: sbt-cache-3
-          paths:
-            - "~/.cache/coursier/"
-            - "~/.sbt"
-            - "~/.m2"
-  test212_jdk17:
-    docker:
-      - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.12.15
-    steps:
-      - checkout
-      - restore_cache:
-          key: sbt-cache-3
-      - run: sbt ++2.12.15! compile rezilienceJVM/test
-      - save_cache:
-          key: sbt-cache-3
-          paths:
-            - "~/.cache/coursier/"
-            - "~/.sbt"
-            - "~/.m2"
-  test212_jdk11:
-    docker:
-      - image: hseeberger/scala-sbt:11.0.14.1_1.6.2_2.12.15
-      
-    steps:
-      - checkout
-      - restore_cache:
-          key: sbt-cache-3
-      - run: sbt ++2.12.15! compile rezilienceJVM/test
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -143,14 +114,6 @@ workflows:
           filters:
             tags:
               only: << pipeline.parameters.tag_regex >>
-      - test212_jdk17:
-          filters:
-            tags:
-              only: << pipeline.parameters.tag_regex >>
-      - test212_jdk11:
-          filters:
-            tags:
-              only: << pipeline.parameters.tag_regex >>
       - test_dotty_jdk17:
           filters:
             tags:
@@ -159,14 +122,13 @@ workflows:
           requires:
             - test213_jdk17
             - test213_jdk11
-            - test212_jdk17
-            - test212_jdk11
             - test_dotty_jdk17
             - check_docs
           filters:
             branches:
               only:
                 - master
+                - zio-2.0
             tags:
               only: << pipeline.parameters.tag_regex >>
       - publish_docs:

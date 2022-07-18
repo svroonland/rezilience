@@ -48,12 +48,12 @@ val config = ConfigFactory.parseString(s"""
 
 val configSource = TypesafeConfigSource.fromTypesafeConfig(ZIO.succeed(config.getConfig("my-circuit-breaker")))
 
-CircuitBreaker
-  .fromConfig(configSource)
-  .use { cb =>
-    cb(ZIO.unit)
-  }
-
+ZIO.scoped {
+    for {
+        cb <- CircuitBreaker.fromConfig(configSource)
+        _ <- cb(ZIO.unit)
+      } yield ()
+}
 ```
 
 ## Configuration reference

@@ -19,12 +19,14 @@ import nl.vroste.rezilience._
 // We use Throwable as error type in this example 
 def myCallToExternalResource(someInput: String): ZIO[Any, Throwable, Int] = ???
 
-val rateLimiter: UManaged[RateLimiter] = RateLimiter.make(max = 10, interval = 1.second)
+val rateLimiter: ZIO[Scope, Nothing, RateLimiter] = RateLimiter.make(max = 10, interval = 1.second)
 
-rateLimiter.use { rateLimiter =>
-  val result: ZIO[Any, Throwable, Int] =
-        rateLimiter(myCallToExternalResource("some input"))
-       
+ZIO.scoped {
+  rateLimiter.flatMap { rateLimiter =>
+    val result: ZIO[Any, Throwable, Int] =
+      rateLimiter(myCallToExternalResource("some input"))
+
+  }
 }
 ```
 

@@ -2,7 +2,7 @@ package nl.vroste.rezilience.config
 
 import zio.config._
 import ConfigDescriptor._
-import zio.duration.{ durationInt, Duration }
+import zio.{ durationInt, Duration }
 
 object CircuitBreakerConfig {
   sealed trait TrippingStrategy

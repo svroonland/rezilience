@@ -17,7 +17,7 @@ def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A]
 A policy can be composed with another one using its `compose` method, which wraps another policy around it. Below is an example of wrapping a `Retry` around a `RateLimiter` around a `Bulkhead`. The for-comprehension is needed because policies are created as `ZManaged`s.
 
 ```scala
-val policy: ZManaged[Clock, Nothing, Policy[Any]] = for {
+val policy: ZIO[Scope, Nothing, Policy[Any]] = for {
   rateLimiter <- RateLimiter.make(1, 2.seconds)
   bulkhead    <- Bulkhead.make(2)
   retry       <- Retry.make(Schedule.recurs(3))

@@ -2,8 +2,6 @@ package nl.vroste.rezilience
 
 import nl.vroste.rezilience.Timeout.TimeoutError
 import zio._
-import zio.clock.Clock
-import zio.duration.Duration
 
 /**
  * Applies a timeout to effects
@@ -35,12 +33,16 @@ object Timeout {
 
   case class TimeoutException[E](error: TimeoutError[E]) extends Exception("Timeout")
 
-  def make(timeout: Duration): ZManaged[Clock, Nothing, Timeout] = ZManaged.environment[Clock].map { clock =>
+  def make(timeout: Duration): ZIO[Scope, Nothing, Timeout] = ZIO.succeed {
     new Timeout {
       override def apply[R, E, A](f: ZIO[R, E, A]): ZIO[R, TimeoutError[E], A] =
         ZIO
           .environment[R]
-          .flatMap(env => f.provide(env).mapError(WrappedError(_)).timeoutFail(CallTimedOut)(timeout).provide(clock))
+          .flatMap(env =>
+            f.provideEnvironment(env)
+              .mapError(WrappedError(_))
+              .timeoutFail(CallTimedOut)(timeout)
+          )
     }
   }
 }

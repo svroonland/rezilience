@@ -1,9 +1,9 @@
 package nl.vroste.rezilience.config
 
-import zio.{ ExitCode, URIO, ZIO }
+import zio.{ Scope, ZIO, ZIOAppArgs }
 
-object GenerateConfigDocs extends zio.App {
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
+object GenerateConfigDocs extends zio.ZIOAppDefault {
+  override def run: ZIO[Any with ZIOAppArgs with Scope, Any, Any] =
     ZIO
       .debug(s"""
                 |# Circuit Breaker

@@ -17,17 +17,17 @@ Effects of type `ZIO[R, E, A]` wrapped with a `Timeout` will get a `TimeoutError
 
 ```scala mdoc:silent
 import zio._
-import zio.duration._
-import zio.clock.Clock
 import nl.vroste.rezilience._
 import nl.vroste.rezilience.Timeout.TimeoutError
 
 val myEffect: ZIO[Clock, Exception, Unit] = ZIO.sleep(20.seconds)
 
-val timeout: ZManaged[Clock, Nothing, Timeout] = Timeout.make(10.seconds)
+val timeout: ZIO[Scope, Nothing, Timeout] = Timeout.make(10.seconds)
 
-val result: ZIO[Clock, TimeoutError[Exception], Unit] = timeout.use { policy => 
-  policy(myEffect)
+val result: ZIO[Clock, TimeoutError[Exception], Unit] = ZIO.scoped {
+    timeout.flatMap { policy => 
+      policy(myEffect)
+    }
 }
 
 // result will be a ZIO failure with value `CallTimedOut`

@@ -22,9 +22,9 @@ import nl.vroste.rezilience.Bulkhead.BulkheadError
 // We use Throwable as error type in this example 
 def myCallToExternalResource(someInput: String): ZIO[Any, Throwable, Int] = ???
 
-val bulkhead: UManaged[Bulkhead] = Bulkhead.make(maxInFlightCalls = 10, maxQueueing = 32)
+val bulkhead: ZIO[Scope, Nothing, Bulkhead] = Bulkhead.make(maxInFlightCalls = 10, maxQueueing = 32)
 
-bulkhead.use { bulkhead =>
+bulkhead.flatMap { bulkhead =>
   val result: ZIO[Any, BulkheadError[Throwable], Int] =
         bulkhead(myCallToExternalResource("some input"))
 }

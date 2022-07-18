@@ -1,7 +1,5 @@
 package nl.vroste.rezilience
 
-import zio.clock.Clock
-import zio.duration._
 import zio._
 
 /**
@@ -33,8 +31,8 @@ object TrippingStrategy {
    *   Maximum number of failures before tripping the circuit breaker
    * @return
    */
-  def failureCount(maxFailures: Int): ZManaged[Any, Nothing, TrippingStrategy] =
-    Ref.make[Int](0).toManaged_.map { nrFailedCalls =>
+  def failureCount(maxFailures: Int): ZIO[Scope, Nothing, TrippingStrategy] =
+    Ref.make[Int](0).map { nrFailedCalls =>
       new TrippingStrategy {
         override def shouldTrip(callSuccessful: Boolean): UIO[Boolean] = if (callSuccessful)
           nrFailedCalls.set(0).as(false)
@@ -67,7 +65,7 @@ object TrippingStrategy {
     sampleDuration: Duration = 1.minute,
     minThroughput: Int = 10,
     nrSampleBuckets: Int = 10
-  ): ZManaged[Clock, Nothing, TrippingStrategy] = {
+  ): ZIO[Scope, Nothing, TrippingStrategy] = {
     require(
       failureRateThreshold > 0.0 && failureRateThreshold < 1.0,
       "failureRateThreshold must be between 0 (exclusive) and 1"
@@ -76,7 +74,7 @@ object TrippingStrategy {
     require(minThroughput > 0, "minThroughput must be larger than 0")
 
     for {
-      samplesRef <- Ref.make(List(Bucket.empty)).toManaged_
+      samplesRef <- Ref.make(List(Bucket.empty))
 
       // Rotate the buckets periodically
       bucketRotationInterval = sampleDuration * (1.0 / nrSampleBuckets)
@@ -85,7 +83,7 @@ object TrippingStrategy {
                                  case samples                                     => Bucket.empty +: samples.init
                                }.repeat(Schedule.spaced(bucketRotationInterval)) // TODO Schedule.fixed when ZIO 1.0.2. is out
                                  .delay(bucketRotationInterval)
-                                 .forkManaged
+                                 .forkScoped
     } yield new TrippingStrategy {
       override def shouldTrip(callSuccessful: Boolean): UIO[Boolean] = samplesRef.modify { case oldSamples =>
         val samples = updateSamples(oldSamples, success = callSuccessful)
