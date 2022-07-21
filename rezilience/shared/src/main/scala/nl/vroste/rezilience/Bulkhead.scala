@@ -88,8 +88,7 @@ object Bulkhead {
                                onStart.bracket_(onEnd, task)
                              }
                              .runDrain
-                             .fork
-                             .toManaged_
+                             .forkManaged
     } yield new Bulkhead {
       override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, BulkheadError[E], A] =
         for {
