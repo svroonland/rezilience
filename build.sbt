@@ -115,7 +115,7 @@ lazy val docs = project
       "dev.zio"                %%% "zio-test"                % zioVersion % "test",
       "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
       "org.scala-lang.modules" %%% "scala-collection-compat" % "2.8.0",
-      "dev.zio"                %%% "zio-config-typesafe"     % "3.0.1"
+      "dev.zio"                %%% "zio-config-typesafe"     % "3.0.2"
     )
   )
   .dependsOn(rezilience.jvm, config)
