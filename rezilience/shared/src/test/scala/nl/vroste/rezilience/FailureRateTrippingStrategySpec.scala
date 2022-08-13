@@ -58,8 +58,8 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
           cb <- CircuitBreaker.make[String](strategy, resetPolicy = Schedule.fixed(5.seconds))
           // Make a succeeding and a failing call 4 times every 100 ms
           _  <- {
-            cb(ZIO.unit) *> cb(ZIO.fail("Oh Oh")).either *> TestClock.adjust(150.millis)
-          }.repeat(Schedule.recurs(3))
+                  cb(ZIO.unit) *> cb(ZIO.fail("Oh Oh")).either *> TestClock.adjust(150.millis)
+                }.repeat(Schedule.recurs(3))
           // Next call should fail
           _  <- TestClock.adjust(50.millis)
           r  <- cb(ZIO.succeed(println("Succeeding call that should fail fast"))).exit
@@ -79,8 +79,8 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
                 )
           // Make a succeeding and a failing call 4 times every 100 ms
           _  <- {
-            cb(ZIO.unit) *> cb(ZIO.fail("Oh Oh")).either
-          }.repeat(Schedule.spaced(10.millis) && Schedule.recurs(10))
+                  cb(ZIO.unit) *> cb(ZIO.fail("Oh Oh")).either
+                }.repeat(Schedule.spaced(10.millis) && Schedule.recurs(10))
         } yield assertCompletes
       } @@ withLiveClock @@ nonFlaky @@ TestAspect.parallel,
       test("does not trip after resetting") {
