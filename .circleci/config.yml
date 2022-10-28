@@ -28,7 +28,9 @@ jobs:
       - run: sbt ++2.13.8! docs/makeMdoc
   test213_jdk17:
     docker:
-      - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.10
+      - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
+      
+      
     steps:
       - checkout
       - restore_cache:
@@ -42,7 +44,7 @@ jobs:
             - "~/.m2"
   test213_jdk11:
     docker:
-      - image: hseeberger/scala-sbt:11.0.14.1_1.6.2_2.13.10
+      - image: hseeberger/scala-sbt:11.0.14.1_1.6.2_2.13.8
     steps:
       - checkout
       - restore_cache:
@@ -70,7 +72,7 @@ jobs:
             - "~/.m2"
   release:
     docker:
-      - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.10
+      - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
     steps:
       - checkout
       - run: git fetch --tags
@@ -84,7 +86,7 @@ jobs:
 
   publish_docs:
     docker:
-      - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.10
+      - image: hseeberger/scala-sbt:17.0.2_1.6.2_2.13.8
     steps:
       - checkout
       - run: apt-get update
