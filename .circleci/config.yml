@@ -6,7 +6,7 @@ parameters:
 jobs:
   lint:
     docker:
-      - image: hseeberger/scala-sbt:8u312_1.6.2_2.13.10
+      - image: hseeberger/scala-sbt:8u312_1.6.2_2.13.8
     steps:
       - checkout
       - restore_cache:
@@ -20,7 +20,7 @@ jobs:
             - "~/.m2"
   check_docs:
     docker:
-      - image: hseeberger/scala-sbt:8u312_1.6.2_2.13.10
+      - image: hseeberger/scala-sbt:8u312_1.6.2_2.13.8
     steps:
       - checkout
       - restore_cache:
