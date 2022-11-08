@@ -3,7 +3,7 @@ import sbt.Keys.resolvers
 val mainScala        = "2.13.10"
 val scala3Version    = "3.2.0"
 val allScala         = Seq(mainScala, scala3Version)
-val zioVersion       = "2.0.2"
+val zioVersion       = "2.0.3"
 val zioConfigVersion = "3.0.1"
 
 val excludeInferAny        = { options: Seq[String] => options.filterNot(Set("-Xlint:infer-any")) }
