@@ -78,6 +78,7 @@ jobs:
       - run: git fetch --tags
       - restore_cache:
           key: sbt-cache-3
+      - run: apt update
       - run: apt install -y gnupg
       - run: export GPG_TTY=$(tty)
       - run: echo $PGP_SECRET | base64 --decode | gpg --batch --import
@@ -130,7 +131,6 @@ workflows:
             branches:
               only:
                 - master
-                - zio-2.0
             tags:
               only: << pipeline.parameters.tag_regex >>
       - publish_docs:
