@@ -100,6 +100,7 @@ lazy val docs = project
     description                                := "ZIO-native utilities for making asynchronous systems more resilient to failures",
     ScalaUnidoc / siteSubdirName               := "api",
     tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.warnError)) },
+    run / tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.warnError)) },
     addMappingsToSiteDir(ScalaUnidoc / packageDoc / mappings, ScalaUnidoc / siteSubdirName),
     ScalaUnidoc / unidoc / unidocProjectFilter := inAnyProject -- inProjects(rezilience.js),
     git.remoteRepo                             := "git@github.com:svroonland/rezilience.git",
