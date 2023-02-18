@@ -6,10 +6,15 @@ val allScala         = Seq(mainScala, scala3Version)
 val zioVersion       = "2.0.9"
 val zioConfigVersion = "3.0.7"
 
-val excludeInferAny        = { options: Seq[String] => options.filterNot(Set("-Xlint:infer-any")) }
-lazy val commonJvmSettings = Seq(crossScalaVersions := allScala, Compile / scalacOptions ~= excludeInferAny)
+lazy val commonJvmSettings = Seq(
+  crossScalaVersions := allScala,
+  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) }
+)
 
-lazy val commonJsSettings = Seq(crossScalaVersions := allScala)
+lazy val commonJsSettings = Seq(
+  crossScalaVersions := allScala,
+  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) }
+)
 
 inThisBuild(
   List(
@@ -33,6 +38,7 @@ inThisBuild(
 
 lazy val root = project
   .in(file("."))
+  .settings(commonJvmSettings)
   .aggregate(rezilience.js, rezilience.jvm, config, docs)
   .settings(
     name         := "rezilience",
@@ -93,6 +99,9 @@ lazy val docs = project
     publish / skip                             := true,
     description                                := "ZIO-native utilities for making asynchronous systems more resilient to failures",
     ScalaUnidoc / siteSubdirName               := "api",
+    tpolecatScalacOptions ~= { options =>
+      options.filterNot(Set(ScalacOptions.warnError, ScalacOptions.fatalWarnings))
+    },
     addMappingsToSiteDir(ScalaUnidoc / packageDoc / mappings, ScalaUnidoc / siteSubdirName),
     ScalaUnidoc / unidoc / unidocProjectFilter := inAnyProject -- inProjects(rezilience.js),
     git.remoteRepo                             := "git@github.com:svroonland/rezilience.git",
