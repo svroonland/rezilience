@@ -1,9 +1,9 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 import sbt.Keys.resolvers
 val mainScala        = "2.13.10"
-val scala3Version    = "3.2.0"
+val scala3Version    = "3.2.2"
 val allScala         = Seq(mainScala, scala3Version)
-val zioVersion       = "2.0.2"
+val zioVersion       = "2.0.9"
 val zioConfigVersion = "3.0.7"
 
 val excludeInferAny        = { options: Seq[String] => options.filterNot(Set("-Xlint:infer-any")) }
@@ -115,7 +115,7 @@ lazy val docs = project
       "dev.zio"                %%% "zio-test"                % zioVersion % "test",
       "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
       "org.scala-lang.modules" %%% "scala-collection-compat" % "2.8.1",
-      "dev.zio"                %%% "zio-config-typesafe"     % "3.0.2"
+      "dev.zio"                %%% "zio-config-typesafe"     % "3.0.7"
     )
   )
   .dependsOn(rezilience.jvm, config)
