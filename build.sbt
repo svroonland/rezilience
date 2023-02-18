@@ -101,6 +101,7 @@ lazy val docs = project
     ScalaUnidoc / siteSubdirName               := "api",
     tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.warnError)) },
     run / tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.warnError)) },
+    tpolecatExcludeOptions ++= ScalacOptions.defaultConsoleExclude,
     addMappingsToSiteDir(ScalaUnidoc / packageDoc / mappings, ScalaUnidoc / siteSubdirName),
     ScalaUnidoc / unidoc / unidocProjectFilter := inAnyProject -- inProjects(rezilience.js),
     git.remoteRepo                             := "git@github.com:svroonland/rezilience.git",
