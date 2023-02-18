@@ -133,10 +133,10 @@ workflows:
                 - master
             tags:
               only: << pipeline.parameters.tag_regex >>
-      - publish_docs
-#          requires:
-#             - release
-#          filters:
-#            branches:
-#              only:
-#                - master
+      - publish_docs:
+          requires:
+             - release
+          filters:
+            branches:
+              only:
+                - master
