@@ -37,9 +37,11 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
 
       for {
         cb     <- CircuitBreaker.withMaxFailures(3, Schedule.exponential(1.second), isFailure)
-        _      <- ZIO.foreachDiscard(1 to 3)(_ => cb(ZIO.fail(MyNotFatalError))).either
+        _      <- cb(ZIO.fail(MyNotFatalError)).either.repeatN(3)
         result <- cb(ZIO.fail(MyCallError)).either
-      } yield assert(result)(isLeft(not(equalTo(CircuitBreaker.CircuitBreakerOpen))))
+      } yield assertTrue(
+        result.left.toOption.get != CircuitBreaker.CircuitBreakerOpen
+      )
     },
     test("reset to closed state after reset timeout") {
       for {
