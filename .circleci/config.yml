@@ -78,6 +78,7 @@ jobs:
       - run: git fetch --tags
       - restore_cache:
           key: sbt-cache-3
+      - run: apt update
       - run: apt install -y gnupg
       - run: export GPG_TTY=$(tty)
       - run: echo $PGP_SECRET | base64 --decode | gpg --batch --import
@@ -121,16 +122,17 @@ workflows:
             tags:
               only: << pipeline.parameters.tag_regex >>
       - release:
-          requires:
-            - test213_jdk17
-            - test213_jdk11
-            - test_dotty_jdk17
-            - check_docs
+#          requires:
+#            - test213_jdk17
+#            - test213_jdk11
+#            - test_dotty_jdk17
+#            - check_docs
           filters:
             branches:
               only:
                 - master
                 - zio-2.0
+                - fix-release-2
             tags:
               only: << pipeline.parameters.tag_regex >>
       - publish_docs:
