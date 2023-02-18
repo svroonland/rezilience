@@ -4,7 +4,7 @@ val mainScala        = "2.13.10"
 val scala3Version    = "3.2.2"
 val allScala         = Seq(mainScala, scala3Version)
 val zioVersion       = "2.0.9"
-val zioConfigVersion = "3.0.1"
+val zioConfigVersion = "3.0.7"
 
 val excludeInferAny        = { options: Seq[String] => options.filterNot(Set("-Xlint:infer-any")) }
 lazy val commonJvmSettings = Seq(crossScalaVersions := allScala, Compile / scalacOptions ~= excludeInferAny)
