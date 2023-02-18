@@ -136,7 +136,7 @@ workflows:
       - publish_docs:
 #          requires:
 #             - release
-          filters:
-            branches:
-              only:
-                - master
+#          filters:
+#            branches:
+#              only:
+#                - master
