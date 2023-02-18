@@ -7,7 +7,10 @@ val zioVersion       = "2.0.9"
 val zioConfigVersion = "3.0.7"
 
 val excludeInferAny        = { options: Seq[String] => options.filterNot(Set("-Xlint:infer-any")) }
-lazy val commonJvmSettings = Seq(crossScalaVersions := allScala, Compile / scalacOptions ~= excludeInferAny)
+lazy val commonJvmSettings = Seq(
+  crossScalaVersions := allScala,
+  Compile / tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) }
+)
 
 lazy val commonJsSettings = Seq(crossScalaVersions := allScala)
 
