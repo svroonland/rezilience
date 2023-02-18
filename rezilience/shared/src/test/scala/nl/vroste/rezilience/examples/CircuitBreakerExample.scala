@@ -4,7 +4,7 @@ import nl.vroste.rezilience.CircuitBreaker._
 import nl.vroste.rezilience._
 import zio._
 
-object CircuitBreakerExample {
+object CircuitBreakerExample extends zio.ZIOAppDefault {
   // We use Throwable as error type in this example
   def callExternalSystem(someInput: String): ZIO[Any, Throwable, Int] = ZIO.succeed(someInput.length)
 
@@ -14,7 +14,7 @@ object CircuitBreakerExample {
     onStateChange = (s: State) => ZIO.succeed(println(s"State changed to ${s}")).ignore
   )
 
-  ZIO.scoped[Any] {
+  override def run =
     circuitBreaker.flatMap { cb =>
       val result: ZIO[Any, CircuitBreakerCallError[Throwable], Int] = cb(callExternalSystem("some input"))
 
@@ -27,5 +27,4 @@ object CircuitBreakerExample {
             Console.printLine(s"External system threw an exception: $e")
         }
     }
-  }
 }
