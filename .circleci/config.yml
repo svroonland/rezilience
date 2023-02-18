@@ -134,8 +134,8 @@ workflows:
             tags:
               only: << pipeline.parameters.tag_regex >>
       - publish_docs:
-          requires:
-             - release
+#          requires:
+#             - release
           filters:
             branches:
               only:
