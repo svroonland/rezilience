@@ -204,9 +204,9 @@ object CircuitBreaker {
                               } yield ()).uninterruptible
 
                             f.either.flatMap {
-                              case Left(e) if isFailure.isDefinedAt(e) => ZIO.fail(e)
-                              case Left(e)                             => ZIO.left(WrappedError(e))
-                              case Right(e)                            => ZIO.right(e)
+                              case Left(e) if isFailure.applyOrElse[E1, Boolean](e, _ => false) => ZIO.fail(e)
+                              case Left(e)                                                      => ZIO.left(WrappedError(e))
+                              case Right(e)                                                     => ZIO.right(e)
 
                             }
                               .tapBoth(_ => onComplete(callSuccessful = false), _ => onComplete(callSuccessful = true))
