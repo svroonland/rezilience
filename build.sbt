@@ -6,13 +6,15 @@ val allScala         = Seq(mainScala, scala3Version)
 val zioVersion       = "2.0.9"
 val zioConfigVersion = "3.0.7"
 
-val excludeInferAny        = { options: Seq[String] => options.filterNot(Set("-Xlint:infer-any")) }
 lazy val commonJvmSettings = Seq(
   crossScalaVersions := allScala,
-  Compile / tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) }
+  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) }
 )
 
-lazy val commonJsSettings = Seq(crossScalaVersions := allScala)
+lazy val commonJsSettings = Seq(
+  crossScalaVersions := allScala,
+  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) }
+)
 
 inThisBuild(
   List(
@@ -36,6 +38,7 @@ inThisBuild(
 
 lazy val root = project
   .in(file("."))
+  .settings(commonJvmSettings)
   .aggregate(rezilience.js, rezilience.jvm, config, docs)
   .settings(
     name         := "rezilience",
