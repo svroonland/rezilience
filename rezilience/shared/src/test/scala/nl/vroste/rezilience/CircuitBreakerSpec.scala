@@ -2,16 +2,24 @@ package nl.vroste.rezilience
 
 import nl.vroste.rezilience.CircuitBreaker.State
 import zio.duration._
-import zio.{ Queue, Schedule, ZIO }
+import zio._
+import zio.clock.Clock
 import zio.test.Assertion._
 import zio.test.TestAspect.nonFlaky
 import zio.test._
 import zio.test.environment.TestClock
+import zio.test.mock._
 
 object CircuitBreakerSpec extends DefaultRunnableSpec {
   sealed trait Error
   case object MyCallError     extends Error
   case object MyNotFatalError extends Error
+  case object CBOpen          extends Error
+
+  val isFailure: PartialFunction[Error, Boolean] = {
+    case MyNotFatalError => false
+    case _: Error        => true
+  }
 
   // TODO add generator based checks with different nr of parallel calls to check
   // for all kinds of race conditions
@@ -35,11 +43,6 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
         }
     } @@ TestAspect.diagnose(20.seconds),
     testM("ignore failures that should not be considered a failure") {
-      val isFailure: PartialFunction[Error, Boolean] = {
-        case MyNotFatalError => false
-        case _: Error        => true
-      }
-
       CircuitBreaker
         .withMaxFailures(3, Schedule.exponential(1.second), isFailure)
         .use { cb =>
@@ -130,6 +133,79 @@ object CircuitBreakerSpec extends DefaultRunnableSpec {
           s1 <- stateChanges.take // HalfOpen
         } yield assert(s1)(equalTo(State.HalfOpen))
       }
-    }
+    },
+    testM("reset to Closed after Half-Open on success") {
+      for {
+        error1 <- doSmth.flip
+        errors <- ZIO.replicateM(5)(doSmth.flip)
+        _      <- TestClock.adjust(1.second)
+        error3 <- doSmth.flip
+        _      <- TestClock.adjust(1.second)
+        _      <- doSmth
+        _      <- doSmth
+      } yield assertTrue(error1 == MyNotFatalError) &&
+        assertTrue(errors.forall(_ == MyCallError)) &&
+        assertTrue(error3 == CBOpen)
+
+    }.provideCustomLayer(
+      testLayer(
+        mockNonFatal ++ mockError.exactly(5) ++ mockSuccess.twice
+      )
+    ),
+    testM("reset to Closed after Half-Open on error if isFailure=false") {
+      for {
+        errors <- ZIO.replicateM(5)(doSmth.flip)
+        _      <- TestClock.adjust(1.second)
+        error1 <- doSmth.flip
+        _      <- TestClock.adjust(1.second)
+        error2 <- doSmth.flip
+        _      <- doSmth
+      } yield assertTrue(errors.forall(_ == MyCallError)) &&
+        assertTrue(error1 == CBOpen) &&
+        assertTrue(error2 == MyNotFatalError)
+
+    }.provideCustomLayer(
+      testLayer(
+        mockError.exactly(5) ++ mockNonFatal ++ mockSuccess
+      )
+    )
   ) @@ nonFlaky
+
+  def testLayer(delegate: ULayer[Has[MyService]]): URLayer[Clock, Has[MyService]] =
+    delegate.flatMap(serviceHas =>
+      CircuitBreaker
+        .withMaxFailures(5, Schedule.exponential(2.second), isFailure)
+        .map(cb =>
+          new MyService {
+            override def doSmth: IO[Error, Unit] =
+              cb(serviceHas.get.doSmth).mapError {
+                case CircuitBreaker.CircuitBreakerOpen  => CBOpen
+                case CircuitBreaker.WrappedError(error) => error
+              }
+          }
+        )
+        .toLayer
+    )
+
+  val doSmth: ZIO[Has[MyService], Error, Unit] = ZIO.serviceWith[MyService](_.doSmth)
+
+  object MyServiceMock extends Mock[Has[MyService]] {
+    object DoSmth extends Effect[Unit, Error, Unit]
+
+    override val compose: URLayer[Has[Proxy], Has[MyService]] =
+      ZLayer.fromService { proxy =>
+        new MyService {
+          override def doSmth: IO[Error, Unit] = proxy(DoSmth)
+        }
+      }
+
+  }
+
+  val mockSuccess: Expectation[Has[MyService]]  = MyServiceMock.DoSmth(Expectation.unit)
+  val mockNonFatal: Expectation[Has[MyService]] = MyServiceMock.DoSmth(Expectation.failure(MyNotFatalError))
+  val mockError: Expectation[Has[MyService]]    = MyServiceMock.DoSmth(Expectation.failure(MyCallError))
+
+  trait MyService {
+    def doSmth: IO[Error, Unit]
+  }
 }

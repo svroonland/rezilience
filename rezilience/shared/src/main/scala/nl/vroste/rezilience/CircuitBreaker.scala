@@ -193,7 +193,7 @@ object CircuitBreaker {
       for {
         currentState <- state.get
         result       <- currentState match {
-                          case Closed   =>
+                          case Closed =>
                             // The state may have already changed to Open or even HalfOpen.
                             // This can happen if we fire X calls in parallel where X >= 2 * maxFailures
                             def onComplete(callSuccessful: Boolean) =
@@ -203,32 +203,40 @@ object CircuitBreaker {
                                 _            <- changeToOpen.when(currentState == Closed && shouldTrip)
                               } yield ()).uninterruptible
 
-                            f.either.flatMap {
-                              case Left(e) if isFailure.applyOrElse[E1, Boolean](e, _ => false) => ZIO.fail(e)
-                              case Left(e)                                                      => ZIO.left(WrappedError(e))
-                              case Right(e)                                                     => ZIO.right(e)
+                            tapZIOOnUserDefinedFailure(f)(
+                              onFailure = onComplete(callSuccessful = false),
+                              onSuccess = onComplete(callSuccessful = true)
+                            ).mapError(WrappedError(_))
 
-                            }
-                              .tapBoth(_ => onComplete(callSuccessful = false), _ => onComplete(callSuccessful = true))
-                              .mapError(WrappedError(_))
-                              .absolve
                           case Open     =>
                             ZIO.fail(CircuitBreakerOpen)
                           case HalfOpen =>
                             for {
                               isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
                               result      <- if (isFirstCall) {
-                                               f.mapError(WrappedError(_))
-                                                 .tapBoth(
-                                                   _ => (strategy.shouldTrip(false) *> changeToOpen).uninterruptible,
-                                                   _ => (changeToClosed *> strategy.onReset).uninterruptible
-                                                 )
+                                               tapZIOOnUserDefinedFailure(f)(
+                                                 onFailure = (strategy.shouldTrip(false) *> changeToOpen).uninterruptible,
+                                                 onSuccess = (changeToClosed *> strategy.onReset).uninterruptible
+                                               ).mapError(WrappedError(_))
                                              } else {
                                                ZIO.fail(CircuitBreakerOpen)
                                              }
                             } yield result
                         }
       } yield result
+
+    private def tapZIOOnUserDefinedFailure[R, E1 <: E, A](
+      f: ZIO[R, E1, A]
+    )(onFailure: ZIO[R, E1, Any], onSuccess: ZIO[R, E1, Any]): ZIO[R, E1, A] =
+      f.tapBoth(
+        {
+          case e if isFailure.applyOrElse[E1, Boolean](e, _ => false) =>
+            onFailure
+          case _                                                      =>
+            onSuccess
+        },
+        _ => onSuccess
+      )
 
     def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2] = CircuitBreakerImpl[E2](
       state,
