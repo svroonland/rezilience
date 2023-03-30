@@ -1,15 +1,20 @@
 package nl.vroste.rezilience
 
-import nl.vroste.rezilience.CircuitBreaker.State
+import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerOpen, State, WrappedError }
 import zio.test.Assertion._
 import zio.test.TestAspect.nonFlaky
 import zio.test._
-import zio.{ durationInt, Queue, Schedule, ZIO }
+import zio._
 
 object CircuitBreakerSpec extends ZIOSpecDefault {
   sealed trait Error
   case object MyCallError     extends Error
   case object MyNotFatalError extends Error
+
+  val isFailure: PartialFunction[Error, Boolean] = {
+    case MyNotFatalError => false
+    case _: Error        => true
+  }
 
   // TODO add generator based checks with different nr of parallel calls to check
   // for all kinds of race conditions
@@ -30,11 +35,6 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
       } yield assert(result)(isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen)))
     } @@ TestAspect.diagnose(20.seconds),
     test("ignore failures that should not be considered a failure") {
-      val isFailure: PartialFunction[Error, Boolean] = {
-        case MyNotFatalError => false
-        case _: Error        => true
-      }
-
       for {
         cb     <- CircuitBreaker.withMaxFailures(3, Schedule.exponential(1.second), isFailure)
         _      <- cb(ZIO.fail(MyNotFatalError)).either.repeatN(3)
@@ -114,6 +114,39 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         _  <- TestClock.adjust(1.second)
         s1 <- stateChanges.take // HalfOpen
       } yield assert(s1)(equalTo(State.HalfOpen))
+    },
+    test("reset to Closed after Half-Open on success")(
+      for {
+        cb      <- CircuitBreaker.withMaxFailures(5, Schedule.exponential(2.second), isFailure)
+        intRef  <- Ref.make(0)
+        error1  <- cb(ZIO.fail(MyNotFatalError)).flip
+        errors  <- ZIO.replicateZIO(5)(cb(ZIO.fail(MyCallError)).flip)
+        _       <- TestClock.adjust(1.second)
+        error3  <- cb(intRef.update(_ + 1)).flip // no backend calls here
+        _       <- TestClock.adjust(1.second)
+        _       <- cb(intRef.update(_ + 1))
+        _       <- cb(intRef.update(_ + 1))
+        nrCalls <- intRef.get
+      } yield assertTrue(error1.asInstanceOf[WrappedError[Error]].error == MyNotFatalError) &&
+        assertTrue(errors.forall(_.asInstanceOf[WrappedError[Error]].error == MyCallError)) &&
+        assertTrue(error3 == CircuitBreakerOpen) &&
+        assertTrue(nrCalls == 2)
+    ),
+    test("reset to Closed after Half-Open on error if isFailure=false") {
+      for {
+        cb      <- CircuitBreaker.withMaxFailures(5, Schedule.exponential(2.second), isFailure)
+        intRef  <- Ref.make(0)
+        errors  <- ZIO.replicateZIO(5)(cb(ZIO.fail(MyCallError)).flip)
+        _       <- TestClock.adjust(1.second)
+        error1  <- cb(intRef.update(_ + 1)).flip // no backend calls here
+        _       <- TestClock.adjust(1.second)
+        error2  <- cb(ZIO.fail(MyNotFatalError)).flip
+        _       <- cb(intRef.update(_ + 1))
+        nrCalls <- intRef.get
+      } yield assertTrue(errors.forall(_.asInstanceOf[WrappedError[Error]].error == MyCallError)) &&
+        assertTrue(error1 == CircuitBreakerOpen) &&
+        assertTrue(error2.asInstanceOf[WrappedError[Error]].error == MyNotFatalError) &&
+        assertTrue(nrCalls == 1)
     }
   ) @@ nonFlaky
 }
