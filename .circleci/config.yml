@@ -11,7 +11,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.10! check
+      - run: sbt ++2.13.11! check
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -25,7 +25,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.10! docs/makeMdoc
+      - run: sbt ++2.13.11! docs/makeMdoc
 
   test213_jdk17:
     docker:
@@ -35,7 +35,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.10! compile rezilienceJVM/test config/test
+      - run: sbt ++2.13.11! compile rezilienceJVM/test config/test
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -49,7 +49,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.10! compile rezilienceJVM/test
+      - run: sbt ++2.13.11! compile rezilienceJVM/test
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -93,7 +93,7 @@ jobs:
       - run: apt-get update
       - run: apt-get install -y ruby-full build-essential zlib1g-dev
       - run: gem install jekyll bundler
-      - run: sbt ++2.13.10! publishLocal docs/publishMicrosite
+      - run: sbt ++2.13.11! publishLocal docs/publishMicrosite
 
 workflows:
   version: 2
