@@ -63,7 +63,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++3.2.2! rezilienceJVM/test
+      - run: sbt ++3.3.0! rezilienceJVM/test
       - save_cache:
           key: sbt-cache-3
           paths:
