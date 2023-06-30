@@ -105,7 +105,7 @@ object Retry {
      *   Maximum fraction of the current delay interval that is randomly added or subtracted. This helps to spread call
      *   attempts in time when there are multiple systems making calls to some system using the same retry schedule. For
      *   example, with `jitterFactor = 0.1` the retry intervals will be multiplied with a random factor between 0.9 and
-     * 1.1. `jitterFactor = 0` disables jittering.
+     *   1.1. `jitterFactor = 0` disables jittering.
      */
     def common(
       min: Duration = 1.second,
