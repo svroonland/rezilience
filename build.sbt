@@ -3,7 +3,7 @@ import sbt.Keys.resolvers
 val mainScala        = "2.13.12"
 val scala3Version    = "3.3.1"
 val allScala         = Seq(mainScala, scala3Version)
-val zioVersion       = "2.0.16"
+val zioVersion       = "2.0.17"
 val zioConfigVersion = "3.0.7"
 
 lazy val commonJvmSettings = Seq(
