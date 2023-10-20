@@ -95,6 +95,7 @@ lazy val docs = project
   .enablePlugins(ScalaUnidocPlugin)
   .settings(commonJvmSettings)
   .settings(
+    scalaVersion             := mainScala,
     name                                       := "rezilience",
     publish / skip                             := true,
     description                                := "ZIO-native utilities for making asynchronous systems more resilient to failures",
