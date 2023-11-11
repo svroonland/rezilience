@@ -42,7 +42,7 @@ Add to your build.sbt:
 libraryDependencies += "nl.vroste" %% "rezilience" % "<version>"
 ```
 
-The latest version is built against ZIO 1.0.4-2 and is available for Scala 2.12, 2.13 and Scala.JS 1.5.
+Rezilience is available for ZIO 2 and Scala 2.13, Scala 3 and Scala.JS.
 
 ## Usage example
 
