@@ -153,6 +153,21 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         assertTrue(nrCalls == 1)
     },
     suite("metrics")(
+      test("has suitable initial metric values") {
+        for {
+          labels             <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
+          _                  <- CircuitBreaker
+                                  .withMaxFailures(3)
+                                  .flatMap(CircuitBreaker.withMetrics(_, labels))
+          metricState        <- Metric.gauge("rezilience_circuit_breaker_calls_state").tagged(labels).value
+          metricStateChanges <- Metric.counter("rezilience_circuit_breaker_calls_state_changes").tagged(labels).value
+          metricSuccess      <- Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels).value
+          metricFailed       <- Metric.counter("rezilience_circuit_breaker_calls_failure").tagged(labels).value
+          metricRejected     <- Metric.counter("rezilience_circuit_breaker_calls_rejected").tagged(labels).value
+        } yield assertTrue(
+          metricSuccess.count == 0 && metricFailed.count == 0 && metricState.value == 0.0 && metricStateChanges.count == 0 && metricRejected.count == 0
+        )
+      },
       test("tracks successful and failed calls") {
         for {
           labels        <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
