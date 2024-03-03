@@ -3,6 +3,7 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, State, StateChange }
 import nl.vroste.rezilience.Policy.PolicyError
 import zio._
+import zio.metrics.Metric
 import zio.stream.ZStream
 
 import java.time.Instant
@@ -270,5 +271,64 @@ object CircuitBreaker {
   }
 
   private[rezilience] def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
+
+  private[rezilience] case class CircuitBreakerMetrics(
+    nrStateChanges: Metric.Counter[Long],
+    callsSuccess: Metric.Counter[Long],
+    callsFailure: Metric.Counter[Long],
+    callsRejected: Metric.Counter[Long]
+  )
+
+  def addMetrics[E](
+    circuitBreaker: CircuitBreaker[E],
+    labelPrefix: String
+  ): ZIO[Scope, Nothing, CircuitBreakerWithMetrics[E]] = {
+
+    val metrics = CircuitBreakerMetrics(
+      nrStateChanges = Metric.counter(labelPrefix + "circuit_breaker_state_changes"),
+      callsSuccess = Metric.counter(labelPrefix + "circuit_breaker_calls_success", "Number of calls that succeeded"),
+      callsFailure = Metric.counter(labelPrefix + "circuit_breaker_calls_failure", "Number of calls that failed"),
+      callsRejected = Metric.counter(
+        labelPrefix + "circuit_breaker_calls_rejected",
+        "Number of calls that were rejected in an Open state"
+      )
+    )
+
+    for {
+      stateChanges <- circuitBreaker.stateChanges
+      _            <- ZStream
+                        .fromQueue(stateChanges)
+                        .tap { _ =>
+                          metrics.nrStateChanges.increment
+                        }
+                        .runDrain
+                        .forkScoped
+    } yield new CircuitBreakerWithMetrics[E](circuitBreaker, metrics)
+
+  }
+
+  private[rezilience] case class CircuitBreakerWithMetrics[E](
+    circuitBreaker: CircuitBreaker[E],
+    metrics: CircuitBreakerMetrics
+  ) extends CircuitBreaker[E] {
+    override def apply[R, E1 <: E, A](
+      f: ZIO[R, E1, A]
+    ): ZIO[R, CircuitBreakerCallError[E1], A] = circuitBreaker
+      .apply(f)
+      .tapBoth(
+        {
+          case CircuitBreaker.CircuitBreakerOpen => metrics.callsRejected.increment
+          case CircuitBreaker.WrappedError(_)    => metrics.callsFailure.increment
+        },
+        _ => metrics.callsSuccess.increment
+      )
+
+    override def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2] =
+      CircuitBreakerWithMetrics(circuitBreaker.widen[E2](pf), metrics)
+
+    override def currentState: UIO[State] = circuitBreaker.currentState
+
+    override val stateChanges: ZIO[Scope, Nothing, Dequeue[StateChange]] = circuitBreaker.stateChanges
+  }
 
 }
