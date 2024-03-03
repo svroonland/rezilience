@@ -106,4 +106,5 @@ CircuitBreaker
   .flatMap { circuitBreaker =>
     // Make calls to an external system
     circuitBreaker(ZIO.unit) // etc
-  }```
+  }
+  ```
