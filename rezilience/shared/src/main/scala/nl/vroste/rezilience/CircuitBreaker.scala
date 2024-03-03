@@ -273,19 +273,32 @@ object CircuitBreaker {
   private[rezilience] def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
 
   private[rezilience] case class CircuitBreakerMetrics(
+    state: Metric.Gauge[Double],
     nrStateChanges: Metric.Counter[Long],
     callsSuccess: Metric.Counter[Long],
     callsFailure: Metric.Counter[Long],
     callsRejected: Metric.Counter[Long]
   )
 
+  /**
+   * Takes an existing CircuitBreaker and returns a new one that records metrics
+   *
+   * Metrics are (prefixed by labelPrefix):
+   *   - circuit_breaker_state: current state (0 = closed, 1 = half-open, 2 = open)
+   *   - circuit_breaker_state_changes: number of state changes
+   *   - circuit_breaker_calls_success: number of successful calls
+   *   - circuit_breaker_calls_failure: number of failed calls
+   *   - circuit_breaker_calls_rejected: number of calls rejected in the open state
+   */
   def addMetrics[E](
     circuitBreaker: CircuitBreaker[E],
     labelPrefix: String
   ): ZIO[Scope, Nothing, CircuitBreakerWithMetrics[E]] = {
 
     val metrics = CircuitBreakerMetrics(
-      nrStateChanges = Metric.counter(labelPrefix + "circuit_breaker_state_changes"),
+      state =
+        Metric.gauge(labelPrefix + "circuit_breaker_state", "Current state (0 = closed, 1 = half-open, 2 = open)"),
+      nrStateChanges = Metric.counter(labelPrefix + "circuit_breaker_state_changes", "Number of state changes"),
       callsSuccess = Metric.counter(labelPrefix + "circuit_breaker_calls_success", "Number of calls that succeeded"),
       callsFailure = Metric.counter(labelPrefix + "circuit_breaker_calls_failure", "Number of calls that failed"),
       callsRejected = Metric.counter(
@@ -298,13 +311,18 @@ object CircuitBreaker {
       stateChanges <- circuitBreaker.stateChanges
       _            <- ZStream
                         .fromQueue(stateChanges)
-                        .tap { _ =>
-                          metrics.nrStateChanges.increment
+                        .tap { stateChange =>
+                          val stateAsInt = stateChange.to match {
+                            case State.Closed   => 0
+                            case State.HalfOpen => 1
+                            case State.Open     => 2
+                          }
+
+                          metrics.nrStateChanges.increment *> metrics.state.set(stateAsInt)
                         }
                         .runDrain
                         .forkScoped
     } yield new CircuitBreakerWithMetrics[E](circuitBreaker, metrics)
-
   }
 
   private[rezilience] case class CircuitBreakerWithMetrics[E](
