@@ -2,7 +2,7 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.Bulkhead.{ BulkheadError, Metrics }
 import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
 import nl.vroste.rezilience.Policy.{ flattenWrappedError, PolicyError }
-import zio.{ UIO, ZIO }
+import zio.{ Queue, UIO, ZIO }
 
 /**
  * Represents a composition of one or more rezilience policies
@@ -92,6 +92,10 @@ object Policy {
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
       f.mapError(CircuitBreaker.WrappedError(_))
     override def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]                      = new NoopCircuitBreaker[E2]
+
+    override val stateChanges = Queue.bounded(1)
+
+    override def currentState: UIO[CircuitBreaker.State] = ZIO.succeed(CircuitBreaker.State.Closed)
   }
 
   def noopCircuitBreaker[E]: CircuitBreaker[E] = new NoopCircuitBreaker[E]

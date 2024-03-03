@@ -1,9 +1,11 @@
 package nl.vroste.rezilience
 
-import nl.vroste.rezilience.CircuitBreaker.CircuitBreakerCallError
+import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, State, StateChange }
 import nl.vroste.rezilience.Policy.PolicyError
 import zio._
 import zio.stream.ZStream
+
+import java.time.Instant
 
 /**
  * CircuitBreaker protects external resources against overload under failure
@@ -68,11 +70,22 @@ trait CircuitBreaker[-E] {
    *   A new CircuitBreaker defined for failures of type E2
    */
   def widen[E2](pf: PartialFunction[E2, E]): CircuitBreaker[E2]
+
+  /**
+   * Stream of Circuit Breaker state changes
+   *
+   * Is backed by a zio.Hub, so each use of the Dequeue will receive all state changes
+   */
+  val stateChanges: ZIO[Scope, Nothing, Dequeue[StateChange]]
+
+  def currentState: UIO[State]
 }
 
 object CircuitBreaker {
 
   import State._
+
+  case class StateChange(from: State, to: State, at: Instant)
 
   sealed trait CircuitBreakerCallError[+E] { self =>
     def toException: Exception = CircuitBreakerException(self)
@@ -106,18 +119,15 @@ object CircuitBreaker {
    * @param isFailure
    *   Only failures that match according to `isFailure` are treated as failures by the circuit breaker. Other failures
    *   are passed on, circumventing the circuit breaker's failure counter.
-   * @param onStateChange
-   *   Observer for circuit breaker state changes
    * @return
    *   The CircuitBreaker as a managed resource
    */
   def withMaxFailures[E](
     maxFailures: Int,
     resetPolicy: Schedule[Any, Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
-    isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
-    onStateChange: State => UIO[Unit] = _ => ZIO.unit
+    isFailure: PartialFunction[E, Boolean] = isFailureAny[E]
   ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
-    make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, onStateChange)
+    make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure)
 
   /**
    * Create a CircuitBreaker with the given tripping strategy
@@ -146,6 +156,7 @@ object CircuitBreaker {
       halfOpenSwitch <- Ref.make[Boolean](true)
       schedule       <- resetPolicy.driver
       resetRequests  <- Queue.bounded[Unit](1)
+      stateChanges   <- Hub.sliding[StateChange](32).withFinalizer(_.shutdown)
       _              <- ZStream
                           .fromQueue(resetRequests)
                           .mapZIO { _ =>
@@ -162,7 +173,7 @@ object CircuitBreaker {
       state,
       resetRequests,
       strategy,
-      onStateChange,
+      stateChanges,
       schedule,
       isFailure,
       halfOpenSwitch
@@ -172,20 +183,27 @@ object CircuitBreaker {
     state: Ref[State],
     resetRequests: Queue[Unit],
     strategy: TrippingStrategy,
-    onStateChange: State => UIO[Unit],
+    stateChangesHub: Hub[StateChange],
     schedule: Schedule.Driver[ScheduleState, Any, Any, Any],
     isFailure: PartialFunction[E, Boolean],
     halfOpenSwitch: Ref[Boolean]
   ) extends CircuitBreaker[E] {
 
-    val changeToOpen = state.set(Open) *>
-      resetRequests.offer(()) <*
-      onStateChange(Open).fork // Do not wait for user code
+    val changeToOpen: ZIO[Any, Nothing, Unit] =
+      for {
+        oldState <- state.getAndSet(Open)
+        _        <- resetRequests.offer(())
+        now      <- ZIO.clockWith(_.instant)
+        _        <- stateChangesHub.publish(StateChange(oldState, Open, now))
+      } yield ()
 
-    val changeToClosed = strategy.onReset *>
-      schedule.reset *>
-      state.set(Closed) <*
-      onStateChange(Closed).fork // Do not wait for user code
+    val changeToClosed: ZIO[Any, Nothing, Unit] = for {
+      _        <- strategy.onReset
+      _        <- schedule.reset
+      now      <- ZIO.clockWith(_.instant)
+      oldState <- state.getAndSet(Closed)
+      _        <- stateChangesHub.publish(StateChange(oldState, Closed, now))
+    } yield ()
 
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
       for {
@@ -240,11 +258,15 @@ object CircuitBreaker {
       state,
       resetRequests,
       strategy,
-      onStateChange,
+      stateChangesHub,
       schedule,
       pf andThen isFailure,
       halfOpenSwitch
     )
+
+    override def currentState: UIO[State] = state.get
+
+    override val stateChanges: ZIO[Scope, Nothing, Dequeue[StateChange]] = stateChangesHub.subscribe
   }
 
   private[rezilience] def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
