@@ -140,41 +140,39 @@ object CircuitBreaker {
    * @param isFailure
    *   Only failures that match according to `isFailure` are treated as failures by the circuit breaker. Other failures
    *   are passed on, circumventing the circuit breaker's failure counter.
-   * @param onStateChange
-   *   Observer for circuit breaker state changes
    * @return
    */
   def make[E](
     trippingStrategy: ZIO[Scope, Nothing, TrippingStrategy],
     resetPolicy: Schedule[Any, Any, Any] =
       Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
-    isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
-    onStateChange: State => UIO[Unit] = _ => ZIO.unit
+    isFailure: PartialFunction[E, Boolean] = isFailureAny[E]
   ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
     for {
-      strategy       <- trippingStrategy
-      state          <- Ref.make[State](Closed)
-      halfOpenSwitch <- Ref.make[Boolean](true)
-      schedule       <- resetPolicy.driver
-      resetRequests  <- Queue.bounded[Unit](1)
-      stateChanges   <- Hub.sliding[StateChange](32).withFinalizer(_.shutdown)
-      _              <- ZStream
-                          .fromQueue(resetRequests)
-                          .mapZIO { _ =>
-                            for {
-                              _ <- schedule.next(())            // TODO handle schedule completion?
-                              _ <- halfOpenSwitch.set(true)
-                              _ <- state.set(HalfOpen)
-                              _ <- onStateChange(HalfOpen).fork // Do not wait for user code
-                            } yield ()
-                          }
-                          .runDrain
-                          .forkScoped
+      strategy        <- trippingStrategy
+      state           <- Ref.make[State](Closed)
+      halfOpenSwitch  <- Ref.make[Boolean](true)
+      schedule        <- resetPolicy.driver
+      resetRequests   <- Queue.bounded[Unit](1)
+      stateChangesHub <- Hub.sliding[StateChange](32).withFinalizer(_.shutdown)
+      _               <- ZStream
+                           .fromQueue(resetRequests)
+                           .mapZIO { _ =>
+                             for {
+                               _   <- schedule.next(()) // TODO handle schedule completion?
+                               _   <- halfOpenSwitch.set(true)
+                               _   <- state.set(HalfOpen)
+                               now <- ZIO.clockWith(_.instant)
+                               _   <- stateChangesHub.publish(StateChange(Open, HalfOpen, now))
+                             } yield ()
+                           }
+                           .runDrain
+                           .forkScoped
     } yield new CircuitBreakerImpl[resetPolicy.State, E](
       state,
       resetRequests,
       strategy,
-      stateChanges,
+      stateChangesHub,
       schedule,
       isFailure,
       halfOpenSwitch

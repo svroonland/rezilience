@@ -10,8 +10,7 @@ object CircuitBreakerExample extends zio.ZIOAppDefault {
 
   val circuitBreaker: ZIO[Scope, Nothing, CircuitBreaker[Any]] = CircuitBreaker.make(
     trippingStrategy = TrippingStrategy.failureCount(maxFailures = 10),
-    resetPolicy = Schedule.exponential(1.second),
-    onStateChange = (s: State) => ZIO.succeed(println(s"State changed to ${s}")).ignore
+    resetPolicy = Schedule.exponential(1.second)
   )
 
   override def run =

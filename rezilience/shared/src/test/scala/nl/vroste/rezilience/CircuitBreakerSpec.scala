@@ -153,18 +153,44 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         assertTrue(nrCalls == 1)
     },
     suite("metrics")(
-      test("tracks successful calls") {
+      test("tracks successful and failed calls") {
+        for {
+          labels        <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
+          cb            <- CircuitBreaker
+                             .withMaxFailures(3)
+                             .flatMap(CircuitBreaker.withMetrics(_, labels))
+          _             <- cb(ZIO.unit)
+          _             <- cb(ZIO.fail("Failed")).either
+          metricSuccess <- Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels).value
+          metricFailed  <- Metric.counter("rezilience_circuit_breaker_calls_failure").tagged(labels).value
+        } yield assertTrue(metricSuccess.count == 1 && metricFailed.count == 1)
+      },
+      test("records state changes") {
         for {
           labels <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           cb     <- CircuitBreaker
-                      .withMaxFailures(3)
+                      .withMaxFailures(10, Schedule.exponential(1.second))
                       .flatMap(CircuitBreaker.withMetrics(_, labels))
-          fib    <- ZIO.foreachParDiscard(1 to 100)(_ => cb(ZIO.unit)).fork
-          _      <- TestClock.adjust(1.second)
-          _      <- TestClock.adjust(1.second)
-          _      <- fib.join
-          metric <- Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels).value
-        } yield assertTrue(metric.count == 100)
+
+          metricStateChanges = Metric.counter("rezilience_circuit_breaker_state_changes").tagged(labels)
+          metricState        = Metric.gauge("rezilience_circuit_breaker_state").tagged(labels)
+
+          _                  <- ZIO.foreachDiscard(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
+          _                  <- TestClock.adjust(0.second)
+          stateAfterFailures <- metricState.value
+          _                  <- TestClock.adjust(1.second)
+          stateAfterReset    <- metricState.value
+          _                  <- TestClock.adjust(2.second)
+          _                  <- cb(ZIO.unit)
+          _                  <- TestClock.adjust(1.second)
+          stateChanges       <- metricStateChanges.value
+          stateFinal         <- metricState.value
+        } yield assertTrue(
+          stateChanges.count == 3 &&
+            stateAfterFailures.value == 2.0 &&
+            stateAfterReset.value == 1.0 &&
+            stateFinal.value == 0.0
+        )
       }
     ) @@ withLiveRandom
   ) @@ nonFlaky
