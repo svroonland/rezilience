@@ -3,7 +3,7 @@ package nl.vroste.rezilience
 import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, State, StateChange }
 import nl.vroste.rezilience.Policy.PolicyError
 import zio._
-import zio.metrics.Metric
+import zio.metrics.{ Metric, MetricLabel }
 import zio.stream.ZStream
 
 import java.time.Instant
@@ -283,28 +283,43 @@ object CircuitBreaker {
   /**
    * Takes an existing CircuitBreaker and returns a new one that records metrics
    *
-   * Metrics are (prefixed by labelPrefix):
-   *   - circuit_breaker_state: current state (0 = closed, 1 = half-open, 2 = open)
-   *   - circuit_breaker_state_changes: number of state changes
-   *   - circuit_breaker_calls_success: number of successful calls
-   *   - circuit_breaker_calls_failure: number of failed calls
-   *   - circuit_breaker_calls_rejected: number of calls rejected in the open state
+   * Metrics are
+   *   - rezilience_circuit_breaker_state: current state (0 = closed, 1 = half-open, 2 = open)
+   *   - rezilience_circuit_breaker_state_changes: number of state changes
+   *   - rezilience_circuit_breaker_calls_success: number of successful calls
+   *   - rezilience_circuit_breaker_calls_failure: number of failed calls
+   *   - rezilience_circuit_breaker_calls_rejected: number of calls rejected in the open state
+   *
+   * Be sure to use only the returned CircuitBreaker and not the one given as parameter, otherwise no metrics will be
+   * recorded. Recommended usage is to create it in go, eg `cb <-
+   * CircuitBreaker.withMaxFailures(10).flatMap(CircuitBreaker.withMetrics(_, labels))`
+   *
+   * @param circuitBreaker
+   *   Existing CircuitBreaker
+   * @param labels
+   *   Set of labels to annotate metrics with, to distinguish this circuit breaker from others in the same application.
+   *
+   * @return
+   *   CircuitBreaker that records metrics
    */
-  def addMetrics[E](
+  def withMetrics[E](
     circuitBreaker: CircuitBreaker[E],
-    labelPrefix: String
+    labels: Set[MetricLabel]
   ): ZIO[Scope, Nothing, CircuitBreakerWithMetrics[E]] = {
 
     val metrics = CircuitBreakerMetrics(
-      state =
-        Metric.gauge(labelPrefix + "circuit_breaker_state", "Current state (0 = closed, 1 = half-open, 2 = open)"),
-      nrStateChanges = Metric.counter(labelPrefix + "circuit_breaker_state_changes", "Number of state changes"),
-      callsSuccess = Metric.counter(labelPrefix + "circuit_breaker_calls_success", "Number of calls that succeeded"),
-      callsFailure = Metric.counter(labelPrefix + "circuit_breaker_calls_failure", "Number of calls that failed"),
-      callsRejected = Metric.counter(
-        labelPrefix + "circuit_breaker_calls_rejected",
-        "Number of calls that were rejected in an Open state"
-      )
+      state = Metric
+        .gauge("rezilience_circuit_breaker_state", "Current state (0 = closed, 1 = half-open, 2 = open)")
+        .tagged(labels),
+      nrStateChanges =
+        Metric.counter("rezilience_circuit_breaker_state_changes", "Number of state changes").tagged(labels),
+      callsSuccess =
+        Metric.counter("rezilience_circuit_breaker_calls_success", "Number of calls that succeeded").tagged(labels),
+      callsFailure =
+        Metric.counter("rezilience_circuit_breaker_calls_failure", "Number of calls that failed").tagged(labels),
+      callsRejected = Metric
+        .counter("rezilience_circuit_breaker_calls_rejected", "Number of calls that were rejected in an Open state")
+        .tagged(labels)
     )
 
     for {
@@ -318,7 +333,7 @@ object CircuitBreaker {
                             case State.Open     => 2
                           }
 
-                          metrics.nrStateChanges.increment *> metrics.state.set(stateAsInt)
+                          metrics.nrStateChanges.increment *> metrics.state.set(stateAsInt.doubleValue)
                         }
                         .runDrain
                         .forkScoped
