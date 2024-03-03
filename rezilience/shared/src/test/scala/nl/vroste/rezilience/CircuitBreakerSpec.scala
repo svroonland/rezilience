@@ -1,11 +1,12 @@
 package nl.vroste.rezilience
 
 import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerOpen, State, WrappedError }
-import zio.test.Assertion._
-import zio.test.TestAspect.nonFlaky
-import zio.test._
 import zio._
+import zio.metrics.{ Metric, MetricLabel }
 import zio.stream.ZStream
+import zio.test.Assertion._
+import zio.test.TestAspect.{ nonFlaky, withLiveRandom }
+import zio.test._
 
 object CircuitBreakerSpec extends ZIOSpecDefault {
   sealed trait Error
@@ -150,6 +151,21 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         assertTrue(error1 == CircuitBreakerOpen) &&
         assertTrue(error2.asInstanceOf[WrappedError[Error]].error == MyNotFatalError) &&
         assertTrue(nrCalls == 1)
-    }
+    },
+    suite("metrics")(
+      test("tracks successful calls") {
+        for {
+          labels <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
+          cb     <- CircuitBreaker
+                      .withMaxFailures(3)
+                      .flatMap(CircuitBreaker.withMetrics(_, labels))
+          fib    <- ZIO.foreachParDiscard(1 to 100)(_ => cb(ZIO.unit)).fork
+          _      <- TestClock.adjust(1.second)
+          _      <- TestClock.adjust(1.second)
+          _      <- fib.join
+          metric <- Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels).value
+        } yield assertTrue(metric.count == 100)
+      }
+    ) @@ withLiveRandom
   ) @@ nonFlaky
 }

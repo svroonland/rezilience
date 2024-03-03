@@ -309,16 +309,13 @@ object CircuitBreaker {
 
     val metrics = CircuitBreakerMetrics(
       state = Metric
-        .gauge("rezilience_circuit_breaker_state", "Current state (0 = closed, 1 = half-open, 2 = open)")
+        .gauge("rezilience_circuit_breaker_state")
         .tagged(labels),
-      nrStateChanges =
-        Metric.counter("rezilience_circuit_breaker_state_changes", "Number of state changes").tagged(labels),
-      callsSuccess =
-        Metric.counter("rezilience_circuit_breaker_calls_success", "Number of calls that succeeded").tagged(labels),
-      callsFailure =
-        Metric.counter("rezilience_circuit_breaker_calls_failure", "Number of calls that failed").tagged(labels),
+      nrStateChanges = Metric.counter("rezilience_circuit_breaker_state_changes").tagged(labels),
+      callsSuccess = Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels),
+      callsFailure = Metric.counter("rezilience_circuit_breaker_calls_failure").tagged(labels),
       callsRejected = Metric
-        .counter("rezilience_circuit_breaker_calls_rejected", "Number of calls that were rejected in an Open state")
+        .counter("rezilience_circuit_breaker_calls_rejected")
         .tagged(labels)
     )
 
