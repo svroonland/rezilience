@@ -180,7 +180,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
           stateAfterFailures <- metricState.value
           _                  <- TestClock.adjust(1.second)
           stateAfterReset    <- metricState.value
-          _                  <- TestClock.adjust(2.second)
+          _                  <- TestClock.adjust(1.second)
           _                  <- cb(ZIO.unit)
           _                  <- TestClock.adjust(1.second)
           stateChanges       <- metricStateChanges.value
