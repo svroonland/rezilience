@@ -74,8 +74,7 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
         for {
           cb <- CircuitBreaker.make[String](
                   strategy,
-                  Schedule.fixed(5.seconds),
-                  onStateChange = state => ZIO.succeed(println(s"CB state changed to ${state}"))
+                  Schedule.fixed(5.seconds)
                 )
           // Make a succeeding and a failing call 4 times every 100 ms
           _  <- {
@@ -92,11 +91,11 @@ object FailureRateTrippingStrategySpec extends ZIOSpecDefault {
 
         ZIO.scoped {
           (for {
-            stateChanges <- Queue.unbounded[State]
             cb           <- CircuitBreaker
-                              .make[String](strategy, Schedule.fixed(1.seconds), onStateChange = stateChanges.offer(_).ignore)
+                              .make[String](strategy, Schedule.fixed(1.seconds))
+            stateChanges <- cb.stateChanges
           } yield (stateChanges, cb)).flatMap { case (stateChanges, cb) =>
-            def expectState(s: State) = stateChanges.take.filterOrDieMessage(_ == s)(s"Expected state ${s}")
+            def expectState(s: State) = stateChanges.take.map(_.to).filterOrDieMessage(_ == s)(s"Expected state ${s}")
 
             def makeCall[R, A](f: ZIO[R, String, A]) = cb(f)
 

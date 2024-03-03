@@ -1,10 +1,12 @@
 package nl.vroste.rezilience
 
 import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerOpen, State, WrappedError }
-import zio.test.Assertion._
-import zio.test.TestAspect.nonFlaky
-import zio.test._
 import zio._
+import zio.metrics.{ Metric, MetricLabel }
+import zio.stream.ZStream
+import zio.test.Assertion._
+import zio.test.TestAspect.{ nonFlaky, withLiveRandom }
+import zio.test._
 
 object CircuitBreakerSpec extends ZIOSpecDefault {
   sealed trait Error
@@ -45,38 +47,40 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
     },
     test("reset to closed state after reset timeout") {
       for {
-        stateChanges <- Queue.unbounded[State]
-        cb           <- CircuitBreaker.withMaxFailures(
-                          10,
-                          Schedule.exponential(1.second),
-                          onStateChange = stateChanges.offer(_).ignore
-                        )
-        _            <- ZIO.foreachDiscard(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
-        _            <- stateChanges.take
-        _            <- TestClock.adjust(3.second)
-        _            <- stateChanges.take
-        _            <- cb(ZIO.unit)
+        cb                <- CircuitBreaker.withMaxFailures(
+                               10,
+                               Schedule.exponential(1.second)
+                             )
+        stateChangesQueue <- cb.stateChanges
+        stateChanges      <- Queue.unbounded[State]
+        _                 <- ZStream.fromQueue(stateChangesQueue).map(_.to).tap(stateChanges.offer).runDrain.forkScoped
+        _                 <- ZIO.foreachDiscard(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
+        _                 <- stateChanges.take
+        _                 <- TestClock.adjust(3.second)
+        _                 <- stateChanges.take
+        _                 <- cb(ZIO.unit)
       } yield assertCompletes
     },
     test("retry exponentially") {
       (for {
-        stateChanges <- Queue.unbounded[State]
-        cb           <- CircuitBreaker.withMaxFailures(
-                          3,
-                          Schedule.exponential(base = 1.second, factor = 2.0),
-                          onStateChange = stateChanges.offer(_).ignore
-                        )
-        _            <- ZIO.foreachDiscard(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
-        s1           <- stateChanges.take // Open
-        _            <- TestClock.adjust(1.second)
-        s2           <- stateChanges.take // HalfOpen
-        _            <- cb(ZIO.fail(MyCallError)).either
-        s3           <- stateChanges.take // Open again
-        s4           <- stateChanges.take.timeout(1.second) <& TestClock.adjust(1.second)
-        _            <- TestClock.adjust(1.second)
-        s5           <- stateChanges.take
-        _            <- cb(ZIO.unit)
-        s6           <- stateChanges.take
+        cb                <- CircuitBreaker.withMaxFailures(
+                               3,
+                               Schedule.exponential(base = 1.second, factor = 2.0)
+                             )
+        stateChangesQueue <- cb.stateChanges
+        stateChanges      <- Queue.unbounded[State]
+        _                 <- ZStream.fromQueue(stateChangesQueue).map(_.to).tap(stateChanges.offer).runDrain.forkScoped
+        _                 <- ZIO.foreachDiscard(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
+        s1                <- stateChanges.take // Open
+        _                 <- TestClock.adjust(1.second)
+        s2                <- stateChanges.take // HalfOpen
+        _                 <- cb(ZIO.fail(MyCallError)).either
+        s3                <- stateChanges.take // Open again
+        s4                <- stateChanges.take.timeout(1.second) <& TestClock.adjust(1.second)
+        _                 <- TestClock.adjust(1.second)
+        s5                <- stateChanges.take
+        _                 <- cb(ZIO.unit)
+        s6                <- stateChanges.take
       } yield assert(s1)(equalTo(State.Open)) &&
         assert(s2)(equalTo(State.HalfOpen)) &&
         assert(s3)(equalTo(State.Open)) &&
@@ -86,17 +90,17 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
     },
     test("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
       for {
-        stateChanges <- Queue.unbounded[State]
-        cb           <- CircuitBreaker.withMaxFailures(
-                          3,
-                          Schedule.exponential(base = 1.second, factor = 2.0),
-                          onStateChange = stateChanges.offer(_).ignore
-                        )
-
-        _ <- ZIO.foreachDiscard(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
-        _ <- stateChanges.take // Open
-        _ <- TestClock.adjust(1.second)
-        _ <- stateChanges.take // HalfOpen
+        cb                <- CircuitBreaker.withMaxFailures(
+                               3,
+                               Schedule.exponential(base = 1.second, factor = 2.0)
+                             )
+        stateChangesQueue <- cb.stateChanges
+        stateChanges      <- Queue.unbounded[State]
+        _                 <- ZStream.fromQueue(stateChangesQueue).map(_.to).tap(stateChanges.offer).runDrain.forkScoped
+        _                 <- ZIO.foreachDiscard(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
+        _                 <- stateChanges.take // Open
+        _                 <- TestClock.adjust(1.second)
+        _                 <- stateChanges.take // HalfOpen
 
         _ <- cb(ZIO.fail(MyCallError)).either
         _ <- stateChanges.take // Open again, this time with double reset timeout
@@ -147,6 +151,62 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         assertTrue(error1 == CircuitBreakerOpen) &&
         assertTrue(error2.asInstanceOf[WrappedError[Error]].error == MyNotFatalError) &&
         assertTrue(nrCalls == 1)
-    }
+    },
+    suite("metrics")(
+      test("has suitable initial metric values") {
+        for {
+          labels             <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
+          _                  <- CircuitBreaker
+                                  .withMaxFailures(3)
+                                  .flatMap(CircuitBreaker.withMetrics(_, labels))
+          metricState        <- Metric.gauge("rezilience_circuit_breaker_calls_state").tagged(labels).value
+          metricStateChanges <- Metric.counter("rezilience_circuit_breaker_calls_state_changes").tagged(labels).value
+          metricSuccess      <- Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels).value
+          metricFailed       <- Metric.counter("rezilience_circuit_breaker_calls_failure").tagged(labels).value
+          metricRejected     <- Metric.counter("rezilience_circuit_breaker_calls_rejected").tagged(labels).value
+        } yield assertTrue(
+          metricSuccess.count == 0 && metricFailed.count == 0 && metricState.value == 0.0 && metricStateChanges.count == 0 && metricRejected.count == 0
+        )
+      },
+      test("tracks successful and failed calls") {
+        for {
+          labels        <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
+          cb            <- CircuitBreaker
+                             .withMaxFailures(3)
+                             .flatMap(CircuitBreaker.withMetrics(_, labels))
+          _             <- cb(ZIO.unit)
+          _             <- cb(ZIO.fail("Failed")).either
+          metricSuccess <- Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels).value
+          metricFailed  <- Metric.counter("rezilience_circuit_breaker_calls_failure").tagged(labels).value
+        } yield assertTrue(metricSuccess.count == 1 && metricFailed.count == 1)
+      },
+      test("records state changes") {
+        for {
+          labels <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
+          cb     <- CircuitBreaker
+                      .withMaxFailures(10, Schedule.exponential(1.second))
+                      .flatMap(CircuitBreaker.withMetrics(_, labels))
+
+          metricStateChanges = Metric.counter("rezilience_circuit_breaker_state_changes").tagged(labels)
+          metricState        = Metric.gauge("rezilience_circuit_breaker_state").tagged(labels)
+
+          _                  <- ZIO.foreachDiscard(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
+          _                  <- TestClock.adjust(0.second)
+          stateAfterFailures <- metricState.value
+          _                  <- TestClock.adjust(1.second)
+          stateAfterReset    <- metricState.value
+          _                  <- TestClock.adjust(1.second)
+          _                  <- cb(ZIO.unit)
+          _                  <- TestClock.adjust(1.second)
+          stateChanges       <- metricStateChanges.value
+          stateFinal         <- metricState.value
+        } yield assertTrue(
+          stateChanges.count == 3 &&
+            stateAfterFailures.value == 2.0 &&
+            stateAfterReset.value == 1.0 &&
+            stateFinal.value == 0.0
+        )
+      }
+    ) @@ withLiveRandom
   ) @@ nonFlaky
 }
