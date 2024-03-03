@@ -53,7 +53,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
                              )
         stateChangesQueue <- cb.stateChanges
         stateChanges      <- Queue.unbounded[State]
-        _                 <- ZStream.fromQueue(stateChangesQueue).map(_.to).tap(stateChanges.offer).runDrain
+        _                 <- ZStream.fromQueue(stateChangesQueue).map(_.to).tap(stateChanges.offer).runDrain.forkScoped
         _                 <- ZIO.foreachDiscard(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
         _                 <- stateChanges.take
         _                 <- TestClock.adjust(3.second)
@@ -69,7 +69,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
                              )
         stateChangesQueue <- cb.stateChanges
         stateChanges      <- Queue.unbounded[State]
-        _                 <- ZStream.fromQueue(stateChangesQueue).map(_.to).tap(stateChanges.offer).runDrain
+        _                 <- ZStream.fromQueue(stateChangesQueue).map(_.to).tap(stateChanges.offer).runDrain.forkScoped
         _                 <- ZIO.foreachDiscard(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
         s1                <- stateChanges.take // Open
         _                 <- TestClock.adjust(1.second)
@@ -96,7 +96,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
                              )
         stateChangesQueue <- cb.stateChanges
         stateChanges      <- Queue.unbounded[State]
-        _                 <- ZStream.fromQueue(stateChangesQueue).map(_.to).tap(stateChanges.offer).runDrain
+        _                 <- ZStream.fromQueue(stateChangesQueue).map(_.to).tap(stateChanges.offer).runDrain.forkScoped
         _                 <- ZIO.foreachDiscard(1 to 3)(_ => cb(ZIO.fail(MyCallError)).either)
         _                 <- stateChanges.take // Open
         _                 <- TestClock.adjust(1.second)
