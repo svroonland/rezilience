@@ -2,7 +2,10 @@ package nl.vroste.rezilience
 
 import nl.vroste.rezilience.Bulkhead._
 import zio._
+import zio.metrics.MetricKeyType.Histogram.Boundaries
+import zio.metrics.{ Metric, MetricKeyType, MetricLabel }
 import zio.stream.ZStream
+import zio.Duration
 
 /**
  * Limits the number of simultaneous in-flight calls to an external resource
@@ -32,11 +35,6 @@ trait Bulkhead { self =>
     override def apply[R, E1 <: Any, A](f: ZIO[R, E1, A]): ZIO[R, Policy.PolicyError[E1], A] =
       self(f).mapError(_.fold(Policy.BulkheadRejection, Policy.WrappedError(_)))
   }
-
-  /**
-   * Provides the number of in-flight and queued calls
-   */
-  def metrics: UIO[Metrics]
 }
 
 object Bulkhead {
@@ -52,9 +50,7 @@ object Bulkhead {
   final case class WrappedError[E](e: E) extends BulkheadError[E]
   case object BulkheadRejection          extends BulkheadError[Nothing]
 
-  final case class Metrics(inFlight: Int, inQueue: Int)
-
-  case class BulkheadException[E](error: BulkheadError[E]) extends Exception("Bulkhead error")
+  final case class BulkheadException[E](error: BulkheadError[E]) extends Exception("Bulkhead error")
 
   private final case class State(enqueued: Int, inFlight: Int) {
     val total               = enqueued + inFlight
@@ -69,7 +65,7 @@ object Bulkhead {
    * Create a Bulkhead with the given parameters
    *
    * @param maxInFlightCalls
-   *   Maxmimum of concurrent executing calls
+   *   Maximum of concurrent executing calls
    * @param maxQueueing
    *   Maximum queueing calls
    * @return
@@ -111,7 +107,118 @@ object Bulkhead {
                                         ) *> start.await *> task.mapError(WrappedError(_))
                                     }
         } yield result
-
-      override def metrics: UIO[Metrics] = inFlightAndQueued.get.map(state => Metrics(state.inFlight, state.enqueued))
     }
+
+  final case class BulkheadMetrics(
+    callsInFlight: Metric.Histogram[Double],
+    callsEnqueued: Metric.Histogram[Double],
+    callsCompleted: Metric.Counter[Long],
+    callsRejected: Metric.Counter[Long],
+    queueTime: Metric.Histogram[Double]
+  )
+
+  /**
+   * Takes an existing Bulkhead and returns a new one that records metrics
+   *
+   * Metrics are
+   *   - rezilience_bulkhead_calls_in_flight: histogram of number of calls in-flight
+   *   - rezilience_bulkhead_calls_enqueued: histogram of number of calls enqueued
+   *   - rezilience_bulkhead_calls_completed: number of calls that were completed (either succesfully or failed)
+   *   - rezilience_bulkhead_calls_rejected: number of calls rejected because of a full queue
+   *   - rezilience_bulkhead_queue_time: histogram of queueing times (in nanoseconds)
+   *
+   * Be sure to use only the returned Bulkhead and not the one given as parameter, otherwise no metrics will be
+   * recorded. Recommended usage is to create it in go, eg `cb <- Bulkhead.make(10, 32).flatMap(Bulkhead.withMetrics(_,
+   * labels))`
+   *
+   * @param bulkhead
+   *   Existing Bulkhead
+   * @param labels
+   *   Set of labels to annotate metrics with, to distinguish this Bulkhead from others in the same application.
+   *
+   * @return
+   *   Bulkhead that records metrics
+   */
+  def withMetrics(
+    bulkhead: Bulkhead,
+    labels: Set[MetricLabel],
+    sampleInterval: Duration = 1.second,
+// TODO find suitable boundaries values
+    boundariesCalls: Boundaries = MetricKeyType.Histogram.Boundaries.exponential(0, 10, 11),
+    boundariesQueueTime: Boundaries = MetricKeyType.Histogram.Boundaries.linear(0, 10, 11)
+  ) = {
+    val metrics = BulkheadMetrics(
+      callsInFlight = Metric.histogram("rezilience_bulkhead_calls_in_flight", boundariesCalls).tagged(labels),
+      callsEnqueued = Metric.histogram("rezilience_bulkhead_calls_enqueued", boundariesCalls).tagged(labels),
+      callsCompleted = Metric.counter("rezilience_bulkhead_calls_completed").tagged(labels),
+      callsRejected = Metric.counter("rezilience_bulkhead_calls_rejected").tagged(labels),
+      queueTime = Metric.histogram("rezilience_bulkhead_queue_time", boundariesQueueTime).tagged(labels)
+    )
+
+    def sampleMetrics(state: BulkheadWithMetricsState) =
+      for {
+        _ <- metrics.callsInFlight.update(state.inFlight.toDouble)
+        _ <- metrics.callsEnqueued.update(state.enqueued.toDouble)
+      } yield ()
+
+    for {
+      state <- Ref.make(BulkheadWithMetricsState(0, 0))
+      _     <- (state.get.flatMap(sampleMetrics)).repeat(Schedule.fixed(sampleInterval)).forkScoped
+    } yield new BulkheadWithMetrics(bulkhead, metrics, state)
+
+  }
+
+  private[rezilience] case class BulkheadWithMetricsState(enqueued: Int, inFlight: Int) {
+    def enqueue: BulkheadWithMetricsState                  = copy(enqueued + 1, inFlight)
+    def start: BulkheadWithMetricsState                    = copy(enqueued - 1, inFlight + 1)
+    def complete: BulkheadWithMetricsState                 = copy(enqueued, inFlight - 1)
+    def interruptedAfterStart: BulkheadWithMetricsState    = copy(enqueued, inFlight - 1)
+    def interruptedWhileEnqueued: BulkheadWithMetricsState = copy(enqueued - 1, inFlight)
+  }
+
+  private[rezilience] class BulkheadWithMetrics(
+    inner: Bulkhead,
+    metrics: BulkheadMetrics,
+    state: Ref[BulkheadWithMetricsState]
+  ) extends Bulkhead {
+    override def apply[R, E, A](task: ZIO[R, E, A]): ZIO[R, Bulkhead.BulkheadError[E], A] =
+      ZIO.uninterruptibleMask { outerRestore =>
+        withRecordQueueTime { recordQueueTime =>
+          for {
+            _       <- state.update(_.enqueue)
+            started <- Ref.make(false)
+            result  <- outerRestore {
+                         inner.apply {
+                           ZIO.uninterruptibleMask { innerRestore =>
+                             started.set(true) *>
+                               state.update(_.start) *>
+                               innerRestore {
+                                 (recordQueueTime *> task <* state.update(_.complete)).onInterrupt(
+                                   state.update(_.interruptedAfterStart)
+                                 )
+                               }
+                           }
+                         }.onInterrupt(ZIO.unlessZIO(started.get)(state.update(_.interruptedWhileEnqueued)))
+                       }
+          } yield result
+        }
+      }.tapBoth(
+        {
+          case BulkheadRejection => metrics.callsRejected.increment
+          case _                 => metrics.callsCompleted.increment
+        },
+        _ => metrics.callsCompleted.increment
+      )
+
+    private def withRecordQueueTime[R, E, A](f: UIO[Unit] => ZIO[R, E, A]) = for {
+      enqueueTime      <- ZIO.clockWith(_.instant)
+      record: UIO[Unit] = for {
+                            startTime <- ZIO.clockWith(_.instant)
+                            queueTime  =
+                              Math.max(0.0d, java.time.Duration.between(enqueueTime, startTime).toNanos.toDouble)
+                            _         <- metrics.queueTime.update(queueTime)
+                          } yield ()
+      result           <- f(record)
+    } yield result
+  }
 }
