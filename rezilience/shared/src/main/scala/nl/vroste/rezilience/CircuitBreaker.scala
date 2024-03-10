@@ -195,6 +195,8 @@ object CircuitBreaker {
     labels: Set[MetricLabel]
   ) extends CircuitBreaker[E] {
 
+    override val stateChanges: ZIO[Scope, Nothing, Dequeue[StateChange]] = stateChangesHub.subscribe
+
     val metrics =
       if (labels.isEmpty) None
       else
@@ -231,7 +233,7 @@ object CircuitBreaker {
       _        <- stateChangesHub.publish(StateChange(oldState, Closed, now))
     } yield ()
 
-    val resetProcess: ZIO[Scope, Nothing, Fiber.Runtime[Any, Unit]] = ZStream
+    val resetProcess: ZIO[Scope, Nothing, Any] = ZStream
       .fromQueue(resetRequests)
       .mapZIO { _ =>
         for {
@@ -245,20 +247,23 @@ object CircuitBreaker {
       .runDrain
       .forkScoped
 
-    val trackStateChanges: ZIO[Scope, Nothing, Fiber.Runtime[Nothing, Unit]] = ZStream
-      .fromZIO(stateChanges)
-      .flatMap(ZStream.fromQueue(_))
-      .tap { stateChange =>
-        val stateAsInt = stateChange.to match {
-          case State.Closed   => 0
-          case State.HalfOpen => 1
-          case State.Open     => 2
-        }
+    val trackStateChanges: ZIO[Scope, Nothing, Any] = for {
+      stateChanges <- stateChanges
+      _            <-
+        ZStream
+          .fromQueue(stateChanges)
+          .tap { stateChange =>
+            val stateAsInt = stateChange.to match {
+              case State.Closed   => 0
+              case State.HalfOpen => 1
+              case State.Open     => 2
+            }
 
-        withMetrics(metrics => metrics.nrStateChanges.increment *> metrics.state.set(stateAsInt.doubleValue))
-      }
-      .runDrain
-      .forkScoped
+            withMetrics(metrics => metrics.nrStateChanges.increment *> metrics.state.set(stateAsInt.doubleValue))
+          }
+          .runDrain
+          .forkScoped
+    } yield ()
 
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
       (for {
@@ -328,8 +333,6 @@ object CircuitBreaker {
     )
 
     override def currentState: UIO[State] = state.get
-
-    override val stateChanges: ZIO[Scope, Nothing, Dequeue[StateChange]] = stateChangesHub.subscribe
   }
 
   private[rezilience] def isFailureAny[E]: PartialFunction[E, Boolean] = { case _ => true }
