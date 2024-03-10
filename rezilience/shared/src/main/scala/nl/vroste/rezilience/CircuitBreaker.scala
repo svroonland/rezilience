@@ -129,7 +129,7 @@ object CircuitBreaker {
    *   are passed on, circumventing the circuit breaker's failure counter.
    * @param metricLabels
    *   Set of labels to annotate metrics with, to distinguish this circuit breaker from others in the same application.
-   *   No metrics are recorded if an empty set is passed.
+   *   No metrics are recorded if None is passed.
    * @return
    *   The CircuitBreaker as a managed resource
    */
@@ -137,7 +137,7 @@ object CircuitBreaker {
     maxFailures: Int,
     resetPolicy: Schedule[Any, Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
-    metricLabels: Set[MetricLabel] = Set.empty
+    metricLabels: Option[Set[MetricLabel]] = None
   ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
     make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, metricLabels)
 
@@ -153,7 +153,7 @@ object CircuitBreaker {
    *   are passed on, circumventing the circuit breaker's failure counter.
    * @param metricLabels
    *   Set of labels to annotate metrics with, to distinguish this circuit breaker from others in the same application.
-   *   No metrics are recorded if an empty set is passed.
+   *   No metrics are recorded if None is passed.
    * @return
    */
   def make[E](
@@ -161,7 +161,7 @@ object CircuitBreaker {
     resetPolicy: Schedule[Any, Any, Any] =
       Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
-    metricLabels: Set[MetricLabel] = Set.empty
+    metricLabels: Option[Set[MetricLabel]] = None
   ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
     for {
       strategy        <- trippingStrategy
@@ -192,27 +192,24 @@ object CircuitBreaker {
     schedule: Schedule.Driver[ScheduleState, Any, Any, Any],
     isFailure: PartialFunction[E, Boolean],
     halfOpenSwitch: Ref[Boolean],
-    labels: Set[MetricLabel]
+    labels: Option[Set[MetricLabel]]
   ) extends CircuitBreaker[E] {
 
     override val stateChanges: ZIO[Scope, Nothing, Dequeue[StateChange]] = stateChangesHub.subscribe
 
-    val metrics =
-      if (labels.isEmpty) None
-      else
-        Some(
-          CircuitBreakerMetrics(
-            state = Metric
-              .gauge("rezilience_circuit_breaker_state")
-              .tagged(labels),
-            nrStateChanges = Metric.counter("rezilience_circuit_breaker_state_changes").tagged(labels),
-            callsSuccess = Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels),
-            callsFailure = Metric.counter("rezilience_circuit_breaker_calls_failure").tagged(labels),
-            callsRejected = Metric
-              .counter("rezilience_circuit_breaker_calls_rejected")
-              .tagged(labels)
-          )
-        )
+    val metrics = labels.map { labels =>
+      CircuitBreakerMetrics(
+        state = Metric
+          .gauge("rezilience_circuit_breaker_state")
+          .tagged(labels),
+        nrStateChanges = Metric.counter("rezilience_circuit_breaker_state_changes").tagged(labels),
+        callsSuccess = Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels),
+        callsFailure = Metric.counter("rezilience_circuit_breaker_calls_failure").tagged(labels),
+        callsRejected = Metric
+          .counter("rezilience_circuit_breaker_calls_rejected")
+          .tagged(labels)
+      )
+    }
 
     private def withMetrics(f: CircuitBreakerMetrics => UIO[Unit]): UIO[Unit] =
       ZIO.fromOption(metrics).flatMap(f).ignore
