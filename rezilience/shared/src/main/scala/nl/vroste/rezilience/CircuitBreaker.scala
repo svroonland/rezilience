@@ -123,7 +123,7 @@ object CircuitBreaker {
    * @param labels
    *   Set of labels to annotate metrics with, to distinguish this circuit breaker from others in the same application.
    */
-  case class MetricSettings(
+  final case class MetricSettings(
     labels: Set[MetricLabel]
   )
 
