@@ -1,5 +1,7 @@
 # Rezilience
 
+_Use and like this library? Consider [sponsoring](https://github.com/sponsors/svroonland) its ongoing development and maintenance_
+
 `rezilience` is a ZIO-native collection of policies for making asynchronous systems more resilient to failures.
 
 It is inspired by [Polly](https://github.com/App-vNext/Polly), [Resilience4J](https://github.com/resilience4j/resilience4j) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html).
