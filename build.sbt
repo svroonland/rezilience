@@ -60,7 +60,7 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
       "dev.zio"                %%% "zio-streams"             % zioVersion,
       "dev.zio"                %%% "zio-test"                % zioVersion % "test",
       "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.11.0"
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.12.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
@@ -80,7 +80,7 @@ lazy val config = project
       "dev.zio"                %%% "zio-config-typesafe"     % zioConfigVersion % "test",
       "dev.zio"                %%% "zio-test"                % zioVersion       % "test",
       "dev.zio"                %%% "zio-test-sbt"            % zioVersion       % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.11.0"
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.12.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
@@ -123,7 +123,7 @@ lazy val docs = project
       "dev.zio"                %%% "zio-streams"             % zioVersion,
       "dev.zio"                %%% "zio-test"                % zioVersion % "test",
       "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.11.0",
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.12.0",
       "dev.zio"                %%% "zio-config-typesafe"     % "3.0.7"
     )
   )
