@@ -1,7 +1,7 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 import sbt.Keys.resolvers
 val mainScala        = "2.13.14"
-val scala3Version    = "3.4.1"
+val scala3Version    = "3.4.2"
 val allScala         = Seq(mainScala, scala3Version)
 val zioVersion       = "2.1.1"
 val zioConfigVersion = "3.0.7"
