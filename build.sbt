@@ -20,10 +20,10 @@ lazy val commonJsSettings = Seq(
 
 inThisBuild(
   List(
-    organization           := "nl.vroste",
-    homepage               := Some(url("https://github.com/svroonland/rezilience")),
-    licenses               := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")),
-    developers             := List(
+    organization := "nl.vroste",
+    homepage     := Some(url("https://github.com/svroonland/rezilience")),
+    licenses     := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")),
+    developers   := List(
       Developer(
         "svroonland",
         "Vroste",
@@ -31,12 +31,10 @@ inThisBuild(
         url("https://github.com/svroonland")
       )
     ),
-    scmInfo                := Some(
+    scmInfo      := Some(
       ScmInfo(url("https://github.com/svroonland/rezilience/"), "scm:git:git@github.com:svroonland/rezilience.git")
     ),
-    resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
-    sonatypeCredentialHost := "s01.oss.sonatype.org",
-    sonatypeRepository     := "https://s01.oss.sonatype.org/service/local"
+    resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
   )
 )
 
