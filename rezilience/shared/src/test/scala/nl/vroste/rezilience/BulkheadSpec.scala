@@ -1,5 +1,7 @@
 package nl.vroste.rezilience
 
+import nl.vroste.rezilience.Bulkhead.MetricSettings
+import zio.metrics.{ Metric, MetricLabel }
 import zio.test.Assertion._
 import zio.test.TestAspect.{ nonFlaky, timed, timeout }
 import zio.test._
@@ -109,6 +111,54 @@ object BulkheadSpec extends ZIOSpecDefault {
           _           <- interrupted.await
         } yield assertCompletes
       }
-    }
+    },
+    suite("Bulkhead with metrics")(
+      test("has correct metrics after interruption while started") {
+        for {
+          labels         <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
+          bulkhead       <-
+            Bulkhead.make(10, 5, Some(MetricSettings(labels)))
+          latch          <- Promise.make[Nothing, Unit]
+          interrupted    <- Promise.make[Nothing, Unit]
+          fib            <- bulkhead((latch.succeed(()) *> ZIO.never).onInterrupt(interrupted.succeed(()))).fork
+          _              <- latch.await
+          _              <- fib.interrupt
+          _              <- interrupted.await
+          // TODO it's a histogram, so check that
+          metricEnqueued <- Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels).value
+        } yield assertCompletes
+      }
+//      test("emits correct currently in flight metrics") {
+//        withMetricsCollection { onMetrics =>
+//          Bulkhead
+//            .make(10, 5)
+//            .flatMap(Bulkhead.addMetrics(_, onMetrics, metricsInterval = 1.second))
+//            .use { bulkhead =>
+//              for {
+//                latch1   <- Promise.make[Nothing, Unit]
+//                latch2   <- Promise.make[Nothing, Unit]
+//                continue <- Promise.make[Nothing, Unit]
+//                _        <- TestClock.adjust(1.second)
+//                fib      <- bulkhead(latch1.succeed(()) *> continue.await).fork
+//                _        <- latch1.await
+//                _        <- TestClock.adjust(1.second)
+//                fib2     <- bulkhead(latch2.succeed(()) *> continue.await).fork
+//                _        <- latch2.await
+//                _        <- TestClock.adjust(1.second)
+//                _        <- continue.succeed(())
+//                _        <- TestClock.adjust(1.second)
+//                _        <- fib.join
+//                _        <- fib2.join
+//              } yield ()
+//            }
+//        } { (metrics, _) =>
+//          UIO(
+//            assertTrue(metrics.map(_.currentlyInFlight) == Chunk(0L, 1, 2, 0, 0)) &&
+//              assertTrue(metrics.reduce(_ + _).inFlight.getMaxValue == 2L)
+//          )
+//        }
+//      }
+//    )
+    )
   ) @@ nonFlaky @@ timeout(120.seconds) @@ timed
 }
