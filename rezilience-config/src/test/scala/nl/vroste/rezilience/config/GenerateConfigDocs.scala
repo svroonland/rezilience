@@ -7,19 +7,19 @@ object GenerateConfigDocs extends zio.ZIOAppDefault {
     ZIO
       .debug(s"""
                 |# Circuit Breaker
-                | ${zio.config.generateDocs(CircuitBreakerConfig.descriptor).toTable.toGithubFlavouredMarkdown}
+                | ${zio.config.generateDocs(CircuitBreakerConfig.config).toTable.toGithubFlavouredMarkdown}
                 | 
                 |# RateLimiter
-                | ${zio.config.generateDocs(RateLimiterConfig.descriptor).toTable.toGithubFlavouredMarkdown}
+                | ${zio.config.generateDocs(RateLimiterConfig.config).toTable.toGithubFlavouredMarkdown}
                 |       
                 |# Bulkhead
-                | ${zio.config.generateDocs(BulkheadConfig.descriptor).toTable.toGithubFlavouredMarkdown}
+                | ${zio.config.generateDocs(BulkheadConfig.config).toTable.toGithubFlavouredMarkdown}
                 |        
                 |# Retry
-                | ${zio.config.generateDocs(RetryConfig.descriptor).toTable.toGithubFlavouredMarkdown}
+                | ${zio.config.generateDocs(RetryConfig.config).toTable.toGithubFlavouredMarkdown}
                 | 
                 |# Timeout
-                | ${zio.config.generateDocs(TimeoutConfig.descriptor).toTable.toGithubFlavouredMarkdown}
+                | ${zio.config.generateDocs(TimeoutConfig.config).toTable.toGithubFlavouredMarkdown}
                 |""".stripMargin)
       .exitCode
 

@@ -1,11 +1,11 @@
 package nl.vroste.rezilience.config
 
 import zio.config._
-import ConfigDescriptor._
+import zio.Config._
 import zio.Duration
 
-object RateLimiterConfig {
-  case class Config(max: Int, interval: Duration)
+case class RateLimiterConfig(max: Int, interval: Duration)
 
-  val descriptor: ConfigDescriptor[Config] = (int("max") zip zioDuration("interval")).to[Config]
+object RateLimiterConfig {
+  implicit val config: zio.Config[RateLimiterConfig] = (int("max") zip duration("interval")).to[RateLimiterConfig]
 }

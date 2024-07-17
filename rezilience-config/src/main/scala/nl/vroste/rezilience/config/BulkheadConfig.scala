@@ -1,10 +1,11 @@
 package nl.vroste.rezilience.config
 
+import zio.Config.int
 import zio.config._
-import ConfigDescriptor._
+
+case class BulkheadConfig(maxInFlightCalls: Int, maxQueueing: Int)
 
 object BulkheadConfig {
-  case class Config(maxInFlightCalls: Int, maxQueueing: Int)
-
-  val descriptor: ConfigDescriptor[Config] = (int("max-in-flight-calls") zip int("max-queueing").default(32)).to[Config]
+  implicit val config: zio.Config[BulkheadConfig] =
+    (int("max-in-flight-calls") zip int("max-queueing").withDefault(32)).to[BulkheadConfig]
 }

@@ -28,7 +28,7 @@ import nl.vroste.rezilience.config._
 
 import com.typesafe.config.ConfigFactory
 import zio.ZIO
-import zio.config.typesafe.TypesafeConfigSource
+import zio.config.typesafe.TypesafeConfigProvider
 
 // Replace with your favorite zio-config integration
 val config = ConfigFactory.parseString(s"""
@@ -46,120 +46,146 @@ val config = ConfigFactory.parseString(s"""
                                           | }
                                           |""".stripMargin)
 
-val configSource = TypesafeConfigSource.fromTypesafeConfig(ZIO.succeed(config.getConfig("my-circuit-breaker")))
+val configProvider = TypesafeConfigProvider.fromTypesafeConfig(config.getConfig("my-circuit-breaker"))
 
-ZIO.scoped {
+val program = ZIO.scoped {
     for {
-        cb <- CircuitBreaker.fromConfig(configSource)
+        config <- ZIO.config[CircuitBreakerConfig]
+        cb <- CircuitBreaker.fromConfig(config)
         _ <- cb(ZIO.unit)
       } yield ()
 }
+
+program.provideLayer(zio.Runtime.setConfigProvider(configProvider) ++ zio.Scope.default)
 ```
+
+Typically you would create a top-level `ApplicationConfig` where one of the (nested) fields is a `CircuitBreakerConfig` for a specific Circuit Breaker instance, along with your other application configs and rezilience policies. See the [ZIO documentation](https://zio.dev/reference/configuration/) on Configuration for more information on how to integrate this in your application.
 
 ## Configuration reference
 
+# Circuit Breaker
 
-## Circuit Breaker
-
-### Configuration Details
-
-
+## Configuration Details
 FieldName|Format                     |Description|Sources|
 ---      |---                        |---        |---    |
 |[all-of](fielddescriptions)|           |       |
-
-#### Field Descriptions
-
+### Field Descriptions
 FieldName                             |Format                         |Description|Sources|
 ---                                   |---                            |---        |---    |
 [tripping-strategy](tripping-strategy)|[any-one-of](tripping-strategy)|           |       |
 [reset-schedule](reset-schedule)      |[all-of](reset-schedule)       |           |       |
+### tripping-strategy
+FieldName   |Format                       |Description        |Sources|
+---         |---                          |---                |---    |
+max-failures|primitive                    |an integer property|       |
+|[all-of](fielddescriptions-1)|                   |       |
+### Field Descriptions
+FieldName             |Format                           |Description       |Sources|
+---                   |---                              |---               |---    |
+failure-rate-threshold|primitive                        |a decimal property|       |
+|[any-one-of](fielddescriptions-4)|                  |       |
+|[any-one-of](fielddescriptions-3)|                  |       |
+|[any-one-of](fielddescriptions-2)|                  |       |
+### Field Descriptions
+FieldName      |Format   |Description        |Sources|
+---            |---      |---                |---    |
+sample-duration|primitive|a duration property|       |
+|primitive|a constant property|       |
+### Field Descriptions
+FieldName     |Format   |Description        |Sources|
+---           |---      |---                |---    |
+min-throughput|primitive|an integer property|       |
+|primitive|a constant property|       |
+### Field Descriptions
+FieldName        |Format   |Description        |Sources|
+---              |---      |---                |---    |
+nr-sample-buckets|primitive|an integer property|       |
+|primitive|a constant property|       |
+### reset-schedule
+FieldName|Format                           |Description|Sources|
+---      |---                              |---        |---    |
+|[any-one-of](fielddescriptions-3)|           |       |
+|[any-one-of](fielddescriptions-2)|           |       |
+|[any-one-of](fielddescriptions-1)|           |       |
+### Field Descriptions
+FieldName|Format   |Description        |Sources|
+---      |---      |---                |---    |
+min      |primitive|a duration property|       |
+|primitive|a constant property|       |
+### Field Descriptions
+FieldName|Format   |Description        |Sources|
+---      |---      |---                |---    |
+max      |primitive|a duration property|       |
+|primitive|a constant property|       |
+### Field Descriptions
+FieldName|Format   |Description        |Sources|
+---      |---      |---                |---    |
+factor   |primitive|a decimal property |       |
+|primitive|a constant property|       |
 
-#### tripping-strategy
+# RateLimiter
 
-FieldName   |Format                       |Description      |Sources|
----         |---                          |---              |---    |
-max-failures|primitive                    |value of type int|       |
-|[all-of](fielddescriptions-1)|                 |       |
-
-#### Field Descriptions
-
-FieldName             |Format   |Description                                |Sources|
----                   |---      |---                                        |---    |
-failure-rate-threshold|primitive|value of type double                       |       |
-sample-duration       |primitive|value of type duration, default value: PT1M|       |
-min-throughput        |primitive|value of type int, default value: 10       |       |
-nr-sample-buckets     |primitive|value of type int, default value: 10       |       |
-
-#### reset-schedule
-
-FieldName|Format   |Description                                |Sources|
----      |---      |---                                        |---    |
-min      |primitive|value of type duration, default value: PT1S|       |
-max      |primitive|value of type duration, default value: PT1M|       |
-factor   |primitive|value of type double, default value: 2.0   |       |
-
-
-## RateLimiter
-
-### Configuration Details
-
-
+## Configuration Details
 FieldName|Format                     |Description|Sources|
 ---      |---                        |---        |---    |
 |[all-of](fielddescriptions)|           |       |
+### Field Descriptions
+FieldName|Format   |Description        |Sources|
+---      |---      |---                |---    |
+max      |primitive|an integer property|       |
+interval |primitive|a duration property|       |
 
-#### Field Descriptions
+# Bulkhead
 
-FieldName|Format   |Description           |Sources|
----      |---      |---                   |---    |
-max      |primitive|value of type int     |       |
-interval |primitive|value of type duration|       |
-
-
-## Bulkhead
-
-### Configuration Details
-
-
+## Configuration Details
 FieldName|Format                     |Description|Sources|
 ---      |---                        |---        |---    |
 |[all-of](fielddescriptions)|           |       |
+### Field Descriptions
+FieldName          |Format                           |Description        |Sources|
+---                |---                              |---                |---    |
+max-in-flight-calls|primitive                        |an integer property|       |
+|[any-one-of](fielddescriptions-1)|                   |       |
+### Field Descriptions
+FieldName   |Format   |Description        |Sources|
+---         |---      |---                |---    |
+max-queueing|primitive|an integer property|       |
+|primitive|a constant property|       |
 
-#### Field Descriptions
+# Retry
 
-FieldName          |Format   |Description                         |Sources|
----                |---      |---                                 |---    |
-max-in-flight-calls|primitive|value of type int                   |       |
-max-queueing       |primitive|value of type int, default value: 32|       |
-
-
-## Retry
-
-### Configuration Details
-
-
+## Configuration Details
 FieldName|Format                     |Description|Sources|
 ---      |---                        |---        |---    |
 |[all-of](fielddescriptions)|           |       |
+### Field Descriptions
+FieldName  |Format                           |Description        |Sources|
+---        |---                              |---                |---    |
+min-delay  |primitive                        |a duration property|       |
+max-delay  |primitive                        |a duration property|       |
+|[any-one-of](fielddescriptions-3)|                   |       |
+|[any-one-of](fielddescriptions-2)|                   |       |
+max-retries|primitive                        |an integer property|       |
+|[any-one-of](fielddescriptions-1)|                   |       |
+### Field Descriptions
+FieldName|Format   |Description        |Sources|
+---      |---      |---                |---    |
+factor   |primitive|a decimal property |       |
+|primitive|a constant property|       |
+### Field Descriptions
+FieldName        |Format   |Description        |Sources|
+---              |---      |---                |---    |
+retry-immediately|primitive|a boolean property |       |
+|primitive|a constant property|       |
+### Field Descriptions
+FieldName|Format   |Description        |Sources|
+---      |---      |---                |---    |
+jitter   |primitive|a decimal property |       |
+|primitive|a constant property|       |
 
-#### Field Descriptions
+# Timeout
 
-FieldName        |Format   |Description                                |Sources|
----              |---      |---                                        |---    |
-min-delay        |primitive|value of type duration                     |       |
-max-delay        |primitive|value of type duration, optional value     |       |
-factor           |primitive|value of type double, default value: 2.0   |       |
-retry-immediately|primitive|value of type boolean, default value: false|       |
-max-retries      |primitive|value of type int, optional value          |       |
-jitter           |primitive|value of type double, default value: 0.0   |       |
-
-
-## Timeout
-
-### Configuration Details
-
-
-FieldName|Format   |Description           |Sources|
----      |---      |---                   |---    |
-timeout  |primitive|value of type duration|       |
+## Configuration Details
+FieldName|Format   |Description        |Sources|
+---      |---      |---                |---    |
+timeout  |primitive|a duration property|       |
