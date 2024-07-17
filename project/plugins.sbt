@@ -1,3 +1,5 @@
+resolvers += "OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
+
 addSbtPlugin("org.scalameta"      % "sbt-scalafmt"             % "2.5.2")
 addSbtPlugin("org.typelevel"      % "sbt-tpolecat"             % "0.5.1")
 addSbtPlugin("com.eed3si9n"       % "sbt-assembly"             % "2.2.0")
