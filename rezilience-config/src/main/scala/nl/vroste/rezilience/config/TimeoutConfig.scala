@@ -4,8 +4,8 @@ import zio.config._
 import zio.Config._
 import zio.Duration
 
-object TimeoutConfig {
-  case class Config(timeout: Duration)
+case class TimeoutConfig(timeout: Duration)
 
-  val descriptor: zio.Config[Config] = duration("timeout").to[Config]
+object TimeoutConfig {
+  implicit val config: zio.Config[TimeoutConfig] = duration("timeout").to[TimeoutConfig]
 }

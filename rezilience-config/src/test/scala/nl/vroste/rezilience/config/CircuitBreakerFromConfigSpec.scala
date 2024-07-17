@@ -2,10 +2,10 @@ package nl.vroste.rezilience.config
 
 import com.typesafe.config.ConfigFactory
 import nl.vroste.rezilience.CircuitBreaker
-import zio.config.typesafe.TypesafeConfigSource
 import zio.test.Assertion._
 import zio.test._
-import zio.{ durationInt, ZIO }
+import zio.config.typesafe.TypesafeConfigProvider
+import zio.{ durationInt, Scope, ZIO }
 
 object CircuitBreakerFromConfigSpec extends ZIOSpecDefault {
   override def spec = suite("CircuitBreakerFromConfig")(
@@ -22,12 +22,14 @@ object CircuitBreakerFromConfigSpec extends ZIOSpecDefault {
                                                 | }
                                                 |""".stripMargin)
 
-      val configSource = TypesafeConfigSource.fromTypesafeConfig(ZIO.succeed(config.getConfig("my-circuit-breaker")))
+      val configProvider = TypesafeConfigProvider.fromTypesafeConfig(config.getConfig("my-circuit-breaker"))
 
-      for {
-        cb     <- CircuitBreaker.fromConfig(configSource)
+      (for {
+        config <- ZIO.config[CircuitBreakerConfig]
+        cb     <- CircuitBreaker.fromConfig(config)
         result <- cb(ZIO.fail(())).ignore *> cb(ZIO.fail(())).ignore *> cb(ZIO.succeed(123)).either
-      } yield assert(result)(isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen)))
+      } yield assert(result)(isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen))))
+        .provideLayer(zio.Runtime.setConfigProvider(configProvider) ++ Scope.default)
     },
     test("can read failure-rate strategy from config") {
       val config = ConfigFactory.parseString(s"""
@@ -45,15 +47,16 @@ object CircuitBreakerFromConfigSpec extends ZIOSpecDefault {
                                                 | }
                                                 |""".stripMargin)
 
-      val configSource = TypesafeConfigSource.fromTypesafeConfig(ZIO.succeed(config.getConfig("my-circuit-breaker")))
+      val configProvider = TypesafeConfigProvider.fromTypesafeConfig(config.getConfig("my-circuit-breaker"))
 
-      for {
-        cb <-
-          CircuitBreaker.fromConfig(configSource)
-        _  <- cb(ZIO.fail(())).ignore
-        _  <- cb(ZIO.fail(())).ignore
-        _  <- cb(ZIO.succeed(()))
-        _  <- cb(ZIO.fail(())).ignore
+      (for {
+        config <- ZIO.config[CircuitBreakerConfig]
+        cb     <-
+          CircuitBreaker.fromConfig(config)
+        _      <- cb(ZIO.fail(())).ignore
+        _      <- cb(ZIO.fail(())).ignore
+        _      <- cb(ZIO.succeed(()))
+        _      <- cb(ZIO.fail(())).ignore
 
         _       <- TestClock.adjust(2.seconds)
         result1 <- cb(ZIO.succeed(123)).either
@@ -67,8 +70,7 @@ object CircuitBreakerFromConfigSpec extends ZIOSpecDefault {
         result2 <- cb(ZIO.succeed(123)).either
       } yield assert(result1)(isRight(anything)) && assert(result2)(
         isLeft(equalTo(CircuitBreaker.CircuitBreakerOpen))
-      )
+      )).provideLayer(zio.Runtime.setConfigProvider(configProvider) ++ Scope.default)
     }
   )
-
 }

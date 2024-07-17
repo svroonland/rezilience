@@ -2,32 +2,29 @@ package nl.vroste.rezilience.config
 
 import nl.vroste.rezilience
 import nl.vroste.rezilience.Retry
-import zio.config._
 import zio.{ Schedule, Scope, ZIO }
 
 trait RetryFromConfigSyntax {
   implicit class RetryExtensions(self: Retry.type) {
-    def fromConfig[E](source: ConfigSource): ZIO[Scope, ReadError[String], Retry[Any]] =
-      for {
-        config  <- read(RetryConfig.descriptor from source)
-        schedule = config match {
-                     case RetryConfig.Config(minDelay, None, _, retryImmediately, maxRetries, jitterFactor) =>
-                       val baseSchedule = Schedule.spaced(minDelay)
-                       extendSchedule(baseSchedule, retryImmediately, maxRetries, jitterFactor)
+    def fromConfig[E](config: RetryConfig): ZIO[Scope, Nothing, Retry[Any]] = {
+      val schedule = config match {
+        case RetryConfig(minDelay, None, _, retryImmediately, maxRetries, jitterFactor) =>
+          val baseSchedule = Schedule.spaced(minDelay)
+          extendSchedule(baseSchedule, retryImmediately, maxRetries, jitterFactor)
 
-                     case RetryConfig.Config(
-                           minDelay,
-                           Some(maxDelay),
-                           factor,
-                           retryImmediately,
-                           maxRetries,
-                           jitterFactor
-                         ) =>
-                       val baseSchedule = Retry.Schedules.exponentialBackoff(minDelay, maxDelay, factor)
-                       extendSchedule(baseSchedule, retryImmediately, maxRetries, jitterFactor)
-                   }
-        rl      <- rezilience.Retry.make(schedule)
-      } yield rl
+        case RetryConfig(
+              minDelay,
+              Some(maxDelay),
+              factor,
+              retryImmediately,
+              maxRetries,
+              jitterFactor
+            ) =>
+          val baseSchedule = Retry.Schedules.exponentialBackoff(minDelay, maxDelay, factor)
+          extendSchedule(baseSchedule, retryImmediately, maxRetries, jitterFactor)
+      }
+      rezilience.Retry.make(schedule)
+    }
   }
 
   private def extendSchedule[E](
