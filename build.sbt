@@ -3,7 +3,7 @@ import org.typelevel.scalacoptions.ScalacOptions
 import xerial.sbt.Sonatype.sonatypeCentralHost
 
 ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
-sonatypeRepository                 := "https://s01.oss.sonatype.org/service/local"
+ThisBuild / sonatypeRepository     := "https://s01.oss.sonatype.org/service/local"
 
 import sbt.Keys.resolvers
 val mainScala        = "2.13.14"
