@@ -1,7 +1,7 @@
 package nl.vroste.rezilience.config
 
 import zio.config._
-import ConfigDescriptor._
+import zio.Config._
 import zio.{ durationInt, Duration }
 
 object RetryConfig {
@@ -14,13 +14,13 @@ object RetryConfig {
     jitter: Double
   )
 
-  val descriptor: ConfigDescriptor[Config] = (
-    zioDuration("min-delay") zip
-      zioDuration("max-delay").optional zip
-      double("factor").default(2.0) zip
-      boolean("retry-immediately").default(false) zip
+  val descriptor: zio.Config[Config] = (
+    duration("min-delay") zip
+      duration("max-delay").optional zip
+      double("factor").withDefault(2.0) zip
+      boolean("retry-immediately").withDefault(false) zip
       int("max-retries").optional zip
-      double("jitter").default(0.0)
+      double("jitter").withDefault(0.0)
   )
     .to[Config]
 }

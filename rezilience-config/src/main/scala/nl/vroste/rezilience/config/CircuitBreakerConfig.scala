@@ -1,7 +1,7 @@
 package nl.vroste.rezilience.config
 
 import zio.config._
-import ConfigDescriptor._
+import zio.Config._
 import zio.{ durationInt, Duration }
 
 object CircuitBreakerConfig {
@@ -23,31 +23,27 @@ object CircuitBreakerConfig {
 
   case class Config(strategy: TrippingStrategy, resetSchedule: ResetSchedule)
 
-  val failureCountConfigDescriptor: ConfigDescriptor[TrippingStrategy.FailureCount] =
+  val failureCountConfigDescriptor: zio.Config[TrippingStrategy.FailureCount] =
     (int("max-failures")).to[TrippingStrategy.FailureCount]
 
-  val failureRateDescriptor: ConfigDescriptor[TrippingStrategy.FailureRate] =
+  val failureRateDescriptor: zio.Config[TrippingStrategy.FailureRate] =
     (double("failure-rate-threshold") zip
-      zioDuration("sample-duration").default(1.minute) zip
-      int("min-throughput").default(10) zip
-      int("nr-sample-buckets").default(10)).to[TrippingStrategy.FailureRate]
+      duration("sample-duration").withDefault(1.minute) zip
+      int("min-throughput").withDefault(10) zip
+      int("nr-sample-buckets").withDefault(10)).to[TrippingStrategy.FailureRate]
 
-  val trippingStrategyDescriptor: ConfigDescriptor[TrippingStrategy] =
-    (failureCountConfigDescriptor orElseEither failureRateDescriptor).transform[TrippingStrategy](
-      _.fold(_.asInstanceOf[TrippingStrategy], _.asInstanceOf[TrippingStrategy]),
-      {
-        case c: TrippingStrategy.FailureCount => Left(c)
-        case r: TrippingStrategy.FailureRate  => Right(r)
-      }
+  val trippingStrategyDescriptor: zio.Config[TrippingStrategy] =
+    (failureCountConfigDescriptor orElseEither failureRateDescriptor).map(
+      _.fold(_.asInstanceOf[TrippingStrategy], _.asInstanceOf[TrippingStrategy])
     )
 
-  val resetScheduleDescriptor: ConfigDescriptor[ResetSchedule] =
-    (zioDuration("min").default(1.second) zip
-      zioDuration("max").default(1.minute) zip
-      double("factor").default(2.0)).to[ResetSchedule.ExponentialBackoff].asInstanceOf[ConfigDescriptor[ResetSchedule]]
+  val resetScheduleDescriptor: zio.Config[ResetSchedule] =
+    (duration("min").withDefault(1.second) zip
+      duration("max").withDefault(1.minute) zip
+      double("factor").withDefault(2.0)).to[ResetSchedule.ExponentialBackoff].asInstanceOf[zio.Config[ResetSchedule]]
 
-  val descriptor: ConfigDescriptor[Config] =
-    (nested("tripping-strategy")(trippingStrategyDescriptor) zip nested("reset-schedule")(resetScheduleDescriptor))
+  val descriptor: zio.Config[Config] =
+    (trippingStrategyDescriptor.nested("tripping-strategy") zip resetScheduleDescriptor.nested("reset-schedule"))
       .to[Config]
 
 }
