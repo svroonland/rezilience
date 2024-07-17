@@ -3,7 +3,7 @@ import org.typelevel.scalacoptions.ScalacOptions
 
 import sbt.Keys.resolvers
 val mainScala        = "2.13.14"
-val scala3Version    = "3.4.2"
+val scala3Version    = "3.3.3"
 val allScala         = Seq(mainScala, scala3Version)
 val zioVersion       = "2.1.6"
 val zioConfigVersion = "4.0.2"
