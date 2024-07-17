@@ -63,7 +63,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++3.4.2! "-Wconf:msg=is not declared infix:s" rezilienceJVM/test
+      - run: sbt ++3.3.3! rezilienceJVM/test
       - save_cache:
           key: sbt-cache-3
           paths:
