@@ -7,7 +7,7 @@ addSbtPlugin("io.shiftleft"       % "sbt-ci-release-early"     % "2.0.46")
 addSbtPlugin("com.47deg"          % "sbt-microsites"           % "1.4.4")
 addSbtPlugin("com.github.sbt"     % "sbt-unidoc"               % "0.5.0")
 
-addSbtPlugin("com.github.sbt" % "sbt-ci-release" % "1.5.12")
+addSbtPlugin("com.github.sbt" % "sbt-ci-release" % "1.5.12+38-6b30fb12-SNAPSHOT")
 addSbtPlugin("com.github.sbt" % "sbt-pgp"        % "2.2.1")
 addSbtPlugin("com.github.sbt" % "sbt-dynver"     % "5.0.1")
 addSbtPlugin("org.xerial.sbt" % "sbt-sonatype"   % "3.11.0")
