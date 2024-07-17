@@ -1,4 +1,6 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
+import org.typelevel.scalacoptions.ScalacOptions
+
 import sbt.Keys.resolvers
 val mainScala        = "2.13.14"
 val scala3Version    = "3.4.2"
