@@ -22,8 +22,6 @@ import nl.vroste.rezilience.config._
 
 Now you can use the `fromConfig` method on any of the rezilience policies like so:
 
-TODO upgrade 
-
 ```scala mdoc:silent
 import nl.vroste.rezilience._
 import nl.vroste.rezilience.config._
