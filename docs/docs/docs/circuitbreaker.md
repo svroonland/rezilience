@@ -87,7 +87,7 @@ ZIO.scoped {
 ```
 
 ## Monitoring
-You may want to monitor circuit breaker failures and trigger alerts when the circuit breaker trips. For this purpose, CircuitBreaker publishes state changes via a callback provided to `make`. Usage:
+You may want to monitor circuit breaker failures and trigger alerts when the circuit breaker trips. For this purpose, CircuitBreaker publishes state changes via the `stateChanges` property. Usage:
 
 ```scala mdoc:silent
 import zio.stream._
@@ -108,3 +108,15 @@ CircuitBreaker
     circuitBreaker(ZIO.unit) // etc
   }
 ```
+
+## Metrics
+
+When `CircuitBreaker.make` is called with the `metricLabels` parameter, the following metrics will be recorded, tagged with the given labels:
+
+* rezilience_circuit_breaker_state: current state (0 = closed, 1 = half-open, 2 = open)
+* rezilience_circuit_breaker_state_changes: number of state changes
+* rezilience_circuit_breaker_calls_success: number of successful calls
+* rezilience_circuit_breaker_calls_failure: number of failed calls
+* rezilience_circuit_breaker_calls_rejected: number of calls rejected in the open state
+
+See [ZIO metrics documentation](https://zio.dev/reference/observability/metrics/) for more information on how to integrate this with your observability tooling.
