@@ -59,6 +59,8 @@ val program = ZIO.scoped {
 program.provideLayer(zio.Runtime.setConfigProvider(configProvider) ++ zio.Scope.default)
 ```
 
+Typically you would create a top-level `ApplicationConfig` where one of the (nested) fields is a `CircuitBreakerConfig` for a specific Circuit Breaker instance, along with your other application configs and rezilience policies. See the [ZIO documentation](https://zio.dev/reference/configuration/) on Configuration for more information on how to integrate this in your application.
+
 ## Configuration reference
 
 # Circuit Breaker
