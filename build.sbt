@@ -1,5 +1,8 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 import org.typelevel.scalacoptions.ScalacOptions
+import xerial.sbt.Sonatype.sonatypeCentralHost
+
+ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
 
 import sbt.Keys.resolvers
 val mainScala        = "2.13.14"
