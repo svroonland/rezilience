@@ -48,7 +48,7 @@ object BulkheadSpec extends ZIOSpecDefault {
               .foreachParDiscard(1 to max + 2)(_ =>
                 bulkhead(callsCompleted.updateAndGet(_ + 1) *> ZIO.sleep(2.seconds))
               )
-              .withParallelismUnbounded
+              .withParallelism(100)
               .fork
           _                <- TestClock.adjust(1.second)
           nrCallsCompleted <- callsCompleted.get
