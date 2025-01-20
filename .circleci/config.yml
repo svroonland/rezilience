@@ -6,12 +6,12 @@ parameters:
 jobs:
   lint:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.5_2.13.15
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.14! check
+      - run: sbt ++2.13.16! check
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -20,16 +20,16 @@ jobs:
             - "~/.m2"
   check_docs:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.5_2.13.15
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.14! docs/makeMdoc
+      - run: sbt ++2.13.16! docs/makeMdoc
 
   test213_jdk17:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.5_2.13.15
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
 
     steps:
       - checkout
@@ -42,9 +42,9 @@ jobs:
             - "~/.cache/coursier/"
             - "~/.sbt"
             - "~/.m2"
-  test213_jdk11:
+  test213_jdk23:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.5_2.13.15
+      - image: sbtscala/scala-sbt:eclipse-temurin-23.0.1_11_1.10.7_2.13.16
     steps:
       - checkout
       - restore_cache:
@@ -58,12 +58,12 @@ jobs:
             - "~/.m2"
   test_dotty_jdk17:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.5_3.3.4
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_3.3.4
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++3.3.3! rezilienceJVM/test
+      - run: sbt ++3.3.4! rezilienceJVM/test
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -72,7 +72,7 @@ jobs:
             - "~/.m2"
   release:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.5_2.13.15
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
     steps:
       - checkout
       - run: git fetch --tags
@@ -87,13 +87,13 @@ jobs:
 
   publish_docs:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.5_2.13.15
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
     steps:
       - checkout
       - run: apt-get update
       - run: apt-get install -y ruby-full build-essential zlib1g-dev
       - run: gem install jekyll bundler
-      - run: sbt ++2.13.14! publishLocal docs/publishMicrosite
+      - run: sbt ++2.13.16! publishLocal docs/publishMicrosite
 
 workflows:
   version: 2
@@ -113,7 +113,7 @@ workflows:
           filters:
             tags:
               only: << pipeline.parameters.tag_regex >>
-      - test213_jdk11:
+      - test213_jdk23:
           filters:
             tags:
               only: << pipeline.parameters.tag_regex >>
@@ -124,7 +124,7 @@ workflows:
       - release:
           requires:
             - test213_jdk17
-            - test213_jdk11
+            - test213_jdk23
             - test_dotty_jdk17
             - check_docs
           filters:
