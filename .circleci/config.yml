@@ -35,7 +35,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.14! compile rezilienceJVM/test config/test
+      - run: sbt ++2.13.16! compile rezilienceJVM/test config/test
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -49,7 +49,7 @@ jobs:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.14! compile rezilienceJVM/test
+      - run: sbt ++2.13.16! compile rezilienceJVM/test
       - save_cache:
           key: sbt-cache-3
           paths:
