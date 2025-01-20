@@ -1,7 +1,6 @@
 package nl.vroste.rezilience
 
 import nl.vroste.rezilience.Timeout.CallTimedOut
-import zio.ZIO
 import zio._
 import zio.test.Assertion._
 import zio.test.TestAspect.nonFlaky
