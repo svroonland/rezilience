@@ -17,10 +17,8 @@ import java.time.Instant
  *     call statistics, eg failure count. When the statistics satisfy some criteria, the circuit breaker is 'tripped'
  *     and set to the Open state. Note that after this switch, in-flight calls are not canceled. Their success or
  *     failure does not affect the circuit breaker anymore though.
- *
  *   - Open: all calls fail fast with a `CircuitBreakerOpen` error. After the reset timeout, the states changes to
  *     HalfOpen
- *
  *   - HalfOpen: the first call is let through. Meanwhile all other calls fail with a `CircuitBreakerOpen` error. If the
  *     first call succeeds, the state changes to Closed again (normal operation). If it fails, the state changes back to
  *     Open. The reset timeout is governed by a reset policy, which is typically an exponential backoff.
