@@ -29,17 +29,19 @@ object SwitchablePolicySpec extends ZIOSpecDefault {
 
         ZIO.scoped {
           for {
-            callWithPolicy                 <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
-            waitForLatch                   <- waitForLatch
-            WaitForLatch(e, started, latch) = waitForLatch
-            fib                            <- callWithPolicy(e).fork
-            _                              <- started.await
-            fib2                           <- callWithPolicy(e).fork
-            _                              <- callWithPolicy.switch(ZIO.succeed(Policy.noop))
-            _                              <- callWithPolicy(ZIO.unit) // Should return immediately with the new noop policy
-            _                              <- latch.succeed(())
-            _                              <- fib.join
-            _                              <- fib2.join
+            callWithPolicy <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
+            waitForLatch   <- waitForLatch
+            e               = waitForLatch.effect
+            started         = waitForLatch.started
+            latch           = waitForLatch.latch
+            fib            <- callWithPolicy(e).fork
+            _              <- started.await
+            fib2           <- callWithPolicy(e).fork
+            _              <- callWithPolicy.switch(ZIO.succeed(Policy.noop))
+            _              <- callWithPolicy(ZIO.unit) // Should return immediately with the new noop policy
+            _              <- latch.succeed(())
+            _              <- fib.join
+            _              <- fib2.join
           } yield assertCompletes
         }
 
@@ -49,17 +51,18 @@ object SwitchablePolicySpec extends ZIOSpecDefault {
 
         ZIO.scoped {
           for {
-            callWithPolicy                 <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
-            waitForLatch                   <- waitForLatch
-            WaitForLatch(e, started, latch) = waitForLatch
-            fib                            <- callWithPolicy(e).fork
-            _                              <- started.await
-            fib2                           <- callWithPolicy(e).fork
-            oldPolicyReleased              <- callWithPolicy.switch(ZIO.succeed(Policy.noop))
-            _                              <- fib.interrupt
-            _                              <- fib2.interrupt
-            _                              <- oldPolicyReleased
-            _                              <- callWithPolicy(ZIO.unit) // Should return immediately with the new noop policy
+            callWithPolicy    <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
+            waitForLatch      <- waitForLatch
+            e                  = waitForLatch.effect
+            started            = waitForLatch.started
+            fib               <- callWithPolicy(e).fork
+            _                 <- started.await
+            fib2              <- callWithPolicy(e).fork
+            oldPolicyReleased <- callWithPolicy.switch(ZIO.succeed(Policy.noop))
+            _                 <- fib.interrupt
+            _                 <- fib2.interrupt
+            _                 <- oldPolicyReleased
+            _                 <- callWithPolicy(ZIO.unit) // Should return immediately with the new noop policy
           } yield assertCompletes
         }
       }
@@ -91,18 +94,20 @@ object SwitchablePolicySpec extends ZIOSpecDefault {
 
         ZIO.scoped {
           for {
-            callWithPolicy                 <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
-            waitForLatch                   <- waitForLatch
-            WaitForLatch(e, started, latch) = waitForLatch
-            fib                            <- callWithPolicy(e).fork
-            _                              <- started.await
-            fib2                           <- callWithPolicy(e).fork
-            _                              <- callWithPolicy.switch(ZIO.succeed(Policy.noop), SwitchablePolicy.Mode.FinishInFlight)
-            callWithNewPolicySucceeded     <- Promise.make[Nothing, Unit]
-            fib3                           <- callWithPolicy(
-                                                ZIO.fail("Effect was executed before latch closed").unlessZIO(latch.isDone) *>
-                                                  callWithNewPolicySucceeded.succeed(())
-                                              ).fork // Should wait until the latch
+            callWithPolicy             <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
+            waitForLatch               <- waitForLatch
+            e                           = waitForLatch.effect
+            started                     = waitForLatch.started
+            latch                       = waitForLatch.latch
+            fib                        <- callWithPolicy(e).fork
+            _                          <- started.await
+            fib2                       <- callWithPolicy(e).fork
+            _                          <- callWithPolicy.switch(ZIO.succeed(Policy.noop), SwitchablePolicy.Mode.FinishInFlight)
+            callWithNewPolicySucceeded <- Promise.make[Nothing, Unit]
+            fib3                       <- callWithPolicy(
+                                            ZIO.fail("Effect was executed before latch closed").unlessZIO(latch.isDone) *>
+                                              callWithNewPolicySucceeded.succeed(())
+                                          ).fork // Should wait until the latch
             _ <- latch.succeed(())
             _ <- fib3.join
             _ <- fib.join
@@ -115,20 +120,22 @@ object SwitchablePolicySpec extends ZIOSpecDefault {
 
         ZIO.scoped {
           for {
-            callWithPolicy                 <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
-            waitForLatch                   <- waitForLatch
-            WaitForLatch(e, started, latch) = waitForLatch
-            fib                            <- callWithPolicy(e).fork
-            _                              <- started.await
-            fib2                           <- callWithPolicy(e).fork
-            released                       <- callWithPolicy.switch(ZIO.succeed(Policy.noop), SwitchablePolicy.Mode.FinishInFlight)
-            callWithNewPolicySucceeded     <- Promise.make[Nothing, Unit]
-            fib3                           <- callWithPolicy(callWithNewPolicySucceeded.succeed(())).fork // Should wait until the latch
-            _                              <- fib.interrupt
-            _                              <- fib2.interrupt
-            _                              <- released
-            _                              <- latch.succeed(())
-            _                              <- fib3.join
+            callWithPolicy             <- SwitchablePolicy.make[Any, Nothing, Any](initialPolicy)
+            waitForLatch               <- waitForLatch
+            e                           = waitForLatch.effect
+            started                     = waitForLatch.started
+            latch                       = waitForLatch.latch
+            fib                        <- callWithPolicy(e).fork
+            _                          <- started.await
+            fib2                       <- callWithPolicy(e).fork
+            released                   <- callWithPolicy.switch(ZIO.succeed(Policy.noop), SwitchablePolicy.Mode.FinishInFlight)
+            callWithNewPolicySucceeded <- Promise.make[Nothing, Unit]
+            fib3                       <- callWithPolicy(callWithNewPolicySucceeded.succeed(())).fork // Should wait until the latch
+            _                          <- fib.interrupt
+            _                          <- fib2.interrupt
+            _                          <- released
+            _                          <- latch.succeed(())
+            _                          <- fib3.join
           } yield assertCompletes
         }
       }
