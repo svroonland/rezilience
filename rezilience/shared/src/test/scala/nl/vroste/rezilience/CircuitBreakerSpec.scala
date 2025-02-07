@@ -88,6 +88,48 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         assert(s5)(equalTo(State.HalfOpen)) &&
         assert(s6)(equalTo(State.Closed))).tapErrorCause(result => ZIO.debug(result))
     },
+    test("have not stuck in HalfOpen if some defect happens") {
+      (for {
+        cb  <- CircuitBreaker.withMaxFailures(1)
+        _   <- cb(ZIO.fail(MyCallError)).either
+        s1  <- cb.currentState // Open
+        _   <- TestClock.adjust(1.second)
+        s20 <- cb.currentState // HalfOpen
+        _   <- cb(ZIO.dieMessage("Boom")).catchAllDefect(_ => ZIO.unit)
+        s21 <- cb.currentState // Still HalfOpen but not stuck
+        e1  <- cb(ZIO.fail(MyCallError)).either
+        s3  <- cb.currentState // Open again
+      } yield assert(s1)(equalTo(State.Open)) &&
+        assert(s20)(equalTo(State.HalfOpen)) &&
+        assert(s21)(equalTo(State.HalfOpen)) &&
+        assert(s3)(equalTo(State.Open)) &&
+        assert(e1)(isLeft(equalTo(WrappedError(MyCallError))))).tapErrorCause(result => ZIO.debug(result))
+    },
+    test("have not stuck in HalfOpen if evaluation takes a long long time") {
+      (for {
+        cb          <- CircuitBreaker.withMaxFailures(1)
+        _           <- cb(ZIO.fail(MyCallError)).either
+        s1          <- cb.currentState // Open
+        _           <- TestClock.adjust(1.second)
+        s21         <- cb.currentState // HalfOpen
+        logTimeEval <- cb(ZIO.sleep(660.second) *> ZIO.dieMessage("Boom!")).forkDaemon
+        _           <- TestClock.adjust(599.second)
+        s22         <- cb.currentState // Stuck in HalfOpen
+        e1          <- cb(ZIO.fail(MyCallError)).either
+        _           <- TestClock.adjust(601.second)
+        s23         <- cb.currentState // Still HalfOpen but not stuck
+        e2          <- cb(ZIO.fail(MyCallError)).either
+        s3          <- cb.currentState // Open again
+        _           <- TestClock.adjust(1.second)
+        _           <- logTimeEval.interrupt
+      } yield assert(s1)(equalTo(State.Open)) &&
+        assert(s21)(equalTo(State.HalfOpen)) &&
+        assert(s22)(equalTo(State.HalfOpen)) &&
+        assert(e1)(isLeft(equalTo(CircuitBreakerOpen))) &&
+        assert(s23)(equalTo(State.HalfOpen)) &&
+        assert(s3)(equalTo(State.Open)) &&
+        assert(e2)(isLeft(equalTo(WrappedError(MyCallError))))).tapErrorCause(result => ZIO.debug(result))
+    },
     test("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
       for {
         cb                <- CircuitBreaker.withMaxFailures(
