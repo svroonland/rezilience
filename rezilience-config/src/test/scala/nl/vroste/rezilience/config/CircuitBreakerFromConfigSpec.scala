@@ -15,7 +15,7 @@ object CircuitBreakerFromConfigSpec extends ZIOSpecDefault {
                                                 |  tripping-strategy {
                                                 |    max-failures = 1
                                                 |  }
-                                                |  
+                                                |
                                                 |  reset-schedule {
                                                 |    min = 3 seconds
                                                 |  }
@@ -40,7 +40,7 @@ object CircuitBreakerFromConfigSpec extends ZIOSpecDefault {
                                                 |    min-throughput = 1
                                                 |    nr-sample-buckets = 2
                                                 |  }
-                                                |  
+                                                |
                                                 |  reset-schedule {
                                                 |    min = 3 seconds
                                                 |  }
