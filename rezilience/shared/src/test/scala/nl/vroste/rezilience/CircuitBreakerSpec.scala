@@ -1,6 +1,6 @@
 package nl.vroste.rezilience
 
-import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerOpen, State, WrappedError }
+import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerOpen, MetricSettings, State, WrappedError }
 import zio._
 import zio.metrics.{ Metric, MetricLabel }
 import zio.stream.ZStream
@@ -170,7 +170,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         for {
           labels             <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           _                  <- CircuitBreaker
-                                  .withMaxFailures(3, metricLabels = Some(labels))
+                                  .withMaxFailures(3, metricSettings = Some(MetricSettings(labels)))
           metricState        <- Metric.gauge("rezilience_circuit_breaker_calls_state").tagged(labels).value
           metricStateChanges <- Metric.counter("rezilience_circuit_breaker_calls_state_changes").tagged(labels).value
           metricSuccess      <- Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels).value
@@ -184,7 +184,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         for {
           labels        <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           cb            <- CircuitBreaker
-                             .withMaxFailures(3, metricLabels = Some(labels))
+                             .withMaxFailures(3, metricSettings = Some(MetricSettings(labels)))
           _             <- cb(ZIO.unit)
           _             <- cb(ZIO.fail("Failed")).either
           metricSuccess <- Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels).value
@@ -195,7 +195,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         for {
           labels <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           cb     <- CircuitBreaker
-                      .withMaxFailures(10, Schedule.exponential(1.second), metricLabels = Some(labels))
+                      .withMaxFailures(10, Schedule.exponential(1.second), metricSettings = Some(MetricSettings(labels)))
 
           metricStateChanges = Metric.counter("rezilience_circuit_breaker_state_changes").tagged(labels)
           metricState        = Metric.gauge("rezilience_circuit_breaker_state").tagged(labels)

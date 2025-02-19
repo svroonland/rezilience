@@ -116,6 +116,16 @@ object CircuitBreaker {
   }
 
   /**
+   * Settings for metrics
+   *
+   * @param labels
+   *   Set of labels to annotate metrics with, to distinguish this circuit breaker from others in the same application.
+   */
+  final case class MetricSettings(
+    labels: Set[MetricLabel]
+  )
+
+  /**
    * Create a CircuitBreaker that fails when a number of successive failures (no pun intended) has been counted
    *
    * @param maxFailures
@@ -125,9 +135,8 @@ object CircuitBreaker {
    * @param isFailure
    *   Only failures that match according to `isFailure` are treated as failures by the circuit breaker. Other failures
    *   are passed on, circumventing the circuit breaker's failure counter.
-   * @param metricLabels
-   *   Set of labels to annotate metrics with, to distinguish this circuit breaker from others in the same application.
-   *   No metrics are recorded if None is passed.
+   * @param metricSettings
+   *   Settings for recording metrics. No metrics are recorded if None is passed.
    * @return
    *   The CircuitBreaker as a managed resource
    */
@@ -135,9 +144,9 @@ object CircuitBreaker {
     maxFailures: Int,
     resetPolicy: Schedule[Any, Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
-    metricLabels: Option[Set[MetricLabel]] = None
+    metricSettings: Option[MetricSettings] = None
   ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
-    make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, metricLabels)
+    make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, metricSettings)
 
   /**
    * Create a CircuitBreaker with the given tripping strategy
@@ -159,7 +168,7 @@ object CircuitBreaker {
     resetPolicy: Schedule[Any, Any, Any] =
       Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
-    metricLabels: Option[Set[MetricLabel]] = None
+    metricSettings: Option[MetricSettings] = None
   ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
     for {
       strategy        <- trippingStrategy
@@ -176,7 +185,7 @@ object CircuitBreaker {
                            schedule,
                            isFailure,
                            halfOpenSwitch,
-                           metricLabels
+                           metricSettings
                          )
       _               <- cb.resetProcess
       _               <- cb.trackStateChanges
@@ -190,12 +199,12 @@ object CircuitBreaker {
     schedule: Schedule.Driver[ScheduleState, Any, Any, Any],
     isFailure: PartialFunction[E, Boolean],
     halfOpenSwitch: Ref[Boolean],
-    labels: Option[Set[MetricLabel]]
+    metricSettings: Option[MetricSettings]
   ) extends CircuitBreaker[E] {
 
     override val stateChanges: ZIO[Scope, Nothing, Dequeue[StateChange]] = stateChangesHub.subscribe
 
-    val metrics = labels.map { labels =>
+    val metrics = metricSettings.map(_.labels).map { labels =>
       CircuitBreakerMetrics(
         state = Metric
           .gauge("rezilience_circuit_breaker_state")
@@ -325,7 +334,7 @@ object CircuitBreaker {
       schedule,
       pf andThen isFailure,
       halfOpenSwitch,
-      labels
+      metricSettings
     )
 
     override def currentState: UIO[State] = state.get
