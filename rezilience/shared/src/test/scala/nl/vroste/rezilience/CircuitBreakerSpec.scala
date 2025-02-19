@@ -88,6 +88,19 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         assert(s5)(equalTo(State.HalfOpen)) &&
         assert(s6)(equalTo(State.Closed))).tapErrorCause(result => ZIO.debug(result))
     },
+    test("have not stuck in HalfOpen if some defect happens") {
+      for {
+        cb <- CircuitBreaker.withMaxFailures(1)
+        _  <- cb(ZIO.fail(MyCallError)).either
+        s1 <- cb.currentState // Open
+        _  <- TestClock.adjust(1.second)
+        s2 <- cb.currentState // HalfOpen
+        _  <- cb(ZIO.dieMessage("Boom")).catchAllDefect(_ => ZIO.unit)
+        s3 <- cb.currentState // Back to Open
+      } yield assert(s1)(equalTo(State.Open)) &&
+        assert(s2)(equalTo(State.HalfOpen)) &&
+        assert(s3)(equalTo(State.Open))
+    },
     test("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
       for {
         cb                <- CircuitBreaker.withMaxFailures(

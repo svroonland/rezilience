@@ -288,7 +288,8 @@ object CircuitBreaker {
                                                tapZIOOnUserDefinedFailure(f)(
                                                  onFailure = (strategy.shouldTrip(false) *> changeToOpen).uninterruptible,
                                                  onSuccess = (changeToClosed *> strategy.onReset).uninterruptible
-                                               ).mapError(WrappedError(_))
+                                               ).tapDefect(_ => (strategy.shouldTrip(false) *> changeToOpen).uninterruptible)
+                                                 .mapError(WrappedError(_))
                                              } else {
                                                ZIO.fail(CircuitBreakerOpen)
                                              }
