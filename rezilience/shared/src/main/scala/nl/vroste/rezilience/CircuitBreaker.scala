@@ -2,7 +2,6 @@ package nl.vroste.rezilience
 
 import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerCallError, State, StateChange }
 import nl.vroste.rezilience.Policy.PolicyError
-import nl.vroste.rezilience.Util.onDurationExceeding
 import zio._
 import zio.metrics.{ Metric, MetricLabel }
 import zio.stream.ZStream
@@ -286,16 +285,11 @@ object CircuitBreaker {
                             for {
                               isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
                               result      <- if (isFirstCall) {
-                                               tapZIOOnUserDefinedFailure(
-                                                 // Catch some defect and release the halfOpenSwitch, preventing it from getting stuck in HalfOpen
-                                                 f.tapDefect(_ => halfOpenSwitch.set(true)) @@
-                                                   // Detect long evaluation and release the halfOpenSwitch so that other f gets
-                                                   // a chance to change the CircuitBreaker state, preventing it from getting stuck in HalfOpen
-                                                   onDurationExceeding(10.minute)(_ => halfOpenSwitch.set(true))
-                                               )(
+                                               tapZIOOnUserDefinedFailure(f)(
                                                  onFailure = (strategy.shouldTrip(false) *> changeToOpen).uninterruptible,
                                                  onSuccess = (changeToClosed *> strategy.onReset).uninterruptible
-                                               ).mapError(WrappedError(_))
+                                               ).tapDefect(_ => (strategy.shouldTrip(false) *> changeToOpen).uninterruptible)
+                                                 .mapError(WrappedError(_))
                                              } else {
                                                ZIO.fail(CircuitBreakerOpen)
                                              }
