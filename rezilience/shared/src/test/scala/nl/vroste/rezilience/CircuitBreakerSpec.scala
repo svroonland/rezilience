@@ -165,24 +165,9 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         assertTrue(error2.asInstanceOf[WrappedError[Error]].error == MyNotFatalError) &&
         assertTrue(nrCalls == 1)
     },
-    suiteAll("metrics") {
-
-      val metricStateKey =
-        MetricKey.gauge("rezilience_circuit_breaker_state").tagged(_: Set[MetricLabel])
-
-      val metricStateChangesKey =
-        MetricKey.counter("rezilience_circuit_breaker_state_changes").tagged(_: Set[MetricLabel])
-
-      val metricSuccessKey =
-        MetricKey.counter("rezilience_circuit_breaker_calls_success").tagged(_: Set[MetricLabel])
-
-      val metricFailedKey =
-        MetricKey.counter("rezilience_circuit_breaker_calls_failure").tagged(_: Set[MetricLabel])
-
-      val metricRejectedKey =
-        MetricKey.counter("rezilience_circuit_breaker_calls_rejected").tagged(_: Set[MetricLabel])
-
+    suite("metrics")(
       test("has suitable initial metric values") {
+        import MetricsStuff._
         for {
           labels             <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           _                  <- CircuitBreaker
@@ -199,9 +184,9 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
             metricStateChanges.get.count == 0 &&
             metricRejected.get.count == 0
         )
-      }
-
+      },
       test("tracks successful and failed calls") {
+        import MetricsStuff._
         for {
           labels        <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           cb            <- CircuitBreaker
@@ -214,9 +199,9 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
           metricSuccess.get.count == 1 &&
             metricFailed.get.count == 1
         )
-      }
-
+      },
       test("records state changes") {
+        import MetricsStuff._
         for {
           labels <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           cb     <- CircuitBreaker
@@ -239,18 +224,34 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
             stateFinal.get.value == 0.0
         )
       }
-
-    } @@ withLiveRandom
+    ) @@ withLiveRandom
   ) @@ nonFlaky
 
-  implicit class MetricKeyOps[Type](val metricKey: MetricKey[Type]) extends AnyVal {
-    def current[Out <: MetricState[Type]]: Task[Option[Out]] =
-      ZIO.metrics.map {
-        _.metrics.collectFirst {
-          case metricPair if metricPair.metricKey == metricKey =>
-            metricPair.metricState.asInstanceOf[Out]
+  object MetricsStuff {
+
+    val metricStateKey = MetricKey.gauge("rezilience_circuit_breaker_state").tagged(_: Set[MetricLabel])
+
+    val metricStateChangesKey =
+      MetricKey.counter("rezilience_circuit_breaker_state_changes").tagged(_: Set[MetricLabel])
+
+    val metricSuccessKey =
+      MetricKey.counter("rezilience_circuit_breaker_calls_success").tagged(_: Set[MetricLabel])
+
+    val metricFailedKey =
+      MetricKey.counter("rezilience_circuit_breaker_calls_failure").tagged(_: Set[MetricLabel])
+
+    val metricRejectedKey =
+      MetricKey.counter("rezilience_circuit_breaker_calls_rejected").tagged(_: Set[MetricLabel])
+
+    implicit class MetricKeyOps[Type](val metricKey: MetricKey[Type]) extends AnyVal {
+      def current[Out <: MetricState[Type]]: Task[Option[Out]] =
+        ZIO.metrics.map {
+          _.metrics.collectFirst {
+            case metricPair if metricPair.metricKey == metricKey =>
+              metricPair.metricState.asInstanceOf[Out]
+          }
         }
-      }
+    }
   }
 
 }
