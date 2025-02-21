@@ -215,11 +215,11 @@ object CircuitBreaker {
      */
     val initializeMetrics: UIO[Unit] =
       withMetrics { case CircuitBreakerMetrics(state, nrStateChanges, callsSuccess, callsFailure, callsRejected) =>
-        state.modify(0.0) *>
-          nrStateChanges.modify(0L) *>
-          callsSuccess.modify(0L) *>
-          callsFailure.modify(0L) *>
-          callsRejected.modify(0L)
+        state.set(0.0) *>
+          nrStateChanges.update(0L) *>
+          callsSuccess.update(0L) *>
+          callsFailure.update(0L) *>
+          callsRejected.update(0L)
       }
 
     private def withMetrics(f: CircuitBreakerMetrics => UIO[Unit]): UIO[Unit] =

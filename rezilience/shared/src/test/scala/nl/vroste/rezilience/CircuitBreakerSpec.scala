@@ -167,7 +167,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
     },
     suite("metrics")(
       test("has suitable initial metric values") {
-        import MetricsStuff._
+        import Metrics._
         for {
           labels             <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           _                  <- CircuitBreaker
@@ -186,7 +186,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         )
       },
       test("tracks successful and failed calls") {
-        import MetricsStuff._
+        import Metrics._
         for {
           labels        <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           cb            <- CircuitBreaker
@@ -201,7 +201,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         )
       },
       test("records state changes") {
-        import MetricsStuff._
+        import Metrics._
         for {
           labels <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           cb     <- CircuitBreaker
@@ -227,7 +227,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
     ) @@ withLiveRandom
   ) @@ nonFlaky
 
-  object MetricsStuff {
+  object Metrics {
 
     val metricStateKey = MetricKey.gauge("rezilience_circuit_breaker_state").tagged(_: Set[MetricLabel])
 
