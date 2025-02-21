@@ -178,6 +178,7 @@ object CircuitBreaker {
                            halfOpenSwitch,
                            metricLabels
                          )
+      _               <- cb.initializeMetrics
       _               <- cb.resetProcess
       _               <- cb.trackStateChanges
     } yield cb
@@ -195,7 +196,7 @@ object CircuitBreaker {
 
     override val stateChanges: ZIO[Scope, Nothing, Dequeue[StateChange]] = stateChangesHub.subscribe
 
-    val metrics = labels.map { labels =>
+    private val metrics = labels.map { labels =>
       CircuitBreakerMetrics(
         state = Metric
           .gauge("rezilience_circuit_breaker_state")
@@ -208,6 +209,18 @@ object CircuitBreaker {
           .tagged(labels)
       )
     }
+
+    /**
+     * Initializes metrics with defaults and notifies listeners about changes in the meter registry
+     */
+    val initializeMetrics: UIO[Unit] =
+      withMetrics { case CircuitBreakerMetrics(state, nrStateChanges, callsSuccess, callsFailure, callsRejected) =>
+        state.set(0.0) *>
+          nrStateChanges.update(0L) *>
+          callsSuccess.update(0L) *>
+          callsFailure.update(0L) *>
+          callsRejected.update(0L)
+      }
 
     private def withMetrics(f: CircuitBreakerMetrics => UIO[Unit]): UIO[Unit] =
       ZIO.fromOption(metrics).flatMap(f).ignore

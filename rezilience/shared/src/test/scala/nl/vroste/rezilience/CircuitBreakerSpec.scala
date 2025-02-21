@@ -2,7 +2,7 @@ package nl.vroste.rezilience
 
 import nl.vroste.rezilience.CircuitBreaker.{ CircuitBreakerOpen, State, WrappedError }
 import zio._
-import zio.metrics.{ Metric, MetricLabel }
+import zio.metrics.{ MetricKey, MetricLabel, MetricState }
 import zio.stream.ZStream
 import zio.test.Assertion._
 import zio.test.TestAspect.{ nonFlaky, withLiveRandom }
@@ -167,56 +167,91 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
     },
     suite("metrics")(
       test("has suitable initial metric values") {
+        import Metrics._
         for {
           labels             <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           _                  <- CircuitBreaker
                                   .withMaxFailures(3, metricLabels = Some(labels))
-          metricState        <- Metric.gauge("rezilience_circuit_breaker_calls_state").tagged(labels).value
-          metricStateChanges <- Metric.counter("rezilience_circuit_breaker_calls_state_changes").tagged(labels).value
-          metricSuccess      <- Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels).value
-          metricFailed       <- Metric.counter("rezilience_circuit_breaker_calls_failure").tagged(labels).value
-          metricRejected     <- Metric.counter("rezilience_circuit_breaker_calls_rejected").tagged(labels).value
+          metricState        <- metricStateKey(labels).current[MetricState.Gauge]
+          metricStateChanges <- metricStateChangesKey(labels).current[MetricState.Counter]
+          metricSuccess      <- metricSuccessKey(labels).current[MetricState.Counter]
+          metricFailed       <- metricFailedKey(labels).current[MetricState.Counter]
+          metricRejected     <- metricRejectedKey(labels).current[MetricState.Counter]
         } yield assertTrue(
-          metricSuccess.count == 0 && metricFailed.count == 0 && metricState.value == 0.0 && metricStateChanges.count == 0 && metricRejected.count == 0
+          metricSuccess.get.count == 0 &&
+            metricFailed.get.count == 0 &&
+            metricState.get.value == 0.0 &&
+            metricStateChanges.get.count == 0 &&
+            metricRejected.get.count == 0
         )
       },
       test("tracks successful and failed calls") {
+        import Metrics._
         for {
           labels        <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           cb            <- CircuitBreaker
                              .withMaxFailures(3, metricLabels = Some(labels))
           _             <- cb(ZIO.unit)
           _             <- cb(ZIO.fail("Failed")).either
-          metricSuccess <- Metric.counter("rezilience_circuit_breaker_calls_success").tagged(labels).value
-          metricFailed  <- Metric.counter("rezilience_circuit_breaker_calls_failure").tagged(labels).value
-        } yield assertTrue(metricSuccess.count == 1 && metricFailed.count == 1)
+          metricSuccess <- metricSuccessKey(labels).current[MetricState.Counter]
+          metricFailed  <- metricFailedKey(labels).current[MetricState.Counter]
+        } yield assertTrue(
+          metricSuccess.get.count == 1 &&
+            metricFailed.get.count == 1
+        )
       },
       test("records state changes") {
+        import Metrics._
         for {
           labels <- ZIO.randomWith(_.nextUUID).map(uuid => Set(MetricLabel("test_id", uuid.toString)))
           cb     <- CircuitBreaker
                       .withMaxFailures(10, Schedule.exponential(1.second), metricLabels = Some(labels))
 
-          metricStateChanges = Metric.counter("rezilience_circuit_breaker_state_changes").tagged(labels)
-          metricState        = Metric.gauge("rezilience_circuit_breaker_state").tagged(labels)
-
           _                  <- ZIO.foreachDiscard(1 to 10)(_ => cb(ZIO.fail(MyCallError)).either)
           _                  <- TestClock.adjust(0.second)
-          stateAfterFailures <- metricState.value
+          stateAfterFailures <- metricStateKey(labels).current[MetricState.Gauge]
           _                  <- TestClock.adjust(1.second)
-          stateAfterReset    <- metricState.value
+          stateAfterReset    <- metricStateKey(labels).current[MetricState.Gauge]
           _                  <- TestClock.adjust(1.second)
           _                  <- cb(ZIO.unit)
           _                  <- TestClock.adjust(1.second)
-          stateChanges       <- metricStateChanges.value
-          stateFinal         <- metricState.value
+          stateChanges       <- metricStateChangesKey(labels).current[MetricState.Counter]
+          stateFinal         <- metricStateKey(labels).current[MetricState.Gauge]
         } yield assertTrue(
-          stateChanges.count == 3 &&
-            stateAfterFailures.value == 2.0 &&
-            stateAfterReset.value == 1.0 &&
-            stateFinal.value == 0.0
+          stateChanges.get.count == 3 &&
+            stateAfterFailures.get.value == 2.0 &&
+            stateAfterReset.get.value == 1.0 &&
+            stateFinal.get.value == 0.0
         )
       }
     ) @@ withLiveRandom
   ) @@ nonFlaky
+
+  object Metrics {
+
+    val metricStateKey = MetricKey.gauge("rezilience_circuit_breaker_state").tagged(_: Set[MetricLabel])
+
+    val metricStateChangesKey =
+      MetricKey.counter("rezilience_circuit_breaker_state_changes").tagged(_: Set[MetricLabel])
+
+    val metricSuccessKey =
+      MetricKey.counter("rezilience_circuit_breaker_calls_success").tagged(_: Set[MetricLabel])
+
+    val metricFailedKey =
+      MetricKey.counter("rezilience_circuit_breaker_calls_failure").tagged(_: Set[MetricLabel])
+
+    val metricRejectedKey =
+      MetricKey.counter("rezilience_circuit_breaker_calls_rejected").tagged(_: Set[MetricLabel])
+
+    implicit class MetricKeyOps[Type](val metricKey: MetricKey[Type]) extends AnyVal {
+      def current[Out <: MetricState[Type]]: Task[Option[Out]] =
+        ZIO.metrics.map {
+          _.metrics.collectFirst {
+            case metricPair if metricPair.metricKey == metricKey =>
+              metricPair.metricState.asInstanceOf[Out]
+          }
+        }
+    }
+  }
+
 }
