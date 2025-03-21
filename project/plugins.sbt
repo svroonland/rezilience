@@ -5,7 +5,7 @@ addSbtPlugin("org.typelevel"      % "sbt-tpolecat"             % "0.5.2")
 addSbtPlugin("com.eed3si9n"       % "sbt-assembly"             % "2.3.1")
 addSbtPlugin("org.scala-js"       % "sbt-scalajs"              % "1.18.2")
 addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject" % "1.3.2")
-addSbtPlugin("io.shiftleft"       % "sbt-ci-release-early"     % "2.0.48")
+addSbtPlugin("io.shiftleft"       % "sbt-ci-release-early"     % "2.0.49")
 addSbtPlugin("com.47deg"          % "sbt-microsites"           % "1.4.4")
 addSbtPlugin("com.github.sbt"     % "sbt-unidoc"               % "0.5.0")
 
