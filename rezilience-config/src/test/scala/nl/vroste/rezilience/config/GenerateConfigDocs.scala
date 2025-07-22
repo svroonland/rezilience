@@ -21,6 +21,5 @@ object GenerateConfigDocs extends zio.ZIOAppDefault {
                 |# Timeout
                 | ${zio.config.generateDocs(TimeoutConfig.config).toTable.toGithubFlavouredMarkdown}
                 |""".stripMargin)
-      .exitCode
 
 }

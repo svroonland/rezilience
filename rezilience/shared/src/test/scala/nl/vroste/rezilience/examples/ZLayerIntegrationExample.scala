@@ -121,5 +121,4 @@ object ZLayerIntegrationExample extends zio.ZIOAppDefault {
   override def run =
     (ResilientDatabase.transfer(1, "a", "b") *> ResilientDatabase.transfer(3, "b", "a"))
       .provideLayer(env)
-      .exitCode
 }
