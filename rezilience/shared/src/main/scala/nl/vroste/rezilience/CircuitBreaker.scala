@@ -303,6 +303,7 @@ object CircuitBreaker {
                                                  onSuccess = (changeToClosed *> strategy.onReset).uninterruptible
                                                ).tapDefect(_ => (strategy.shouldTrip(false) *> changeToOpen).uninterruptible)
                                                  .mapError(WrappedError(_))
+                                                 .onInterrupt(halfOpenSwitch.set(true))
                                              } else {
                                                ZIO.fail(CircuitBreakerOpen)
                                              }
