@@ -101,6 +101,33 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         assert(s2)(equalTo(State.HalfOpen)) &&
         assert(s3)(equalTo(State.Open))
     },
+    test("allow next call on interrupt in HalfOpen") {
+      checkAll(
+        Gen.fromIterable(
+          List(
+            ZIO.unit              -> State.Closed,
+            ZIO.fail(MyCallError) -> State.Open
+          )
+        )
+      ) { case (finalCall, finalState) =>
+        for {
+          cb <- CircuitBreaker.withMaxFailures(1)
+          _  <- cb(ZIO.fail(MyCallError)).either
+          s1 <- cb.currentState // Open
+          _  <- TestClock.adjust(1.second)
+          s2 <- cb.currentState // HalfOpen
+          _  <- cb(ZIO.interrupt).exit
+          s3 <- cb.currentState // Still HalfOpen
+          _  <- cb(finalCall).exit
+          s4 <- cb.currentState
+        } yield assertTrue(
+          s1 == State.Open,
+          s2 == State.HalfOpen,
+          s3 == State.HalfOpen,
+          s4 == finalState
+        )
+      }
+    },
     test("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
       for {
         cb                <- CircuitBreaker.withMaxFailures(
