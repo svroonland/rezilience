@@ -109,6 +109,33 @@ object BulkheadSpec extends ZIOSpecDefault {
           _           <- interrupted.await
         } yield assertCompletes
       }
+    },
+    test("can handle interrupts with another call enqueued") {
+      ZIO.scoped {
+        for {
+          bulkhead     <- Bulkhead.make(1)
+          waitForLatch <- waitForLatch
+          e             = waitForLatch.effect
+          started       = waitForLatch.started
+          fib          <- bulkhead(e).fork
+          _            <- started.await
+          fib2         <- bulkhead(e).fork
+          _            <- fib.interrupt
+          _            <- fib2.interrupt
+        } yield assertCompletes
+      }
     }
   ) @@ nonFlaky @@ timeout(120.seconds) @@ timed
+
+  case class WaitForLatch(
+    effect: ZIO[Any, Nothing, Unit],
+    started: Promise[Nothing, Unit],
+    latch: Promise[Nothing, Unit]
+  )
+
+  val waitForLatch: ZIO[Any, Nothing, WaitForLatch] = for {
+    latch   <- Promise.make[Nothing, Unit]
+    started <- Promise.make[Nothing, Unit]
+    effect   = started.succeed(()) *> latch.await
+  } yield WaitForLatch(effect, started, latch)
 }
