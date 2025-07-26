@@ -43,16 +43,19 @@ object BulkheadSpec extends ZIOSpecDefault {
         for {
           bulkhead         <- Bulkhead.make(max)
           callsCompleted   <- Ref.make(0)
+          latch            <- waitForLatch
           calls            <-
             ZIO
               .foreachParDiscard(1 to max + 2)(_ =>
-                bulkhead(callsCompleted.updateAndGet(_ + 1) *> ZIO.sleep(2.seconds))
+                bulkhead(callsCompleted.updateAndGet(_ + 1).flatMap { completed =>
+                  latch.started.succeed(()).when(completed == max)
+                } *> latch.latch.await)
               )
               .withParallelism(100)
               .fork
-          _                <- TestClock.adjust(1.second)
+          _                <- latch.started.await
           nrCallsCompleted <- callsCompleted.get
-          _                <- TestClock.adjust(3.second)
+          _                <- latch.latch.succeed(())
           _                <- calls.join
         } yield assert(nrCallsCompleted)(equalTo(max))
       }
@@ -113,14 +116,14 @@ object BulkheadSpec extends ZIOSpecDefault {
     test("can handle interrupts with another call enqueued") {
       ZIO.scoped {
         for {
-          bulkhead     <- Bulkhead.make(1)
+          bulkhead     <- Bulkhead.make(10)
           waitForLatch <- waitForLatch
           e             = waitForLatch.effect
           started       = waitForLatch.started
-          fib          <- bulkhead(e).fork
+          fibs         <- ZIO.replicateZIO(10)(bulkhead(e).fork)
           _            <- started.await
           fib2         <- bulkhead(e).fork
-          _            <- fib.interrupt
+          _            <- ZIO.foreachDiscard(fibs)(_.interrupt)
           _            <- fib2.interrupt
         } yield assertCompletes
       }
