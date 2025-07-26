@@ -1,6 +1,7 @@
 package nl.vroste.rezilience
 
 import nl.vroste.rezilience.Policy.WrappedError
+import nl.vroste.rezilience.Retry.Schedules
 import zio.test.Assertion.{ equalTo, fails }
 import zio.test.TestAspect.{ nonFlaky, timed, timeout }
 import zio.test._
@@ -47,7 +48,7 @@ object SwitchablePolicySpec extends ZIOSpecDefault {
 
       },
       test("in-flight calls can be interrupted while switching") {
-        val initialPolicy = Bulkhead.make(1).map(_.toPolicy)
+        val initialPolicy = Retry.make(Schedules.common()).map(_.toPolicy)
 
         ZIO.scoped {
           for {
@@ -116,7 +117,7 @@ object SwitchablePolicySpec extends ZIOSpecDefault {
         }
       },
       test("in-flight calls can be interrupted while switching") {
-        val initialPolicy = Bulkhead.make(1).map(_.toPolicy)
+        val initialPolicy = Retry.make(Schedules.common()).map(_.toPolicy)
 
         ZIO.scoped {
           for {
