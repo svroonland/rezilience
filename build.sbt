@@ -34,7 +34,8 @@ inThisBuild(
     scmInfo      := Some(
       ScmInfo(url("https://github.com/svroonland/rezilience/"), "scm:git:git@github.com:svroonland/rezilience.git")
     ),
-    resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
+    resolvers += Resolver.sonatypeCentralSnapshots,
+    resolvers += Resolver.sonatypeCentralRepo("staging")
   )
 )
 
