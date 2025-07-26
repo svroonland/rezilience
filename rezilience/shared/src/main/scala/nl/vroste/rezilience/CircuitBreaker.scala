@@ -298,17 +298,17 @@ object CircuitBreaker {
                             ZIO.uninterruptibleMask { restore =>
                               for {
                                 isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
-                                result      <- if (isFirstCall) {
-                                                 tapZIOOnUserDefinedFailure(
-                                                   restore(f).onInterrupt(halfOpenSwitch.set(true))
-                                                 )(
-                                                   onFailure = strategy.shouldTrip(false) *> changeToOpen,
-                                                   onSuccess = changeToClosed *> strategy.onReset
-                                                 ).tapDefect(_ => strategy.shouldTrip(false) *> changeToOpen)
-                                                   .mapError(WrappedError(_))
-                                               } else {
-                                                 ZIO.fail(CircuitBreakerOpen)
-                                               }
+                                _           <- ZIO.fail(CircuitBreakerOpen).unless(isFirstCall)
+                                result      <-
+                                  tapZIOOnUserDefinedFailure(
+                                    restore(f)
+                                      // We can't judge the state of the called system when the call is interrupted, so we reset back to HalfOpen considering this call to not have happend
+                                      .onInterrupt(halfOpenSwitch.set(true))
+                                  )(
+                                    onFailure = strategy.shouldTrip(false) *> changeToOpen,
+                                    onSuccess = changeToClosed *> strategy.onReset
+                                  ).tapDefect(_ => strategy.shouldTrip(false) *> changeToOpen)
+                                    .mapError(WrappedError(_))
                               } yield result
                             }
                         }
