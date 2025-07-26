@@ -295,19 +295,22 @@ object CircuitBreaker {
                           case Open     =>
                             ZIO.fail(CircuitBreakerOpen)
                           case HalfOpen =>
-                            for {
-                              isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
-                              result      <- if (isFirstCall) {
-                                               tapZIOOnUserDefinedFailure(f)(
-                                                 onFailure = (strategy.shouldTrip(false) *> changeToOpen).uninterruptible,
-                                                 onSuccess = (changeToClosed *> strategy.onReset).uninterruptible
-                                               ).tapDefect(_ => (strategy.shouldTrip(false) *> changeToOpen).uninterruptible)
-                                                 .mapError(WrappedError(_))
-                                                 .onInterrupt(halfOpenSwitch.set(true))
-                                             } else {
-                                               ZIO.fail(CircuitBreakerOpen)
-                                             }
-                            } yield result
+                            ZIO.uninterruptibleMask { restore =>
+                              for {
+                                isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
+                                _           <- ZIO.fail(CircuitBreakerOpen).unless(isFirstCall)
+                                result      <-
+                                  tapZIOOnUserDefinedFailure(
+                                    restore(f)
+                                      // We can't judge the state of the called system when the call is interrupted, so we reset back to HalfOpen considering this call to not have happend
+                                      .onInterrupt(halfOpenSwitch.set(true))
+                                  )(
+                                    onFailure = strategy.shouldTrip(false) *> changeToOpen,
+                                    onSuccess = changeToClosed *> strategy.onReset
+                                  ).tapDefect(_ => strategy.shouldTrip(false) *> changeToOpen)
+                                    .mapError(WrappedError(_))
+                              } yield result
+                            }
                         }
       } yield result)
         .tapBoth(
