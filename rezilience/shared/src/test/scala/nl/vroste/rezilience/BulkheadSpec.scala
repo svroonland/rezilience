@@ -1,7 +1,7 @@
 package nl.vroste.rezilience
 
 import zio.test.Assertion._
-import zio.test.TestAspect.{ nonFlaky, timed, timeout }
+import zio.test.TestAspect.{ nonFlaky, timed, timeout, timeoutWarning }
 import zio.test._
 import zio.{ durationInt, Promise, Ref, ZIO }
 
@@ -114,13 +114,14 @@ object BulkheadSpec extends ZIOSpecDefault {
       }
     },
     test("can handle interrupts with another call enqueued") {
+      val nrCalls = 10
       ZIO.scoped {
         for {
-          bulkhead     <- Bulkhead.make(10)
+          bulkhead     <- Bulkhead.make(nrCalls)
           waitForLatch <- waitForLatch
           e             = waitForLatch.effect
           started       = waitForLatch.started
-          fibs         <- ZIO.replicateZIO(10)(bulkhead(e).fork)
+          fibs         <- ZIO.replicateZIO(nrCalls)(bulkhead(e).fork)
           _            <- started.await
           fib2         <- bulkhead(e).fork
           _            <- ZIO.foreachDiscard(fibs)(_.interrupt)
@@ -128,7 +129,7 @@ object BulkheadSpec extends ZIOSpecDefault {
         } yield assertCompletes
       }
     }
-  ) @@ nonFlaky @@ timeout(120.seconds) @@ timed
+  ) @@ nonFlaky(1000) @@ timeoutWarning(10.seconds) @@ timeout(30.seconds) @@ timed
 
   case class WaitForLatch(
     effect: ZIO[Any, Nothing, Unit],
