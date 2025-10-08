@@ -6,12 +6,12 @@ parameters:
 jobs:
   lint:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-24.0.1_9_1.11.7_2.13.17
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.16! check
+      - run: sbt ++2.13.17! check
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -20,22 +20,22 @@ jobs:
             - "~/.m2"
   check_docs:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-24.0.1_9_1.11.7_2.13.17
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.16! docs/makeMdoc
+      - run: sbt ++2.13.17! docs/makeMdoc
 
   test213_jdk17:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-24.0.1_9_1.11.7_2.13.17
 
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.16! compile rezilienceJVM/test config/test
+      - run: sbt ++2.13.17! compile rezilienceJVM/test config/test
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -44,12 +44,12 @@ jobs:
             - "~/.m2"
   test213_jdk23:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-23.0.1_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-24.0.1_9_1.11.7_2.13.17
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.16! compile rezilienceJVM/test
+      - run: sbt ++2.13.17! compile rezilienceJVM/test
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -72,7 +72,7 @@ jobs:
             - "~/.m2"
   release:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-24.0.1_9_1.11.7_2.13.17
     steps:
       - checkout
       - run: git fetch --tags
@@ -86,13 +86,13 @@ jobs:
 
   publish_docs:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-24.0.1_9_1.11.7_2.13.17
     steps:
       - checkout
       - run: apt-get update
       - run: apt-get install -y ruby-full build-essential zlib1g-dev
       - run: gem install jekyll bundler
-      - run: sbt ++2.13.16! publishLocal docs/publishMicrosite
+      - run: sbt ++2.13.17! publishLocal docs/publishMicrosite
 
 workflows:
   version: 2
