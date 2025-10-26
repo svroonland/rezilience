@@ -2,11 +2,11 @@ import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
 import org.typelevel.scalacoptions.ScalacOptions
 
 import sbt.Keys.resolvers
-val mainScala        = "2.13.16"
-val scala3Version    = "3.3.6"
+val mainScala        = "2.13.17"
+val scala3Version    = "3.3.7"
 val allScala         = Seq(mainScala, scala3Version)
-val zioVersion       = "2.1.20"
-val zioConfigVersion = "4.0.4"
+val zioVersion       = "2.1.22"
+val zioConfigVersion = "4.0.5"
 
 lazy val commonJvmSettings = Seq(
   crossScalaVersions := allScala,
@@ -34,7 +34,8 @@ inThisBuild(
     scmInfo      := Some(
       ScmInfo(url("https://github.com/svroonland/rezilience/"), "scm:git:git@github.com:svroonland/rezilience.git")
     ),
-    resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
+    resolvers += Resolver.sonatypeCentralSnapshots,
+    resolvers += Resolver.sonatypeCentralRepo("staging")
   )
 )
 
@@ -62,7 +63,7 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
       "dev.zio"                %%% "zio-streams"             % zioVersion,
       "dev.zio"                %%% "zio-test"                % zioVersion % "test",
       "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.13.0"
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.14.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
@@ -82,7 +83,7 @@ lazy val config = project
       "dev.zio"                %%% "zio-config-typesafe"     % zioConfigVersion % "test",
       "dev.zio"                %%% "zio-test"                % zioVersion       % "test",
       "dev.zio"                %%% "zio-test-sbt"            % zioVersion       % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.13.0"
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.14.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
@@ -125,8 +126,8 @@ lazy val docs = project
       "dev.zio"                %%% "zio-streams"             % zioVersion,
       "dev.zio"                %%% "zio-test"                % zioVersion % "test",
       "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.13.0",
-      "dev.zio"                %%% "zio-config-typesafe"     % "4.0.4"
+      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.14.0",
+      "dev.zio"                %%% "zio-config-typesafe"     % "4.0.5"
     )
   )
   .dependsOn(rezilience.jvm, config)
