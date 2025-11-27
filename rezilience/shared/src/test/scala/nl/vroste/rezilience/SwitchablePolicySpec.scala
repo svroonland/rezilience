@@ -109,10 +109,10 @@ object SwitchablePolicySpec extends ZIOSpecDefault {
                                             ZIO.fail("Effect was executed before latch closed").unlessZIO(latch.isDone) *>
                                               callWithNewPolicySucceeded.succeed(())
                                           ).fork // Should wait until the latch
-            _                          <- latch.succeed(())
-            _                          <- fib3.join
-            _                          <- fib.join
-            _                          <- fib2.join
+            _ <- latch.succeed(())
+            _ <- fib3.join
+            _ <- fib.join
+            _ <- fib2.join
           } yield assertCompletes
         }
       },
