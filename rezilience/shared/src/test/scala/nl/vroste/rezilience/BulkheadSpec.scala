@@ -1,7 +1,7 @@
 package nl.vroste.rezilience
 
 import zio.test.Assertion._
-import zio.test.TestAspect.{ nonFlaky, timed, timeout }
+import zio.test.TestAspect.{ nonFlaky, timed, timeout, timeoutWarning }
 import zio.test._
 import zio.{ durationInt, Promise, Ref, ZIO }
 
@@ -43,16 +43,19 @@ object BulkheadSpec extends ZIOSpecDefault {
         for {
           bulkhead         <- Bulkhead.make(max)
           callsCompleted   <- Ref.make(0)
+          latch            <- waitForLatch
           calls            <-
             ZIO
               .foreachParDiscard(1 to max + 2)(_ =>
-                bulkhead(callsCompleted.updateAndGet(_ + 1) *> ZIO.sleep(2.seconds))
+                bulkhead(callsCompleted.updateAndGet(_ + 1).flatMap { completed =>
+                  latch.started.succeed(()).when(completed == max)
+                } *> latch.latch.await)
               )
               .withParallelism(100)
               .fork
-          _                <- TestClock.adjust(1.second)
+          _                <- latch.started.await
           nrCallsCompleted <- callsCompleted.get
-          _                <- TestClock.adjust(3.second)
+          _                <- latch.latch.succeed(())
           _                <- calls.join
         } yield assert(nrCallsCompleted)(equalTo(max))
       }
@@ -109,6 +112,34 @@ object BulkheadSpec extends ZIOSpecDefault {
           _           <- interrupted.await
         } yield assertCompletes
       }
+    },
+    test("can handle interrupts with another call enqueued") {
+      val nrCalls = 10
+      ZIO.scoped {
+        for {
+          bulkhead     <- Bulkhead.make(nrCalls)
+          waitForLatch <- waitForLatch
+          e             = waitForLatch.effect
+          started       = waitForLatch.started
+          fibs         <- ZIO.replicateZIO(nrCalls)(bulkhead(e).fork)
+          _            <- started.await
+          fib2         <- bulkhead(e).fork
+          _            <- ZIO.foreachDiscard(fibs)(_.interrupt)
+          _            <- fib2.interrupt
+        } yield assertCompletes
+      }
     }
-  ) @@ nonFlaky @@ timeout(120.seconds) @@ timed
+  ) @@ nonFlaky(1000) @@ timeoutWarning(10.seconds) @@ timeout(30.seconds) @@ timed
+
+  case class WaitForLatch(
+    effect: ZIO[Any, Nothing, Unit],
+    started: Promise[Nothing, Unit],
+    latch: Promise[Nothing, Unit]
+  )
+
+  val waitForLatch: ZIO[Any, Nothing, WaitForLatch] = for {
+    latch   <- Promise.make[Nothing, Unit]
+    started <- Promise.make[Nothing, Unit]
+    effect   = started.succeed(()) *> latch.await
+  } yield WaitForLatch(effect, started, latch)
 }
