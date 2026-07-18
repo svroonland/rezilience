@@ -4,12 +4,14 @@ import nl.vroste.rezilience
 import nl.vroste.rezilience.CircuitBreaker.isFailureAny
 import nl.vroste.rezilience.{ CircuitBreaker, Retry }
 import zio.{ Scope, ZIO }
+import zio.metrics.MetricLabel
 
 trait CircuitBreakerFromConfigSyntax {
   implicit class CircuitBreakerExtensions(self: CircuitBreaker.type) {
     def fromConfig[E](
       config: CircuitBreakerConfig,
-      isFailure: PartialFunction[E, Boolean] = isFailureAny[E]
+      isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
+      metricLabels: Option[Set[MetricLabel]] = None
     ): ZIO[Scope, Nothing, CircuitBreaker[E]] = {
 
       val trippingStrategy = config.strategy match {
@@ -33,7 +35,7 @@ trait CircuitBreakerFromConfigSyntax {
           Retry.Schedules.exponentialBackoff(min, max, factor)
       }
 
-      self.make[E](trippingStrategy, resetSchedule, isFailure)
+      self.make[E](trippingStrategy, resetSchedule, isFailure, metricLabels)
     }
   }
 }
