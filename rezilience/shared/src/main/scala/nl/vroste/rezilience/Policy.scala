@@ -20,7 +20,7 @@ trait Policy[-E] { self =>
    * @tparam E2
    * @return
    */
-  infix def compose[E2 <: E](that: Policy[PolicyError[E2]]): Policy[E2] =
+  def compose[E2 <: E](that: Policy[PolicyError[E2]]): Policy[E2] =
     new Policy[E2] {
       override def apply[R, E1 <: E2, A](f: ZIO[R, E1, A]): ZIO[R, PolicyError[E1], A] =
         that(self(f)).mapError(flattenWrappedError)

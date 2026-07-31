@@ -26,7 +26,7 @@ trait SwitchablePolicy[E] extends Policy[E] {
    *   previous policy. FinishInFlight = Wait for completion of in-flight calls with the old policy before accepting
    */
   def switch[R0, E0, E2 >: E](
-    newPolicy: ZIO[Scope & R0, E0, Policy[E2]],
+    newPolicy: ZIO[Scope with R0, E0, Policy[E2]],
     mode: Mode = Mode.Transition
   ): ZIO[R0, E0, UIO[Unit]]
 }
@@ -43,8 +43,8 @@ object SwitchablePolicy {
    * Creates a Policy that can be replaced safely at runtime
    */
   def make[R0, E0, E](
-    initial: ZIO[Scope & R0, E0, Policy[E]]
-  ): ZIO[Scope & R0, E0, SwitchablePolicy[E]] =
+    initial: ZIO[Scope with R0, E0, Policy[E]]
+  ): ZIO[Scope with R0, E0, SwitchablePolicy[E]] =
     for {
       scope         <- Scope.make
       policyState   <- makeInUsePolicyState[R0, E0, E](scope, initial, awaitReady = ZIO.unit)
@@ -72,7 +72,7 @@ object SwitchablePolicy {
         }
 
       override def switch[R1, E1, E2 >: E](
-        newPolicy: ZIO[Scope & R1, E1, Policy[E2]],
+        newPolicy: ZIO[Scope with R1, E1, Policy[E2]],
         mode: Mode
       ): ZIO[R1, E1, UIO[Unit]] =
         mode match {
@@ -86,7 +86,7 @@ object SwitchablePolicy {
   private def switchTransition[E, E0, R0](
     scope: Scope.Closeable,
     currentPolicy: TRef[PolicyState[E]],
-    newPolicy: ZIO[Scope & R0, E0, Policy[E]]
+    newPolicy: ZIO[Scope with R0, E0, Policy[E]]
   ): ZIO[R0, E0, ZIO[Any, Nothing, Unit]] =
     for {
       newPolicyState     <- makeInUsePolicyState[R0, E0, E](scope, newPolicy, awaitReady = ZIO.unit)
@@ -110,7 +110,7 @@ object SwitchablePolicy {
   private def switchFinishInFlight[E, E0, R0](
     scope: Scope.Closeable,
     currentPolicy: TRef[PolicyState[E]],
-    newPolicy: ZIO[Scope & R0, E0, Policy[E]]
+    newPolicy: ZIO[Scope with R0, E0, Policy[E]]
   ): ZIO[R0, E0, ZIO[Any, Nothing, Unit]] =
     for {
       markAsReady                   <- Promise.make[Nothing, Unit]
@@ -146,7 +146,7 @@ object SwitchablePolicy {
 
   private def makeInUsePolicyState[R0, E0, E](
     scope: Scope.Closeable,
-    newPolicy: ZIO[Scope & R0, E0, Policy[E]],
+    newPolicy: ZIO[Scope with R0, E0, Policy[E]],
     awaitReady: UIO[Unit]
   ): ZIO[R0, E0, PolicyState[E]] = for {
     shutdownComplete <- Promise.make[Nothing, Unit]

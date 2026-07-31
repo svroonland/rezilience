@@ -1,5 +1,4 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
-import org.typelevel.scalacoptions.ScalacOption
 import org.typelevel.scalacoptions.ScalacOptions
 
 import sbt.Keys.resolvers
@@ -11,20 +10,12 @@ val zioConfigVersion = "4.0.8"
 
 lazy val commonJvmSettings = Seq(
   crossScalaVersions := allScala,
-  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) },
-  tpolecatScalacOptions ++= Set(
-    ScalacOption("-Wconf", List("cat=scala3-migration:s"), _ => true),
-    ScalacOptions.source3
-  )
+  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) }
 )
 
 lazy val commonJsSettings = Seq(
   crossScalaVersions := allScala,
-  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) },
-  tpolecatScalacOptions ++= Set(
-    ScalacOption("-Wconf", List("cat=scala3-migration:s"), _ => true),
-    ScalacOptions.source3
-  )
+  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) }
 )
 
 inThisBuild(

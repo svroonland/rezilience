@@ -3,7 +3,7 @@ package nl.vroste.rezilience.config
 import zio.{ Scope, ZIO, ZIOAppArgs }
 
 object GenerateConfigDocs extends zio.ZIOAppDefault {
-  override def run: ZIO[Any & ZIOAppArgs & Scope, Any, Any] =
+  override def run: ZIO[Any with ZIOAppArgs with Scope, Any, Any] =
     ZIO
       .debug(s"""
                 |# Circuit Breaker
