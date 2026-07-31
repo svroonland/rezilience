@@ -58,9 +58,9 @@ object RateLimiter {
              ) // Power of two because it is a more efficient queue implementation
       _ <- ZStream
              .fromQueue(q, maxChunkSize = 1)
-             .filterZIO { case (interrupted, _) => interrupted.get.map(!_) }
+             .filterZIO { case (interrupted, effect @ _) => interrupted.get.map(!_) }
              .throttleShape(max.toLong, interval, max.toLong)(_.size.toLong)
-             .mapZIOParUnordered(Int.MaxValue) { case (_, effect) => effect }
+             .mapZIOParUnordered(Int.MaxValue) { case (interrupted @ _, effect) => effect }
              .runDrain
              .forkScoped
     } yield new RateLimiter {
