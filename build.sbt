@@ -1,5 +1,8 @@
 import org.scalafmt.sbt.ScalafmtPlugin.autoImport.scalafmtOnCompile
+import org.typelevel.scalacoptions.ScalaVersion.V3_0_0
+import org.typelevel.scalacoptions.ScalacOption
 import org.typelevel.scalacoptions.ScalacOptions
+import scala.Ordering.Implicits._
 
 import sbt.Keys.resolvers
 val mainScala        = "2.13.18"
@@ -10,12 +13,20 @@ val zioConfigVersion = "4.0.8"
 
 lazy val commonJvmSettings = Seq(
   crossScalaVersions := allScala,
-  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) }
+  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) },
+  tpolecatScalacOptions ++= Set(
+    ScalacOption("-Wconf", List("cat=scala3-migration:s"), _ < V3_0_0),
+    ScalacOptions.source3
+  )
 )
 
 lazy val commonJsSettings = Seq(
   crossScalaVersions := allScala,
-  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) }
+  tpolecatScalacOptions ~= { options => options.filterNot(Set(ScalacOptions.lintInferAny)) },
+  tpolecatScalacOptions ++= Set(
+    ScalacOption("-Wconf", List("cat=scala3-migration:s"), _ < V3_0_0),
+    ScalacOptions.source3
+  )
 )
 
 inThisBuild(
