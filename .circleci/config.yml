@@ -6,7 +6,7 @@ parameters:
 jobs:
   lint:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_2.13.18
     steps:
       - checkout
       - restore_cache:
@@ -20,7 +20,7 @@ jobs:
             - "~/.m2"
   check_docs:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_2.13.18
     steps:
       - checkout
       - restore_cache:
@@ -29,7 +29,7 @@ jobs:
 
   test213_jdk17:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_2.13.18
 
     steps:
       - checkout
@@ -42,9 +42,9 @@ jobs:
             - "~/.cache/coursier/"
             - "~/.sbt"
             - "~/.m2"
-  test213_jdk23:
+  test213_jdk25:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-23.0.1_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-25.0.3_9_1.12.14_2.13.18
     steps:
       - checkout
       - restore_cache:
@@ -58,12 +58,12 @@ jobs:
             - "~/.m2"
   test_dotty_jdk17:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_3.3.4
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_3.3.8
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++3.3.4! rezilienceJVM/test
+      - run: sbt ++3.3.8! rezilienceJVM/test
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -72,7 +72,7 @@ jobs:
             - "~/.m2"
   release:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_3.3.8
     steps:
       - checkout
       - run: git fetch --tags
@@ -86,7 +86,7 @@ jobs:
 
   publish_docs:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_2.13.16
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_3.3.8
     steps:
       - checkout
       - run: apt-get update
@@ -123,7 +123,7 @@ workflows:
       - release:
           requires:
             - test213_jdk17
-            - test213_jdk23
+            - test213_jdk25
             - test_dotty_jdk17
             - check_docs
           filters:

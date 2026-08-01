@@ -6,7 +6,7 @@ pull_request_rules:
       - "status-success=ci/circleci: lint"
       - "status-success=ci/circleci: check_docs"
       - "status-success=ci/circleci: test213_jdk17"
-      - "status-success=ci/circleci: test213_jdk23"
+      - "status-success=ci/circleci: test213_jdk25"
       - "status-success=ci/circleci: test_dotty_jdk17"
     actions:
       merge:
