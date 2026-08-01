@@ -112,7 +112,7 @@ workflows:
           filters:
             tags:
               only: << pipeline.parameters.tag_regex >>
-      - test213_jdk23:
+      - test213_jdk25:
           filters:
             tags:
               only: << pipeline.parameters.tag_regex >>
