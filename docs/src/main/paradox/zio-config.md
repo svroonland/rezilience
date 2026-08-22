@@ -1,9 +1,3 @@
----
-layout: docs
-title: zio-config integration
-permalink: docs/zio-config/
----
-
 # zio-config Integration
 
 Rezilience has an optional module `rezilience-config` for integration with `zio-config` to create policies from config files.
@@ -22,7 +16,7 @@ import nl.vroste.rezilience.config._
 
 Now you can use the `fromConfig` method on any of the rezilience policies like so:
 
-```scala mdoc:silent
+```scala
 import nl.vroste.rezilience._
 import nl.vroste.rezilience.config._
 
@@ -32,19 +26,19 @@ import zio.config.typesafe.TypesafeConfigProvider
 
 // Replace with your favorite zio-config integration
 val config = ConfigFactory.parseString(s"""
-                                          | my-circuit-breaker {
-                                          |  tripping-strategy {
-                                          |    failure-rate-threshold = 0.75
-                                          |    sample-duration = 2 seconds
-                                          |    min-throughput = 1
-                                          |    nr-sample-buckets = 2
-                                          |  }
-                                          |  
-                                          |  reset-schedule {
-                                          |    min = 3 seconds
-                                          |  }
-                                          | }
-                                          |""".stripMargin)
+                                           | my-circuit-breaker {
+                                           |  tripping-strategy {
+                                           |    failure-rate-threshold = 0.75
+                                           |    sample-duration = 2 seconds
+                                           |    min-throughput = 1
+                                           |    nr-sample-buckets = 2
+                                           |  }
+                                           |
+                                           |  reset-schedule {
+                                           |    min = 3 seconds
+                                           |  }
+                                           | }
+                                           |""".stripMargin)
 
 val configProvider = TypesafeConfigProvider.fromTypesafeConfig(config.getConfig("my-circuit-breaker"))
 
@@ -70,8 +64,8 @@ FieldName|Format                     |Description|Sources|
 ---      |---                        |---        |---    |
 |[all-of](fielddescriptions)|           |       |
 ### Field Descriptions
-FieldName                             |Format                         |Description|Sources|
----                                   |---                            |---        |---    |
+FieldName                             |Format                         |Description       |Sources|
+---                                   |---                            |---               |---    |
 [tripping-strategy](tripping-strategy)|[any-one-of](tripping-strategy)|           |       |
 [reset-schedule](reset-schedule)      |[all-of](reset-schedule)       |           |       |
 ### tripping-strategy

@@ -104,13 +104,13 @@ addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
 lazy val docs = project
-  .enablePlugins(MicrositesPlugin)
+  .enablePlugins(ParadoxPlugin)
   .enablePlugins(SiteScaladocPlugin)
   .enablePlugins(ScalaUnidocPlugin)
   .settings(commonJvmSettings)
   .settings(
     scalaVersion                               := mainScala,
-    name                                       := "rezilience",
+    name                                       := "rezilience-docs",
     publish / skip                             := true,
     description                                := "ZIO-native utilities for making asynchronous systems more resilient to failures",
     ScalaUnidoc / siteSubdirName               := "api",
@@ -119,20 +119,21 @@ lazy val docs = project
     },
     addMappingsToSiteDir(ScalaUnidoc / packageDoc / mappings, ScalaUnidoc / siteSubdirName),
     ScalaUnidoc / unidoc / unidocProjectFilter := inAnyProject -- inProjects(rezilience.js),
+    Paradox / siteSubdirName                 := "docs",
+    Compile / paradoxRoots                   := List(
+      "index.html",
+      "general_usage.html",
+      "circuitbreaker.html",
+      "bulkhead.html",
+      "ratelimiter.html",
+      "retry.html",
+      "timeout.html",
+      "combining_policies.html",
+      "switching_policies.html",
+      "zio-config.html",
+      "additional_resiliency.html"
+    ),
     git.remoteRepo                             := "git@github.com:svroonland/rezilience.git",
-    micrositeUrl                               := "https://svroonland.github.io",
-    micrositeBaseUrl                           := "/rezilience",
-    micrositePushSiteWith                      := GitHub4s,
-    micrositeGithubToken                       := sys.env.get("GITHUB_TOKEN"),
-    micrositeHomepage                          := "https://svroonland.github.io/rezilience/",
-    micrositeDocumentationUrl                  := "docs",
-    micrositeAuthor                            := "vroste",
-    micrositeTwitterCreator                    := "@vroste",
-    micrositeGithubOwner                       := "svroonland",
-    micrositeGithubRepo                        := "rezilience",
-    micrositeGitterChannel                     := false,
-    micrositeDataDirectory                     := file("docs/src/microsite/data"),
-    micrositeFooterText                        := None,
     libraryDependencies ++= Seq(
       "dev.zio"                %% "zio-streams"             % zioVersion,
       "dev.zio"                %% "zio-streams"             % zioVersion,

@@ -89,7 +89,7 @@ jobs:
       - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_3.3.8
     steps:
       - checkout
-      - run: sbt ++2.13.18! publishLocal docs/publishSite
+      - run: sbt ++2.13.18! publishLocal docs/makeSite
 
 workflows:
   version: 2
