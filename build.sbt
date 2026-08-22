@@ -71,10 +71,10 @@ lazy val rezilience = crossProject(JSPlatform, JVMPlatform)
     Test / run / fork        := true,
     scalafmtOnCompile        := true,
     libraryDependencies ++= Seq(
-      "dev.zio"                %%% "zio-streams"             % zioVersion,
-      "dev.zio"                %%% "zio-test"                % zioVersion % "test",
-      "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.14.0"
+      "dev.zio"                %% "zio-streams"             % zioVersion,
+      "dev.zio"                %% "zio-test"                % zioVersion % "test",
+      "dev.zio"                %% "zio-test-sbt"            % zioVersion % "test",
+      "org.scala-lang.modules" %% "scala-collection-compat" % "2.14.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
@@ -89,12 +89,12 @@ lazy val config = project
     Test / run / fork        := true,
     scalafmtOnCompile        := true,
     libraryDependencies ++= Seq(
-      "dev.zio"                %%% "zio-streams"             % zioVersion,
-      "dev.zio"                %%% "zio-config"              % zioConfigVersion,
-      "dev.zio"                %%% "zio-config-typesafe"     % zioConfigVersion % "test",
-      "dev.zio"                %%% "zio-test"                % zioVersion       % "test",
-      "dev.zio"                %%% "zio-test-sbt"            % zioVersion       % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.14.0"
+      "dev.zio"                %% "zio-streams"             % zioVersion,
+      "dev.zio"                %% "zio-config"              % zioConfigVersion,
+      "dev.zio"                %% "zio-config-typesafe"     % zioConfigVersion % "test",
+      "dev.zio"                %% "zio-test"                % zioVersion       % "test",
+      "dev.zio"                %% "zio-test-sbt"            % zioVersion       % "test",
+      "org.scala-lang.modules" %% "scala-collection-compat" % "2.14.0"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
@@ -134,11 +134,12 @@ lazy val docs = project
     micrositeDataDirectory                     := file("docs/src/microsite/data"),
     micrositeFooterText                        := None,
     libraryDependencies ++= Seq(
-      "dev.zio"                %%% "zio-streams"             % zioVersion,
-      "dev.zio"                %%% "zio-test"                % zioVersion % "test",
-      "dev.zio"                %%% "zio-test-sbt"            % zioVersion % "test",
-      "org.scala-lang.modules" %%% "scala-collection-compat" % "2.14.0",
-      "dev.zio"                %%% "zio-config-typesafe"     % "4.0.8"
+      "dev.zio"                %% "zio-streams"             % zioVersion,
+      "dev.zio"                %% "zio-streams"             % zioVersion,
+      "dev.zio"                %% "zio-test"                % zioVersion % "test",
+      "dev.zio"                %% "zio-test-sbt"            % zioVersion % "test",
+      "org.scala-lang.modules" %% "scala-collection-compat" % "2.14.0",
+      "dev.zio"                %% "zio-config-typesafe"     % "4.0.8"
     )
   )
   .dependsOn(rezilience.jvm, config)
