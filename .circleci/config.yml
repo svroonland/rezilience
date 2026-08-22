@@ -2,16 +2,16 @@ version: 2.1
 parameters:
   tag_regex:
     type: string
-    default: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+    default: /^v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/
 jobs:
   lint:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_2.13.18
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.18! check
+      - run: sbt "++2.13.18!; check"
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -20,22 +20,22 @@ jobs:
             - "~/.m2"
   check_docs:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_2.13.18
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.18! docs/makeMdoc
+      - run: sbt "++2.13.18!; docs/paradox"
 
   test213_jdk17:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_2.13.18
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
 
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.18! compile rezilienceJVM/test config/test
+      - run: sbt "++2.13.18!; compile; rezilienceJVM/test; config/test"
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -44,12 +44,12 @@ jobs:
             - "~/.m2"
   test213_jdk25:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-25.0.3_9_1.12.14_2.13.18
+      - image: sbtscala/scala-sbt:eclipse-temurin-25.0.3_9_2.x
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++2.13.18! compile rezilienceJVM/test
+      - run: sbt "++2.13.18!; compile; rezilienceJVM/test"
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -58,12 +58,12 @@ jobs:
             - "~/.m2"
   test_dotty_jdk17:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_3.3.8
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
       - restore_cache:
           key: sbt-cache-3
-      - run: sbt ++3.3.8! rezilienceJVM/test
+      - run: sbt "++3.3.8!; rezilienceJVM/test"
       - save_cache:
           key: sbt-cache-3
           paths:
@@ -72,7 +72,7 @@ jobs:
             - "~/.m2"
   release:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_3.3.8
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
       - run: git fetch --tags
@@ -86,13 +86,10 @@ jobs:
 
   publish_docs:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_1.12.14_3.3.8
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
-      - run: apt-get update
-      - run: apt-get install -y ruby-full build-essential zlib1g-dev
-      - run: gem install jekyll bundler
-      - run: sbt ++2.13.18! publishLocal docs/publishMicrosite
+      - run: sbt "++2.13.18!; publishLocal; docs/makeSite; ghpagesPushSite"
 
 workflows:
   version: 2

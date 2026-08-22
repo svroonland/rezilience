@@ -1,12 +1,6 @@
----
-layout: docs
-title: Combining Policies
-permalink: docs/combining_policies/
----
-
 # Combining policies
 
-`rezilience` policies can be composed into one to apply several resilience strategies as one. 
+`rezilience` policies can be composed into one to apply several resilience strategies as one.
 
 A composed policy has a wider range of possible errors than an individual policy. This is made explicit by having to convert each policy to an instance of `Policy` by calling `.toPolicy`. Such a `Policy` has a slightly different signature for the `apply` method in the error type:
 
@@ -24,9 +18,9 @@ val policy: ZIO[Scope, Nothing, Policy[Any]] = for {
 } yield bulkhead.toPolicy compose rateLimiter.toPolicy compose retry.toPolicy
 ```
 
-Composing policies requires some special care in handling policy errors, behavior-wise and type-wise. Take for example a retry around a circuit breaker. 
+Composing policies requires some special care in handling policy errors, behavior-wise and type-wise. Take for example a retry around a circuit breaker.
 
-1. Behavior: what is the desired retry behavior when a circuit breaker error is encountered? Should the call be retried or the error passed through to the caller? 
+1. Behavior: what is the desired retry behavior when a circuit breaker error is encountered? Should the call be retried or the error passed through to the caller?
 
 2. Types: because a `Retry` is created with a `Schedule` that expects a certain type `E` of errors as input, a `Retry[E]` cannot be applied on `ZIO[R, CircuitBreakerError[E], A]` effects.
 

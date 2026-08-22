@@ -1,25 +1,19 @@
----
-layout: docs
-title: Rezilience
-permalink: docs/
----
-
 # Rezilience
-
 
 `rezilience` is a ZIO-native collection of policies for making asynchronous systems more resilient to failures, inspired by [Polly](https://github.com/App-vNext/Polly), [Resilience4J](https://github.com/resilience4j/resilience4j) and [Akka](https://doc.akka.io/docs/akka/current/common/circuitbreaker.html).
 
 It consists of these policies:
 
-| Policy         | Reactive/Proactive | Description                                              |
-|----------------|--------------------|----------------------------------------------------------|
-| [CircuitBreaker](circuitbreaker) | Reactive           | Temporarily prevent trying calls after too many failures |
-| [RateLimiter](ratelimiter)    | Proactive          | Limit the rate of calls to a system                      |
-| [Bulkhead](bulkhead)       | Proactive          | Limit the number of in-flight calls to a system          |
-| [Retry](retry)          | Reactive           | Try again after transient failures                       |
-| [Timeout](timeout)        | Reactive           | Interrupt execution if a call does not complete in time  | 
+| Policy | Reactive/Proactive | Description |
+|--------|--------------------|-------------|
+| [CircuitBreaker](circuitbreaker.html) | Reactive | Temporarily prevent trying calls after too many failures |
+| [RateLimiter](ratelimiter.html) | Proactive | Limit the rate of calls to a system |
+| [Bulkhead](bulkhead.html) | Proactive | Limit the number of in-flight calls to a system |
+| [Retry](retry.html) | Reactive | Try again after transient failures |
+| [Timeout](timeout.html) | Reactive | Interrupt execution if a call does not complete in time |
 
 ## Features / Design goals
+
 * Type-safety: all errors that can result from any of the `rezilience` policies are encoded in the method signatures, so no unexpected RuntimeExceptions.
 * Support for your own error types (the `E` in `ZIO[R, E, A]`) instead of requiring your effects to have `Exception` as error type
 * Lightweight: `rezilience` uses only ZIO fibers and will not create threads or block
@@ -30,7 +24,7 @@ It consists of these policies:
 * ZIO integration: some policies take for example ZIO `Schedule`s and `rezilience` tries to help type inference using variance annotations
 * Metrics: all policies (will) provide usage metrics for monitoring purposes
 * Composable: policies can be composed into one overall policy
-* Discoverable: no syntax extensions or implicit conversions, just plain scala 
+* Discoverable: no syntax extensions or implicit conversions, just plain scala
 
 ## Installation
 
@@ -61,8 +55,6 @@ ZIO.scoped {
   rateLimiter.flatMap { rateLimiter =>
     val result: ZIO[Any, Throwable, Int] =
       rateLimiter(myCallToExternalResource("some input"))
-
   }
 }
 ```
-
