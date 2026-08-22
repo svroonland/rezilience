@@ -76,11 +76,11 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Add GitHub to known_hosts
+          name: Add GitHub to known_hosts & fetch tags
           command: |
             mkdir -p ~/.ssh
             ssh-keyscan -H github.com >> ~/.ssh/known_hosts
-      - run: git fetch --tags
+            git fetch --tags
       - restore_cache:
           key: sbt-cache-3
       - run: apt update
