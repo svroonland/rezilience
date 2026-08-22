@@ -128,16 +128,16 @@ workflows:
             - test213_jdk25
             - test_dotty_jdk17
             - check_docs
-          filters:
-            branches:
-              only:
-                - master
-            tags:
-              only: << pipeline.parameters.tag_regex >>
-      - publish_docs:
-          requires:
-             - release
 #          filters:
 #            branches:
 #              only:
 #                - master
+#            tags:
+#              only: << pipeline.parameters.tag_regex >>
+      - publish_docs:
+          requires:
+             - release
+          filters:
+            branches:
+              only:
+                - master
