@@ -103,11 +103,11 @@ lazy val config = project
 
 addCommandAlias(
   "fmt",
-  ";scalafmtSbt;core/scalafmt;interopFutures/scalafmt;dynamicConsumer/scalafmt;testUtils/scalafmt;tests/scalafmt"
+  ";scalafmtSbt; scalafmt; test / scalafmt"
 )
 addCommandAlias(
   "check",
-  ";scalafmtSbtCheck;core/scalafmtCheck;interopFutures/scalafmtCheck;dynamicConsumer/scalafmtCheck;testUtils/scalafmtCheck;tests/scalafmtCheck"
+  ";scalafmtSbtCheck; scalafmtCheck; test / scalafmtCheck"
 )
 
 lazy val docs = project
