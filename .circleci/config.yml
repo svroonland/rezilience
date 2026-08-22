@@ -89,7 +89,7 @@ jobs:
       - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
-      - run: sbt "++2.13.18!; publishLocal; docs/makeSite"
+      - run: sbt "++2.13.18!; publishLocal; docs/makeSite; ghpagesPushSite"
 
 workflows:
   version: 2
@@ -129,10 +129,11 @@ workflows:
                 - master
             tags:
               only: << pipeline.parameters.tag_regex >>
-      - publish_docs:
-          requires:
-             - release
-          filters:
-            branches:
-              only:
-                - master
+      - publish_docs
+#      - publish_docs:
+#          requires:
+#             - release
+#          filters:
+#            branches:
+#              only:
+#                - master

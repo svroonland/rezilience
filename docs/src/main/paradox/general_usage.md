@@ -69,7 +69,7 @@ val result3: ZIO[Any, Throwable, Int] =
   result1.mapError(policyError => policyError.toException)
 ```
 
-Similar methods exist on `BulkheadError` and `PolicyError` (see [Bulkhead](bulkhead) and [Combining Policies](combining_policies))
+Similar methods exist on `BulkheadError` and `PolicyError` (see [Bulkhead](bulkhead.html) and [Combining Policies](combining_policies.html))
 
 ## ZLayer integration
 

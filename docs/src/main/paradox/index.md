@@ -6,11 +6,11 @@ It consists of these policies:
 
 | Policy | Reactive/Proactive | Description |
 |--------|--------------------|-------------|
-| [CircuitBreaker](circuitbreaker) | Reactive | Temporarily prevent trying calls after too many failures |
-| [RateLimiter](ratelimiter) | Proactive | Limit the rate of calls to a system |
-| [Bulkhead](bulkhead) | Proactive | Limit the number of in-flight calls to a system |
-| [Retry](retry) | Reactive | Try again after transient failures |
-| [Timeout](timeout) | Reactive | Interrupt execution if a call does not complete in time |
+| [CircuitBreaker](circuitbreaker.html) | Reactive | Temporarily prevent trying calls after too many failures |
+| [RateLimiter](ratelimiter.html) | Proactive | Limit the rate of calls to a system |
+| [Bulkhead](bulkhead.html) | Proactive | Limit the number of in-flight calls to a system |
+| [Retry](retry.html) | Reactive | Try again after transient failures |
+| [Timeout](timeout.html) | Reactive | Interrupt execution if a call does not complete in time |
 
 ## Features / Design goals
 

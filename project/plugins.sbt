@@ -11,5 +11,6 @@ addSbtPlugin("com.github.sbt"     % "sbt-ci-release"           % "1.12.1")
 addSbtPlugin("com.github.sbt"     % "sbt-dynver"               % "5.1.1")
 addSbtPlugin("com.github.sbt"     % "sbt-unidoc"               % "0.6.1")
 addSbtPlugin("com.github.sbt"     % "sbt-site-paradox"         % "1.8.0")
+addSbtPlugin("com.github.sbt"     % "sbt-ghpages"              % "0.10.0")
 
 ThisBuild / libraryDependencySchemes += "org.scala-lang.modules" %% "scala-xml" % VersionScheme.Always

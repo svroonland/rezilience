@@ -114,6 +114,7 @@ lazy val docs = project
   .enablePlugins(ParadoxPlugin)
   .enablePlugins(SiteScaladocPlugin)
   .enablePlugins(ScalaUnidocPlugin)
+  .enablePlugins(GhpagesPlugin)
   .settings(commonJvmSettings)
   .settings(
     scalaVersion                               := mainScala,
@@ -140,6 +141,7 @@ lazy val docs = project
       "zio-config.html",
       "additional_resiliency.html"
     ),
+    git.remoteRepo := "git@github.com:svroonland/rezilience.git",
     libraryDependencies ++= Seq(
       "dev.zio"                %% "zio-streams"             % zioVersion,
       "dev.zio"                %% "zio-streams"             % zioVersion,
