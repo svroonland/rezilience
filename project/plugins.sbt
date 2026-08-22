@@ -9,7 +9,7 @@ addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject" % "1.4.0")
 addSbtPlugin("io.shiftleft"       % "sbt-ci-release-early"     % "2.1.15")
 addSbtPlugin("com.github.sbt"     % "sbt-ci-release"           % "1.12.1")
 addSbtPlugin("com.github.sbt"     % "sbt-dynver"               % "5.1.1")
-addSbtPlugin("com.github.sbt"     % "sbt-git"                 % "2.1.0")
+addSbtPlugin("com.github.sbt"     % "sbt-git"                  % "2.1.0")
 addSbtPlugin("com.github.sbt"     % "sbt-unidoc"               % "0.6.1")
 addSbtPlugin("com.github.sbt"     % "sbt-site-paradox"         % "1.8.0")
 

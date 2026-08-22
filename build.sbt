@@ -125,8 +125,8 @@ lazy val docs = project
     },
     addMappingsToSiteDir(ScalaUnidoc / packageDoc / mappings, ScalaUnidoc / siteSubdirName),
     ScalaUnidoc / unidoc / unidocProjectFilter := inAnyProject -- inProjects(rezilience.js),
-    Paradox / siteSubdirName                 := "docs",
-    Compile / paradoxRoots                   := List(
+    Paradox / siteSubdirName                   := "docs",
+    Compile / paradoxRoots                     := List(
       "index.html",
       "general_usage.html",
       "circuitbreaker.html",
