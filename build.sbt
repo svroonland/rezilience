@@ -32,18 +32,19 @@ lazy val commonJsSettings = Seq(
 inThisBuild(
   List(
     organization := "nl.vroste",
-    homepage     := Some(url("https://github.com/svroonland/rezilience")),
-    licenses     := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")),
+    scalaVersion := mainScala,
+    homepage     := Some(uri("https://github.com/svroonland/rezilience")),
+    licenses     := List("Apache-2.0" -> uri("https://www.apache.org/licenses/LICENSE-2.0")),
     developers   := List(
       Developer(
         "svroonland",
         "Vroste",
         "info@vroste.nl",
-        url("https://github.com/svroonland")
+        uri("https://github.com/svroonland")
       )
     ),
     scmInfo      := Some(
-      ScmInfo(url("https://github.com/svroonland/rezilience/"), "scm:git:git@github.com:svroonland/rezilience.git")
+      ScmInfo(uri("https://github.com/svroonland/rezilience/"), "scm:git:git@github.com:svroonland/rezilience.git")
     ),
     resolvers += Resolver.sonatypeCentralSnapshots,
     resolvers += Resolver.sonatypeCentralRepo("staging")
@@ -55,7 +56,7 @@ lazy val root = project
   .settings(commonJvmSettings)
   .aggregate(rezilience.js, rezilience.jvm, config, docs)
   .settings(
-    name         := "rezilience",
+    name         := "rezilience-root",
     publish      := {},
     publishLocal := {}
   )
@@ -102,11 +103,11 @@ lazy val config = project
 
 addCommandAlias(
   "fmt",
-  ";scalafmtSbt;core/scalafmt;interopFutures/scalafmt;dynamicConsumer/scalafmt;testUtils/scalafmt;tests/scalafmt"
+  "all scalafmtSbt scalafmt test:scalafmt"
 )
 addCommandAlias(
   "check",
-  ";scalafmtSbtCheck;core/scalafmtCheck;interopFutures/scalafmtCheck;dynamicConsumer/scalafmtCheck;testUtils/scalafmtCheck;tests/scalafmtCheck"
+  "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 )
 
 lazy val docs = project
@@ -139,7 +140,6 @@ lazy val docs = project
       "zio-config.html",
       "additional_resiliency.html"
     ),
-    git.remoteRepo                             := "git@github.com:svroonland/rezilience.git",
     libraryDependencies ++= Seq(
       "dev.zio"                %% "zio-streams"             % zioVersion,
       "dev.zio"                %% "zio-streams"             % zioVersion,

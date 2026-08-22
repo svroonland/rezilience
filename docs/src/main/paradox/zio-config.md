@@ -59,59 +59,59 @@ Typically you would create a top-level `ApplicationConfig` where one of the (nes
 
 # Circuit Breaker
 
-## Configuration Details
+## Circuit Breaker configuration details
 FieldName|Format                     |Description|Sources|
 ---      |---                        |---        |---    |
 |[all-of](fielddescriptions)|           |       |
-### Field Descriptions
+### Circuit Breaker field descriptions
 FieldName                             |Format                         |Description       |Sources|
 ---                                   |---                            |---               |---    |
 [tripping-strategy](tripping-strategy)|[any-one-of](tripping-strategy)|           |       |
 [reset-schedule](reset-schedule)      |[all-of](reset-schedule)       |           |       |
-### tripping-strategy
+### tripping-strategy field descriptions
 FieldName   |Format                       |Description        |Sources|
 ---         |---                          |---                |---    |
 max-failures|primitive                    |an integer property|       |
 |[all-of](fielddescriptions-1)|                   |       |
-### Field Descriptions
+### failure-rate-threshold field descriptions
 FieldName             |Format                           |Description       |Sources|
 ---                   |---                              |---               |---    |
 failure-rate-threshold|primitive                        |a decimal property|       |
 |[any-one-of](fielddescriptions-4)|                  |       |
 |[any-one-of](fielddescriptions-3)|                  |       |
 |[any-one-of](fielddescriptions-2)|                  |       |
-### Field Descriptions
+### sample-duration field descriptions
 FieldName      |Format   |Description        |Sources|
 ---            |---      |---                |---    |
 sample-duration|primitive|a duration property|       |
 |primitive|a constant property|       |
-### Field Descriptions
+### min-throughput field descriptions
 FieldName     |Format   |Description        |Sources|
 ---           |---      |---                |---    |
 min-throughput|primitive|an integer property|       |
 |primitive|a constant property|       |
-### Field Descriptions
+### nr-sample-buckets field descriptions
 FieldName        |Format   |Description        |Sources|
 ---              |---      |---                |---    |
 nr-sample-buckets|primitive|an integer property|       |
 |primitive|a constant property|       |
-### reset-schedule
+### reset-schedule field descriptions
 FieldName|Format                           |Description|Sources|
 ---      |---                              |---        |---    |
 |[any-one-of](fielddescriptions-3)|           |       |
 |[any-one-of](fielddescriptions-2)|           |       |
 |[any-one-of](fielddescriptions-1)|           |       |
-### Field Descriptions
+### min field descriptions
 FieldName|Format   |Description        |Sources|
 ---      |---      |---                |---    |
 min      |primitive|a duration property|       |
 |primitive|a constant property|       |
-### Field Descriptions
+### max field descriptions
 FieldName|Format   |Description        |Sources|
 ---      |---      |---                |---    |
 max      |primitive|a duration property|       |
 |primitive|a constant property|       |
-### Field Descriptions
+### reset-schedule factor field descriptions
 FieldName|Format   |Description        |Sources|
 ---      |---      |---                |---    |
 factor   |primitive|a decimal property |       |
@@ -119,11 +119,11 @@ factor   |primitive|a decimal property |       |
 
 # RateLimiter
 
-## Configuration Details
+## RateLimiter configuration details
 FieldName|Format                     |Description|Sources|
 ---      |---                        |---        |---    |
 |[all-of](fielddescriptions)|           |       |
-### Field Descriptions
+### RateLimiter field descriptions
 FieldName|Format   |Description        |Sources|
 ---      |---      |---                |---    |
 max      |primitive|an integer property|       |
@@ -131,16 +131,16 @@ interval |primitive|a duration property|       |
 
 # Bulkhead
 
-## Configuration Details
+## Bulkhead configuration details
 FieldName|Format                     |Description|Sources|
 ---      |---                        |---        |---    |
 |[all-of](fielddescriptions)|           |       |
-### Field Descriptions
+### Bulkhead field descriptions
 FieldName          |Format                           |Description        |Sources|
 ---                |---                              |---                |---    |
 max-in-flight-calls|primitive                        |an integer property|       |
 |[any-one-of](fielddescriptions-1)|                   |       |
-### Field Descriptions
+### max-queueing field descriptions
 FieldName   |Format   |Description        |Sources|
 ---         |---      |---                |---    |
 max-queueing|primitive|an integer property|       |
@@ -148,11 +148,11 @@ max-queueing|primitive|an integer property|       |
 
 # Retry
 
-## Configuration Details
+## Retry configuration details
 FieldName|Format                     |Description|Sources|
 ---      |---                        |---        |---    |
 |[all-of](fielddescriptions)|           |       |
-### Field Descriptions
+### Retry field descriptions
 FieldName  |Format                           |Description        |Sources|
 ---        |---                              |---                |---    |
 min-delay  |primitive                        |a duration property|       |
@@ -161,17 +161,17 @@ max-delay  |primitive                        |a duration property|       |
 |[any-one-of](fielddescriptions-2)|                   |       |
 max-retries|primitive                        |an integer property|       |
 |[any-one-of](fielddescriptions-1)|                   |       |
-### Field Descriptions
+### retry factor field descriptions
 FieldName|Format   |Description        |Sources|
 ---      |---      |---                |---    |
 factor   |primitive|a decimal property |       |
 |primitive|a constant property|       |
-### Field Descriptions
+### retry-immediately field descriptions
 FieldName        |Format   |Description        |Sources|
 ---              |---      |---                |---    |
 retry-immediately|primitive|a boolean property |       |
 |primitive|a constant property|       |
-### Field Descriptions
+### jitter field descriptions
 FieldName|Format   |Description        |Sources|
 ---      |---      |---                |---    |
 jitter   |primitive|a decimal property |       |
@@ -179,7 +179,7 @@ jitter   |primitive|a decimal property |       |
 
 # Timeout
 
-## Configuration Details
+## Timeout configuration details
 FieldName|Format   |Description        |Sources|
 ---      |---      |---                |---    |
 timeout  |primitive|a duration property|       |
