@@ -100,8 +100,14 @@ lazy val config = project
   )
   .dependsOn(rezilience.jvm)
 
-addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
-addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
+addCommandAlias(
+  "fmt",
+  ";scalafmtSbt;core/scalafmt;interopFutures/scalafmt;dynamicConsumer/scalafmt;testUtils/scalafmt;tests/scalafmt"
+)
+addCommandAlias(
+  "check",
+  ";scalafmtSbtCheck;core/scalafmtCheck;interopFutures/scalafmtCheck;dynamicConsumer/scalafmtCheck;testUtils/scalafmtCheck;tests/scalafmtCheck"
+)
 
 lazy val docs = project
   .enablePlugins(ParadoxPlugin)
