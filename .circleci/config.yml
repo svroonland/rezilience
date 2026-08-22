@@ -6,7 +6,7 @@ parameters:
 jobs:
   lint:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.0.7_2.13.18
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
       - restore_cache:
@@ -20,7 +20,7 @@ jobs:
             - "~/.m2"
   check_docs:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.0.7_2.13.18
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
       - restore_cache:
@@ -29,7 +29,7 @@ jobs:
 
   test213_jdk17:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.0.7_2.13.18
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
 
     steps:
       - checkout
@@ -44,7 +44,7 @@ jobs:
             - "~/.m2"
   test213_jdk25:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-25.0.3_9_2.0.7_2.13.18
+      - image: sbtscala/scala-sbt:eclipse-temurin-25.0.3_9_2.x
     steps:
       - checkout
       - restore_cache:
@@ -58,7 +58,7 @@ jobs:
             - "~/.m2"
   test_dotty_jdk17:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.0.7_3.3.8
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
       - restore_cache:
@@ -72,7 +72,7 @@ jobs:
             - "~/.m2"
   release:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.0.7_3.3.8
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
       - run: git fetch --tags
@@ -86,7 +86,7 @@ jobs:
 
   publish_docs:
     docker:
-      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.0.7_3.3.8
+      - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
       - run: sbt ++2.13.18! publishLocal docs/makeSite
