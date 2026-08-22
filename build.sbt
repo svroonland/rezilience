@@ -141,7 +141,7 @@ lazy val docs = project
       "zio-config.html",
       "additional_resiliency.html"
     ),
-    git.remoteRepo := "git@github.com:svroonland/rezilience.git",
+    git.remoteRepo                             := "git@github.com:svroonland/rezilience.git",
     libraryDependencies ++= Seq(
       "dev.zio"                %% "zio-streams"             % zioVersion,
       "dev.zio"                %% "zio-streams"             % zioVersion,
