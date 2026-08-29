@@ -75,7 +75,6 @@ jobs:
       - image: sbtscala/scala-sbt:eclipse-temurin-17.0.19_10_2.x
     steps:
       - checkout
-      - add_ssh_keys
       - restore_cache:
           key: sbt-cache-3
       - run: apt update
