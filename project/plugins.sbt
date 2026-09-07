@@ -1,6 +1,6 @@
 resolvers += "OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
 
-addSbtPlugin("com.github.sbt"     % "sbt-protobuf"             % "0.8.3")
+addSbtPlugin("com.github.sbt"     % "sbt-protobuf"             % "0.8.4")
 addSbtPlugin("org.scalameta"      % "sbt-scalafmt"             % "2.6.2")
 addSbtPlugin("org.typelevel"      % "sbt-tpolecat"             % "0.5.7")
 addSbtPlugin("com.eed3si9n"       % "sbt-assembly"             % "2.5.0")
