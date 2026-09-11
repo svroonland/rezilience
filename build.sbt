@@ -9,7 +9,7 @@ val mainScala        = "3.9.0"
 val scala3Version    = "3.3.8" // Keep at the latest Scala 3 LTS version
 val allScala         = Seq(mainScala, scala3Version)
 val zioVersion       = "2.1.26"
-val zioConfigVersion = "4.0.8"
+val zioConfigVersion = "4.1.0"
 
 lazy val commonJvmSettings = Seq(
   crossScalaVersions := allScala,
@@ -148,7 +148,7 @@ lazy val docs = project
       "dev.zio"                %% "zio-test"                % zioVersion % "test",
       "dev.zio"                %% "zio-test-sbt"            % zioVersion % "test",
       "org.scala-lang.modules" %% "scala-collection-compat" % "2.14.0",
-      "dev.zio"                %% "zio-config-typesafe"     % "4.0.8"
+      "dev.zio"                %% "zio-config-typesafe"     % "4.1.0"
     )
   )
   .dependsOn(rezilience.jvm, config)
