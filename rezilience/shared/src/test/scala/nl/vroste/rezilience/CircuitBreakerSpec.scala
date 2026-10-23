@@ -128,6 +128,27 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         )
       }
     },
+    test("does not get stuck in HalfOpen when parallel calls interrupt the probe (#621)") {
+      for {
+        cb      <- CircuitBreaker.withMaxFailures[String](1, Schedule.fixed(100.millis))
+        _       <- cb(ZIO.fail("boom")).ignore
+        _       <- TestClock.adjust(150.millis)
+        before  <- cb.currentState
+        healthy  = ZIO.sleep(50.millis).as("ok")
+        results <- ZIO.foreach(1 to 10) { _ =>
+                     for {
+                       fiber  <- (cb(healthy) <&> cb(healthy)).exit.fork
+                       _      <- TestClock.adjust(50.millis)
+                       result <- fiber.join
+                     } yield result
+                   }
+        after   <- cb.currentState
+      } yield assertTrue(
+        before == State.HalfOpen,
+        results.exists(_.isSuccess),
+        after == State.Closed
+      )
+    },
     test("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
       for {
         cb                <- CircuitBreaker.withMaxFailures(
