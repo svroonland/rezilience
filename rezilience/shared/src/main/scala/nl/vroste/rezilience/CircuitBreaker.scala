@@ -19,9 +19,11 @@ import java.time.Instant
  *     failure does not affect the circuit breaker anymore though.
  *   - Open: all calls fail fast with a `CircuitBreakerOpen` error. After the reset timeout, the states changes to
  *     HalfOpen
- *   - HalfOpen: the first call is let through. Meanwhile all other calls fail with a `CircuitBreakerOpen` error. If the
- *     first call succeeds, the state changes to Closed again (normal operation). If it fails, the state changes back to
- *     Open. The reset timeout is governed by a reset policy, which is typically an exponential backoff.
+ *   - HalfOpen: the first call (or first `halfOpenMaxCalls` concurrent calls) is let through as a probe. Meanwhile all
+ *     other calls fail with a `CircuitBreakerOpen` error. If the first probe to complete succeeds, the state changes to
+ *     Closed again (normal operation). If it fails, the state changes back to Open. If a probe is interrupted, it is
+ *     not counted and another call may become a probe. The reset timeout is governed by a reset policy, which is
+ *     typically an exponential backoff.
  *
  * Two tripping strategies are implemented: 1) Failure counting. When the number of successive failures exceeds a
  * threshold, the circuit breaker is tripped.
@@ -128,6 +130,11 @@ object CircuitBreaker {
    * @param metricLabels
    *   Set of labels to annotate metrics with, to distinguish this circuit breaker from others in the same application.
    *   No metrics are recorded if None is passed.
+   * @param halfOpenMaxCalls
+   *   Maximum number of concurrent probe calls let through in the HalfOpen state. The first probe to complete
+   *   determines the new state. When multiple calls through this circuit breaker are combined with a fail-fast operator
+   *   like `<&>` or `zipPar`, set this to at least the number of combined calls, otherwise rejection of one of the
+   *   calls interrupts the probe and the circuit breaker may never leave the HalfOpen state.
    * @return
    *   The CircuitBreaker as a managed resource
    */
@@ -135,9 +142,10 @@ object CircuitBreaker {
     maxFailures: Int,
     resetPolicy: Schedule[Any, Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
-    metricLabels: Option[Set[MetricLabel]] = None
+    metricLabels: Option[Set[MetricLabel]] = None,
+    halfOpenMaxCalls: Int = 1
   ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
-    make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, metricLabels)
+    make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, metricLabels, halfOpenMaxCalls)
 
   /**
    * Create a CircuitBreaker with the given tripping strategy
@@ -152,6 +160,11 @@ object CircuitBreaker {
    * @param metricLabels
    *   Set of labels to annotate metrics with, to distinguish this circuit breaker from others in the same application.
    *   No metrics are recorded if None is passed.
+   * @param halfOpenMaxCalls
+   *   Maximum number of concurrent probe calls let through in the HalfOpen state. The first probe to complete
+   *   determines the new state. When multiple calls through this circuit breaker are combined with a fail-fast operator
+   *   like `<&>` or `zipPar`, set this to at least the number of combined calls, otherwise rejection of one of the
+   *   calls interrupts the probe and the circuit breaker may never leave the HalfOpen state.
    * @return
    */
   def make[E](
@@ -159,12 +172,16 @@ object CircuitBreaker {
     resetPolicy: Schedule[Any, Any, Any] =
       Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
-    metricLabels: Option[Set[MetricLabel]] = None
+    metricLabels: Option[Set[MetricLabel]] = None,
+    halfOpenMaxCalls: Int = 1
   ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
     for {
+      _               <- ZIO
+                           .die(new IllegalArgumentException(s"halfOpenMaxCalls must be at least 1, was $halfOpenMaxCalls"))
+                           .when(halfOpenMaxCalls < 1)
       strategy        <- trippingStrategy
       state           <- Ref.make[State](Closed)
-      halfOpenSwitch  <- Ref.make[Boolean](true)
+      halfOpenProbes  <- Semaphore.make(halfOpenMaxCalls.toLong)
       schedule        <- resetPolicy.driver
       resetRequests   <- Queue.bounded[Unit](1)
       stateChangesHub <- Hub.sliding[StateChange](32).withFinalizer(_.shutdown)
@@ -175,7 +192,7 @@ object CircuitBreaker {
                            stateChangesHub,
                            schedule,
                            isFailure,
-                           halfOpenSwitch,
+                           halfOpenProbes,
                            metricLabels
                          )
       _               <- cb.initializeMetrics
@@ -190,7 +207,7 @@ object CircuitBreaker {
     stateChangesHub: Hub[StateChange],
     schedule: Schedule.Driver[ScheduleState, Any, Any, Any],
     isFailure: PartialFunction[E, Boolean],
-    halfOpenSwitch: Ref[Boolean],
+    halfOpenProbes: Semaphore,
     labels: Option[Set[MetricLabel]]
   ) extends CircuitBreaker[E] {
 
@@ -233,20 +250,32 @@ object CircuitBreaker {
         _        <- stateChangesHub.publish(StateChange(oldState, Open, now))
       } yield ()
 
-    val changeToClosed: ZIO[Any, Nothing, Unit] = for {
-      _        <- strategy.onReset
-      _        <- schedule.reset
-      now      <- ZIO.clockWith(_.instant)
-      oldState <- state.getAndSet(Closed)
-      _        <- stateChangesHub.publish(StateChange(oldState, Closed, now))
-    } yield ()
+    // With multiple concurrent probes, only the first one to complete may change the state
+    private def changeFromHalfOpen(to: State)(onChanged: UIO[Any]): UIO[Unit] =
+      ZIO
+        .whenZIO(state.modify {
+          case HalfOpen => (true, to)
+          case current  => (false, current)
+        }) {
+          for {
+            _   <- onChanged
+            now <- ZIO.clockWith(_.instant)
+            _   <- stateChangesHub.publish(StateChange(HalfOpen, to, now))
+          } yield ()
+        }
+        .unit
+
+    val changeFromHalfOpenToOpen: UIO[Unit] =
+      changeFromHalfOpen(Open)(strategy.shouldTrip(false) *> resetRequests.offer(()))
+
+    val changeFromHalfOpenToClosed: UIO[Unit] =
+      changeFromHalfOpen(Closed)(strategy.onReset *> schedule.reset)
 
     val resetProcess: ZIO[Scope, Nothing, Any] = ZStream
       .fromQueue(resetRequests)
       .mapZIO { _ =>
         for {
           _   <- schedule.next(()) // TODO handle schedule completion?
-          _   <- halfOpenSwitch.set(true)
           _   <- state.set(HalfOpen)
           now <- ZIO.clockWith(_.instant)
           _   <- stateChangesHub.publish(StateChange(Open, HalfOpen, now))
@@ -295,22 +324,20 @@ object CircuitBreaker {
                           case Open     =>
                             ZIO.fail(CircuitBreakerOpen)
                           case HalfOpen =>
-                            ZIO.uninterruptibleMask { restore =>
-                              for {
-                                isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
-                                _           <- ZIO.fail(CircuitBreakerOpen).unless(isFirstCall)
-                                result      <-
-                                  tapZIOOnUserDefinedFailure(
-                                    restore(f)
-                                      // We can't judge the state of the called system when the call is interrupted, so we reset back to HalfOpen considering this call to not have happend
-                                      .onInterrupt(halfOpenSwitch.set(true))
-                                  )(
-                                    onFailure = strategy.shouldTrip(false) *> changeToOpen,
-                                    onSuccess = changeToClosed *> strategy.onReset
-                                  ).tapDefect(_ => strategy.shouldTrip(false) *> changeToOpen)
+                            // Only halfOpenMaxCalls probe calls are let through at a time, other calls are rejected.
+                            // We can't judge the state of the called system when the probe is interrupted, so in that
+                            // case the permit is released without changing state, allowing the next call to be a probe.
+                            halfOpenProbes
+                              .tryWithPermit(
+                                ZIO.uninterruptibleMask { restore =>
+                                  tapZIOOnUserDefinedFailure(restore(f))(
+                                    onFailure = changeFromHalfOpenToOpen,
+                                    onSuccess = changeFromHalfOpenToClosed
+                                  ).tapDefect(_ => changeFromHalfOpenToOpen)
                                     .mapError(WrappedError(_))
-                              } yield result
-                            }
+                                }
+                              )
+                              .someOrFail(CircuitBreakerOpen)
                         }
       } yield result)
         .tapBoth(
@@ -341,7 +368,7 @@ object CircuitBreaker {
       stateChangesHub,
       schedule,
       pf andThen isFailure,
-      halfOpenSwitch,
+      halfOpenProbes,
       labels
     )
 

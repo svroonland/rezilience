@@ -8,6 +8,8 @@ A Circuit Breaker starts in the 'closed' state. All calls are passed through in 
 
 After some time, the circuit breaker will reset to the 'half open' state. In this state, one call can pass through. If this call succeeds, the circuit breaker goes back to the 'closed' state. If it fails, the breaker goes again to the 'open' state.
 
+If the call in the 'half open' state is interrupted, it is not counted and the next call is let through instead. When combining multiple calls through the same circuit breaker with a fail-fast operator like `<&>` or `zipPar`, the rejection of one call would interrupt the other, keeping the circuit breaker in the 'half open' state. To avoid this, use the `halfOpenMaxCalls` parameter to let multiple concurrent calls through in the 'half open' state. The first of these calls to complete determines the new state.
+
 CircuitBreaker uses a ZIO `Schedule` to determine the reset interval. By default, this is an exponential backoff schedule, so that reset intervals double with each iteration, capped at some maximum value. You can however provide any `Schedule` that fits your needs.
 
 ## Failure counting modes
