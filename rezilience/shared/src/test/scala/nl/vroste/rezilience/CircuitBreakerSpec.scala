@@ -130,7 +130,7 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
     },
     test("does not get stuck in HalfOpen when parallel calls interrupt the probe (#621)") {
       for {
-        cb      <- CircuitBreaker.withMaxFailures[String](1, Schedule.fixed(100.millis), halfOpenMaxCalls = 2)
+        cb      <- CircuitBreaker.withMaxFailures[String](1, Schedule.fixed(100.millis), waitForHalfOpenProbe = true)
         _       <- cb(ZIO.fail("boom")).ignore
         _       <- TestClock.adjust(150.millis)
         before  <- cb.currentState
@@ -138,7 +138,8 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         results <- ZIO.foreach(1 to 10) { _ =>
                      for {
                        fiber  <- (cb(healthy) <&> cb(healthy)).exit.fork
-                       _      <- TestClock.adjust(50.millis)
+                       // Enough for the probe and the subsequent call that waited for it
+                       _      <- TestClock.adjust(100.millis)
                        result <- fiber.join
                      } yield result
                    }
@@ -149,41 +150,103 @@ object CircuitBreakerSpec extends ZIOSpecDefault {
         after == State.Closed
       )
     },
-    test("rejects calls beyond halfOpenMaxCalls in HalfOpen") {
-      for {
-        cb       <- CircuitBreaker.withMaxFailures(1, halfOpenMaxCalls = 2)
-        _        <- cb(ZIO.fail(MyCallError)).either
-        _        <- TestClock.adjust(1.second)
-        latch    <- Promise.make[Nothing, Unit]
-        started  <- Queue.unbounded[Unit]
-        probes   <- ZIO.foreach(1 to 2)(_ => cb(started.offer(()) *> latch.await).fork)
-        _        <- started.take.repeatN(1)
-        rejected <- cb(ZIO.unit).either
-        _        <- latch.succeed(())
-        _        <- ZIO.foreachDiscard(probes)(_.join)
-        state    <- cb.currentState
-      } yield assertTrue(rejected == Left(CircuitBreakerOpen), state == State.Closed)
-    },
-    test("first completed probe determines the state when halfOpenMaxCalls > 1") {
-      for {
-        cb           <- CircuitBreaker.withMaxFailures(1, halfOpenMaxCalls = 2)
-        stateChanges <- cb.stateChanges
-        _            <- cb(ZIO.fail(MyCallError)).either
-        _            <- TestClock.adjust(1.second)
-        latch        <- Promise.make[Nothing, Unit]
-        started      <- Promise.make[Nothing, Unit]
-        slowProbe    <- cb(started.succeed(()) *> latch.await *> ZIO.fail(MyCallError)).either.fork
-        _            <- started.await
-        _            <- cb(ZIO.unit)
-        _            <- latch.succeed(())
-        _            <- slowProbe.join
-        state        <- cb.currentState
-        changes      <- stateChanges.takeAll
-      } yield assertTrue(
-        state == State.Closed,
-        changes.map(_.to) == Chunk(State.Open, State.HalfOpen, State.Closed)
-      )
-    },
+    suite("calls in HalfOpen while a probe is running")(
+      test("fail immediately by default") {
+        for {
+          cb      <- CircuitBreaker.withMaxFailures(1)
+          _       <- cb(ZIO.fail(MyCallError)).either
+          _       <- TestClock.adjust(1.second)
+          latch   <- Promise.make[Nothing, Unit]
+          started <- Promise.make[Nothing, Unit]
+          probe   <- cb(started.succeed(()) *> latch.await).fork
+          _       <- started.await
+          result  <- cb(ZIO.unit).either
+          _       <- latch.succeed(())
+          _       <- probe.join
+          state   <- cb.currentState
+        } yield assertTrue(result == Left(CircuitBreakerOpen), state == State.Closed)
+      },
+      test("proceed when the probe succeeds") {
+        for {
+          cb      <- CircuitBreaker.withMaxFailures(1, waitForHalfOpenProbe = true)
+          _       <- cb(ZIO.fail(MyCallError)).either
+          _       <- TestClock.adjust(1.second)
+          latch   <- Promise.make[Nothing, Unit]
+          started <- Promise.make[Nothing, Unit]
+          probe   <- cb(started.succeed(()) *> latch.await).fork
+          _       <- started.await
+          waiter  <- cb(ZIO.succeed("waited")).fork
+          _       <- waiter.status.repeatUntil(_.isSuspended)
+          _       <- latch.succeed(())
+          _       <- probe.join
+          result  <- waiter.join
+          state   <- cb.currentState
+        } yield assertTrue(result == "waited", state == State.Closed)
+      },
+      test("fail with CircuitBreakerOpen when the probe fails") {
+        for {
+          cb      <- CircuitBreaker.withMaxFailures(1, waitForHalfOpenProbe = true)
+          _       <- cb(ZIO.fail(MyCallError)).either
+          _       <- TestClock.adjust(1.second)
+          latch   <- Promise.make[Nothing, Unit]
+          started <- Promise.make[Nothing, Unit]
+          calls   <- Ref.make(0)
+          probe   <- cb(started.succeed(()) *> latch.await *> ZIO.fail(MyCallError)).either.fork
+          _       <- started.await
+          waiter  <- cb(calls.update(_ + 1)).either.fork
+          _       <- waiter.status.repeatUntil(_.isSuspended)
+          _       <- latch.succeed(())
+          _       <- probe.join
+          result  <- waiter.join
+          nrCalls <- calls.get
+          state   <- cb.currentState
+        } yield assertTrue(result == Left(CircuitBreakerOpen), nrCalls == 0, state == State.Open)
+      },
+      test("become the probe when the probe is interrupted") {
+        for {
+          cb      <- CircuitBreaker.withMaxFailures(1, waitForHalfOpenProbe = true)
+          _       <- cb(ZIO.fail(MyCallError)).either
+          _       <- TestClock.adjust(1.second)
+          started <- Promise.make[Nothing, Unit]
+          probe   <- cb(started.succeed(()) *> ZIO.never).fork
+          _       <- started.await
+          waiter  <- cb(ZIO.succeed("waited")).fork
+          _       <- waiter.status.repeatUntil(_.isSuspended)
+          _       <- probe.interrupt
+          result  <- waiter.join
+          state   <- cb.currentState
+        } yield assertTrue(result == "waited", state == State.Closed)
+      },
+      test("can be interrupted while waiting") {
+        for {
+          cb      <- CircuitBreaker.withMaxFailures(1, waitForHalfOpenProbe = true)
+          _       <- cb(ZIO.fail(MyCallError)).either
+          _       <- TestClock.adjust(1.second)
+          latch   <- Promise.make[Nothing, Unit]
+          started <- Promise.make[Nothing, Unit]
+          probe   <- cb(started.succeed(()) *> latch.await).fork
+          _       <- started.await
+          waiter  <- cb(ZIO.unit).fork
+          _       <- waiter.status.repeatUntil(_.isSuspended)
+          exit    <- waiter.interrupt
+          _       <- latch.succeed(())
+          _       <- probe.join
+          state   <- cb.currentState
+        } yield assertTrue(exit.isInterrupted, state == State.Closed)
+      },
+      test("fail immediately when made from within the probe") {
+        for {
+          cb     <- CircuitBreaker.withMaxFailures(1, waitForHalfOpenProbe = true)
+          _      <- cb(ZIO.fail(MyCallError)).either
+          _      <- TestClock.adjust(1.second)
+          result <- cb(cb(ZIO.unit).either <&> cb(ZIO.unit).either.fork.flatMap(_.join))
+          state  <- cb.currentState
+        } yield assertTrue(
+          result == ((Left(CircuitBreakerOpen), Left(CircuitBreakerOpen))),
+          state == State.Closed
+        )
+      }
+    ),
     test("reset the exponential timeout after a Closed-Open-HalfOpen-Closed") {
       for {
         cb                <- CircuitBreaker.withMaxFailures(
