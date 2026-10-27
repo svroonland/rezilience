@@ -19,9 +19,12 @@ import java.time.Instant
  *     failure does not affect the circuit breaker anymore though.
  *   - Open: all calls fail fast with a `CircuitBreakerOpen` error. After the reset timeout, the states changes to
  *     HalfOpen
- *   - HalfOpen: the first call is let through. Meanwhile all other calls fail with a `CircuitBreakerOpen` error. If the
- *     first call succeeds, the state changes to Closed again (normal operation). If it fails, the state changes back to
- *     Open. The reset timeout is governed by a reset policy, which is typically an exponential backoff.
+ *   - HalfOpen: the first call is let through as a probe. Meanwhile all other calls fail with a `CircuitBreakerOpen`
+ *     error, or, when `waitForHalfOpenProbe` is enabled, wait for the probe to complete. If the probe succeeds, the
+ *     state changes to Closed again (normal operation) and any waiting calls proceed. If it fails, the state changes
+ *     back to Open and any waiting calls fail with a `CircuitBreakerOpen` error. If the probe is interrupted, the state
+ *     remains HalfOpen and the next call becomes the probe. The reset timeout is governed by a reset policy, which is
+ *     typically an exponential backoff.
  *
  * Two tripping strategies are implemented: 1) Failure counting. When the number of successive failures exceeds a
  * threshold, the circuit breaker is tripped.
@@ -128,6 +131,12 @@ object CircuitBreaker {
    * @param metricLabels
    *   Set of labels to annotate metrics with, to distinguish this circuit breaker from others in the same application.
    *   No metrics are recorded if None is passed.
+   * @param waitForHalfOpenProbe
+   *   When false (default), calls in the HalfOpen state while the probe call is running fail immediately with a
+   *   `CircuitBreakerOpen` error. When true, these calls wait for the probe to complete and then proceed according to
+   *   the new state. Waiting prevents the circuit breaker from staying in the HalfOpen state when multiple calls
+   *   through this circuit breaker are combined with a fail-fast operator like `<&>` or `zipPar`: rejection of one call
+   *   would otherwise interrupt the probe.
    * @return
    *   The CircuitBreaker as a managed resource
    */
@@ -135,9 +144,10 @@ object CircuitBreaker {
     maxFailures: Int,
     resetPolicy: Schedule[Any, Any, Any] = Retry.Schedules.exponentialBackoff(1.second, 1.minute),
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
-    metricLabels: Option[Set[MetricLabel]] = None
+    metricLabels: Option[Set[MetricLabel]] = None,
+    waitForHalfOpenProbe: Boolean = false
   ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
-    make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, metricLabels)
+    make(TrippingStrategy.failureCount(maxFailures), resetPolicy, isFailure, metricLabels, waitForHalfOpenProbe)
 
   /**
    * Create a CircuitBreaker with the given tripping strategy
@@ -152,6 +162,12 @@ object CircuitBreaker {
    * @param metricLabels
    *   Set of labels to annotate metrics with, to distinguish this circuit breaker from others in the same application.
    *   No metrics are recorded if None is passed.
+   * @param waitForHalfOpenProbe
+   *   When false (default), calls in the HalfOpen state while the probe call is running fail immediately with a
+   *   `CircuitBreakerOpen` error. When true, these calls wait for the probe to complete and then proceed according to
+   *   the new state. Waiting prevents the circuit breaker from staying in the HalfOpen state when multiple calls
+   *   through this circuit breaker are combined with a fail-fast operator like `<&>` or `zipPar`: rejection of one call
+   *   would otherwise interrupt the probe.
    * @return
    */
   def make[E](
@@ -159,12 +175,14 @@ object CircuitBreaker {
     resetPolicy: Schedule[Any, Any, Any] =
       Retry.Schedules.exponentialBackoff(1.second, 1.minute), // TODO should move to its own namespace
     isFailure: PartialFunction[E, Boolean] = isFailureAny[E],
-    metricLabels: Option[Set[MetricLabel]] = None
+    metricLabels: Option[Set[MetricLabel]] = None,
+    waitForHalfOpenProbe: Boolean = false
   ): ZIO[Scope, Nothing, CircuitBreaker[E]] =
     for {
       strategy        <- trippingStrategy
       state           <- Ref.make[State](Closed)
-      halfOpenSwitch  <- Ref.make[Boolean](true)
+      halfOpenProbe   <- Semaphore.make(1)
+      inProbe         <- FiberRef.make(false)
       schedule        <- resetPolicy.driver
       resetRequests   <- Queue.bounded[Unit](1)
       stateChangesHub <- Hub.sliding[StateChange](32).withFinalizer(_.shutdown)
@@ -175,7 +193,9 @@ object CircuitBreaker {
                            stateChangesHub,
                            schedule,
                            isFailure,
-                           halfOpenSwitch,
+                           halfOpenProbe,
+                           inProbe,
+                           waitForHalfOpenProbe,
                            metricLabels
                          )
       _               <- cb.initializeMetrics
@@ -190,7 +210,9 @@ object CircuitBreaker {
     stateChangesHub: Hub[StateChange],
     schedule: Schedule.Driver[ScheduleState, Any, Any, Any],
     isFailure: PartialFunction[E, Boolean],
-    halfOpenSwitch: Ref[Boolean],
+    halfOpenProbe: Semaphore,
+    inProbe: FiberRef[Boolean],
+    waitForHalfOpenProbe: Boolean,
     labels: Option[Set[MetricLabel]]
   ) extends CircuitBreaker[E] {
 
@@ -246,7 +268,6 @@ object CircuitBreaker {
       .mapZIO { _ =>
         for {
           _   <- schedule.next(()) // TODO handle schedule completion?
-          _   <- halfOpenSwitch.set(true)
           _   <- state.set(HalfOpen)
           now <- ZIO.clockWith(_.instant)
           _   <- stateChangesHub.publish(StateChange(Open, HalfOpen, now))
@@ -274,7 +295,17 @@ object CircuitBreaker {
     } yield ()
 
     override def apply[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
-      (for {
+      callInCurrentState(f)
+        .tapBoth(
+          {
+            case CircuitBreaker.CircuitBreakerOpen => withMetrics(_.callsRejected.increment)
+            case CircuitBreaker.WrappedError(_)    => withMetrics(_.callsFailure.increment)
+          },
+          _ => withMetrics(_.callsSuccess.increment)
+        )
+
+    private def callInCurrentState[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
+      for {
         currentState <- state.get
         result       <- currentState match {
                           case Closed =>
@@ -295,31 +326,37 @@ object CircuitBreaker {
                           case Open     =>
                             ZIO.fail(CircuitBreakerOpen)
                           case HalfOpen =>
-                            ZIO.uninterruptibleMask { restore =>
-                              for {
-                                isFirstCall <- halfOpenSwitch.getAndUpdate(_ => false)
-                                _           <- ZIO.fail(CircuitBreakerOpen).unless(isFirstCall)
-                                result      <-
-                                  tapZIOOnUserDefinedFailure(
-                                    restore(f)
-                                      // We can't judge the state of the called system when the call is interrupted, so we reset back to HalfOpen considering this call to not have happend
-                                      .onInterrupt(halfOpenSwitch.set(true))
-                                  )(
-                                    onFailure = strategy.shouldTrip(false) *> changeToOpen,
-                                    onSuccess = changeToClosed *> strategy.onReset
-                                  ).tapDefect(_ => strategy.shouldTrip(false) *> changeToOpen)
-                                    .mapError(WrappedError(_))
-                              } yield result
+                            // Only one probe call is made at a time. The state may have changed while acquiring
+                            // the permit, in which case the call is handled according to the new state.
+                            val probeIfStillHalfOpen = state.get.flatMap {
+                              case HalfOpen => probe(f).asSome
+                              case _        => ZIO.none
                             }
+
+                            val probeOrNone =
+                              if (waitForHalfOpenProbe)
+                                ZIO.ifZIO(inProbe.get)(
+                                  // A call made from within the probe would wait for the probe itself to complete
+                                  onTrue = ZIO.fail(CircuitBreakerOpen),
+                                  onFalse = halfOpenProbe.withPermit(probeIfStillHalfOpen)
+                                )
+                              else
+                                halfOpenProbe.tryWithPermit(probeIfStillHalfOpen).someOrFail(CircuitBreakerOpen)
+
+                            probeOrNone.someOrElseZIO(callInCurrentState(f))
                         }
-      } yield result)
-        .tapBoth(
-          {
-            case CircuitBreaker.CircuitBreakerOpen => withMetrics(_.callsRejected.increment)
-            case CircuitBreaker.WrappedError(_)    => withMetrics(_.callsFailure.increment)
-          },
-          _ => withMetrics(_.callsSuccess.increment)
-        )
+      } yield result
+
+    private def probe[R, E1 <: E, A](f: ZIO[R, E1, A]): ZIO[R, CircuitBreakerCallError[E1], A] =
+      ZIO.uninterruptibleMask { restore =>
+        // When the probe is interrupted, we can't judge the state of the called system. The state remains HalfOpen
+        // and the next waiting call becomes the probe.
+        tapZIOOnUserDefinedFailure(restore(inProbe.locally(true)(f)))(
+          onFailure = strategy.shouldTrip(false) *> changeToOpen,
+          onSuccess = changeToClosed
+        ).tapDefect(_ => strategy.shouldTrip(false) *> changeToOpen)
+          .mapError(WrappedError(_))
+      }
 
     private def tapZIOOnUserDefinedFailure[R, E1 <: E, A](
       f: ZIO[R, E1, A]
@@ -341,7 +378,9 @@ object CircuitBreaker {
       stateChangesHub,
       schedule,
       pf andThen isFailure,
-      halfOpenSwitch,
+      halfOpenProbe,
+      inProbe,
+      waitForHalfOpenProbe,
       labels
     )
 
