@@ -5,7 +5,7 @@ import org.typelevel.scalacoptions.ScalacOptions
 import scala.Ordering.Implicits._
 
 import sbt.Keys.resolvers
-val mainScala        = "3.9.0"
+val mainScala        = "2.13.18"
 val scala3Version    = "3.3.9" // Keep at the latest Scala 3 LTS version
 val allScala         = Seq(mainScala, scala3Version)
 val zioVersion       = "2.1.27"
