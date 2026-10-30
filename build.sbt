@@ -10,7 +10,7 @@ val scala3Version =
   "3.3.9" // Keep at the latest Scala 3.3 LTS version. Libraries published with 3.9 cannot be read by <3.9 versions
 val allScala         = Seq(mainScala, scala3Version)
 val zioVersion       = "2.1.27"
-val zioConfigVersion = "4.1.0"
+val zioConfigVersion = "4.0.8" // 4.1.x is built with Scala 3.9 and is incompatible with Scala 3.3 LTS
 
 lazy val commonJvmSettings = Seq(
   crossScalaVersions := allScala,
@@ -149,7 +149,7 @@ lazy val docs = project
       "dev.zio"                %% "zio-test"                % zioVersion % "test",
       "dev.zio"                %% "zio-test-sbt"            % zioVersion % "test",
       "org.scala-lang.modules" %% "scala-collection-compat" % "2.14.0",
-      "dev.zio"                %% "zio-config-typesafe"     % "4.1.0"
+      "dev.zio"                %% "zio-config-typesafe"     % zioConfigVersion
     )
   )
   .dependsOn(rezilience.jvm, config)
